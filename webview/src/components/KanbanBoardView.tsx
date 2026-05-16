@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TextInputDialog } from "@/components/TextInputDialog";
+import { getKanbanDropPosition, type KanbanDropPlacement } from "@/lib/kanbanDropPosition";
 import { runUnlessInFlight } from "@/lib/runUnlessInFlight";
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
 import type { KanbanBoard, KanbanCardState, NoteSummary, VaultSnapshot } from "@/types";
@@ -302,11 +303,11 @@ export function KanbanBoardView({
     });
   }, [applySnapshot, cardsByColumn, onError, selectedBoard, t]);
 
-  const handleMoveNote = useCallback(async (notePath: string, columnId: string | null) => {
+  const handleMoveNote = useCallback(async (notePath: string, columnId: string | null, position?: number) => {
     if (!selectedBoard) return;
     try {
-      const position = columnId ? (cardsByColumn.get(columnId)?.length ?? 0) : 0;
-      applySnapshot(await window.tipsboardDesktop.moveKanbanNote(selectedBoard.id, notePath, columnId, position));
+      const nextPosition = position ?? (columnId ? getKanbanDropPosition(cardsByColumn.get(columnId) ?? [], notePath, null, "end") : 0);
+      applySnapshot(await window.tipsboardDesktop.moveKanbanNote(selectedBoard.id, notePath, columnId, nextPosition));
     } catch (error) {
       onError(messageForError(error));
     }
@@ -503,12 +504,13 @@ export function KanbanBoardView({
                   columnId={column.id}
                   title={column.name}
                   cards={visibleCardsByColumn.get(column.id) ?? []}
+                  allCards={cardsByColumn.get(column.id) ?? []}
                   notesByPath={notesByPath}
                   tagMap={tagMap}
                   tagColors={tagColors}
                   focusedNotePath={focusedNotePath}
                   focusedColumnId={focusedColumnId}
-                  onDropCard={(notePath) => void handleMoveNote(notePath, column.id)}
+                  onDropCard={(notePath, position) => void handleMoveNote(notePath, column.id, position)}
                   onRemoveCard={handleRemoveCard}
                   onCreateCard={() => handleCreateCard(column.id)}
                   onAddExisting={() => setExistingPicker({ columnId: column.id })}
@@ -661,6 +663,7 @@ function KanbanColumnLane({
   columnId,
   title,
   cards,
+  allCards,
   notesByPath,
   tagMap,
   tagColors,
@@ -677,12 +680,13 @@ function KanbanColumnLane({
   columnId: string;
   title: string;
   cards: KanbanCardState[];
+  allCards: KanbanCardState[];
   notesByPath: Map<string, NoteSummary>;
   tagMap: Map<string, string[]>;
   tagColors: Map<string, string>;
   focusedNotePath: string | null;
   focusedColumnId: string | null;
-  onDropCard: (notePath: string) => void;
+  onDropCard: (notePath: string, position: number) => void;
   onRemoveCard: (notePath: string) => void;
   onCreateCard: () => void;
   onAddExisting: () => void;
@@ -694,6 +698,15 @@ function KanbanColumnLane({
   const [dragOver, setDragOver] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useClickOutside<HTMLDivElement>(menuOpen, () => setMenuOpen(false));
+
+  const dropCard = useCallback((event: DragEvent<HTMLElement>, targetNotePath: string | null, placement: KanbanDropPlacement) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragOver(false);
+    const notePath = event.dataTransfer.getData("text/plain");
+    if (!notePath) return;
+    onDropCard(notePath, getKanbanDropPosition(allCards, notePath, targetNotePath, placement));
+  }, [allCards, onDropCard]);
 
   return (
     <section
@@ -707,10 +720,7 @@ function KanbanColumnLane({
       }}
       onDragLeave={() => setDragOver(false)}
       onDrop={(event) => {
-        event.preventDefault();
-        setDragOver(false);
-        const notePath = event.dataTransfer.getData("text/plain");
-        if (notePath) onDropCard(notePath);
+        dropCard(event, null, "end");
       }}
     >
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
@@ -746,7 +756,21 @@ function KanbanColumnLane({
           if (!note) return null;
           const tags = tagMap.get(note.path) ?? [];
           return (
-            <div key={note.path} id={`kanban-card-${encodeURIComponent(note.path)}`} className="group relative scroll-m-6">
+            <div
+              key={note.path}
+              id={`kanban-card-${encodeURIComponent(note.path)}`}
+              className="group relative scroll-m-6"
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setDragOver(true);
+              }}
+              onDrop={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                const placement = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+                dropCard(event, note.path, placement);
+              }}
+            >
               <button
                 type="button"
                 draggable

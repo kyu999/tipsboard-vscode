@@ -73,7 +73,8 @@ flowchart LR
 | パネル | `src/panel/TipsboardPanel.ts` | `WebviewPanel` 生成、HTML/CSP、`localResourceRoots`、メッセージ受信 → `handleRpcInbound`。 |
 | RPC | `src/bridge/protocol.ts`, `rpc-handler.ts` | メッセージ形と `method` ディスパッチ。 |
 | Vault I/O | `src/host/vault.ts` | スナップショット読み書き、ノート CRUD、画像インポート、JSON import/export。 |
-| KANBAN | `src/host/kanban.ts` | `.tipsboard/kanban.json` の読み書きとドメイン操作。 |
+| KANBAN（Host） | `src/host/kanban.ts` | `.tipsboard/kanban.json` の読み書きとドメイン操作。 |
+| KANBAN（WebView） | `webview/src/components/KanbanBoardView.tsx` | ボード UI、HTML5 ドラッグ＆ドロップ、`moveKanbanNote` での位置指定。並びインデックス補助は `webview/src/lib/kanbanDropPosition.ts`。 |
 | ピン | `src/host/pins.ts` | `.tipsboard/pins.json`。 |
 | Vault 解決 | `src/host/vaultRoot.ts` | ワークスペース + 設定から絶対パスを決定、フォルダピッカー。 |
 | アセット URI | `src/host/assetUri.ts` | `assets/images/` の相対パスを WebView 用 URI に限定変換。 |
@@ -376,6 +377,15 @@ vault/
 - `webview/src/shared/i18n/`。言語切替は `App` のセレクトから `changeLanguage`。
 - ユーザーガイド本文は **`bundledGuide.ts` に ja / en の定数配列**として内蔵。
 
+### 9.11 KANBAN UI（`KanbanBoardView` と D&D）
+
+- KANBAN 一覧は **`webview/src/components/KanbanBoardView.tsx`**。カードは `draggable`、列コンテナおよび各カードに `onDragOver` / `onDrop` を持つ。
+- ドロップ後、`tipsboardDesktop.moveKanbanNote(boardId, notePath, toColumnId, position)` を呼ぶ。**`position` は目的列での挿入インデックス（0 始まり）** とし、Host 側 **`src/host/kanban.ts` の `moveKanbanNote`** が同列から対象ノートを除いた peers とマージして **連番 `position`** を振り直す。
+- **カード上へのドロップ**: ポインターが対象カード矩形の上半分ならそのカードの**前**、下半分なら**後ろ**へ挿入する `position` を `kanbanDropPosition.ts` で算出する。
+- **列の空白（リスト下の余白など）へのドロップ**: その列の**末尾**（従来どおり）。
+- **タグフィルタ**: 画面上は `visibleCardsByColumn` だが、`position` は **フィルタ前の列フルセット `cardsByColumn`** を基準に計算し、**.tipsboard/kanban.json 上の列内順がフィルタ表示と食い違って壊れない**ようにする。
+- 同一カード自身へのドロップは **`position` を現位置相当にそろえる**などの補助があり、不必要な末尾移動にならない。
+
 ---
 
 ## 10. CodeMirror モジュール（開発時の地図）
@@ -417,7 +427,7 @@ vault/
 
 ## 13. テスト（現状の置き場）
 
-- **Host**: `src/host/*.test.ts`（例: `vault.host.test.ts`, `pins.host.test.ts`）。Vitest、`vitest.config.mts`。
+- **Host**: `src/host/*.test.ts`（例: `vault.host.test.ts`, `pins.host.test.ts`, `kanban.host.test.ts`）。Vitest、`vitest.config.mts`。
 - **WebView / domain**: `webview/src/**/*.test.ts`（装飾・数式・ソート等）。
 - Bridge の**電送そのもの**の自動 E2E は薄く、**プロトコルは本書と `protocol.ts` が契約**となる。
 
@@ -430,3 +440,4 @@ vault/
 | 2026-05-15 | 初版。 |
 | 2026-05-16 | RPC・設定等の実装追記。 |
 | 2026-05-16 | **本全面改訂**: 製品目的、アーキテクチャ、ディレクトリ索引、App 状態・保存・ショートカット、CodeMirror 地図、未監視の事実、初期リリース/ロードマップ中心の記述をやめ現行仕様へ一本化。 |
+| 2026-05-16 | KANBAN 列内カード並び替え（D&D と `moveKanbanNote` の `position`）、関連テスト、9.11 およびディレクトリ表の追記。 |

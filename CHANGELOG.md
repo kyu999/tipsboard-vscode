@@ -4,6 +4,13 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.2] - 2026-05-16
+
+### Added
+
+- Kanban: **reorder cards within a column** by dragging a card and dropping it on another card (top half inserts before; bottom half after) or on empty column space (append).
+- Automated tests for `moveKanbanNote` host behavior (`kanban.host.test.ts`) and drop index calculation (`kanbanDropPosition.test.ts`).
+
 ## [0.1.1] - 2026-05-16
 
 ### Changed

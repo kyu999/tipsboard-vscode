@@ -126,6 +126,8 @@ Boards are stored in:
 
 Moving cards updates board metadata without modifying note contents.
 
+Within a column, drag a card and drop it on another card’s **top half** to place it above, or **bottom half** to place it below; drop on the empty area below the card list to move to the **end** of that column (unchanged behavior for trailing space).
+
 ---
 
 ### Built-in User Guide
