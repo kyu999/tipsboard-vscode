@@ -4,6 +4,20 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.1] - 2026-05-17
+
+### Fixed
+
+- **Sync**: Vault file watcher events now carry **changed relative paths**, **mask Tipsboard’s own RPC writes** briefly, and show the reload banner only when the **selected note’s file** changed while the editor is **unsaved or save-error**—reducing false “external change” alerts from kanban/pins or autosave races (`TipsboardPanel.ts`, `vaultFileWatchHelpers.ts`, `rpc-handler.ts`, `App.tsx`).
+
+### Changed
+
+- **UI**: Sync banner copy now describes **per-note** conflicts instead of the whole vault (`ja.ts`, `en.ts`).
+
+### Added
+
+- **Tests**: Vitest for vault watcher helpers (`vaultFileWatchHelpers.test.ts`) and WebView `vault-files-changed` handling (`vaultFilesChangedHandling.test.ts`).
+
 ## [0.2.0] - 2026-05-17
 
 ### Fixed

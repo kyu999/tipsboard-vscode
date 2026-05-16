@@ -1,6 +1,13 @@
 import * as vscode from "vscode";
 import type { RpcInbound } from "../bridge/protocol.js";
 import { handleRpcInbound } from "../bridge/rpc-handler.js";
+import { filterExternalChangePaths, fsPathToVaultRelative, normalizeVaultRelativePath } from "./vaultFileWatchHelpers.js";
+
+const VAULT_CHANGE_DEBOUNCE_MS = 250;
+/** Paths written via Tipsboard RPC are masked from conflict detection briefly (watcher can lag). */
+const SELF_WRITE_MASK_MS = 1000;
+/** After JSON import, many page files may change; suppress vault-file notifications briefly. */
+const BULK_SELF_WRITE_MASK_MS = 2000;
 
 function getNonce(): string {
   const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -20,6 +27,11 @@ export class TipsboardPanel {
   private watchedVaultFsPath: string | undefined;
   private readonly vaultWatchers: vscode.FileSystemWatcher[] = [];
   private vaultChangeTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly pendingVaultChangePaths = new Set<string>();
+  private pendingUnknownVaultChange = false;
+  /** Relative path -> expiry timestamp (ms). */
+  private readonly selfWrittenUntil = new Map<string, number>();
+  private selfWriteBulkUntil = 0;
 
   private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
     this.panel = panel;
@@ -54,6 +66,24 @@ export class TipsboardPanel {
     this.configureVaultWatchers(vaultFsPath);
   }
 
+  /**
+   * Register vault-relative paths recently written by Tipsboard (via RPC).
+   * Watcher events for these paths are omitted from `vault-files-changed` while the mask is active.
+   */
+  recordSelfWrites(relativePaths: readonly string[]): void {
+    const until = Date.now() + SELF_WRITE_MASK_MS;
+    for (const raw of relativePaths) {
+      const p = normalizeVaultRelativePath(String(raw ?? ""));
+      if (!p) continue;
+      this.selfWrittenUntil.set(p, until);
+    }
+  }
+
+  /** Suppress vault-files-changed posts until the deadline (e.g. after bulk JSON import). */
+  recordBulkSelfWriteMask(durationMs: number = BULK_SELF_WRITE_MASK_MS): void {
+    this.selfWriteBulkUntil = Date.now() + durationMs;
+  }
+
   private configureVaultWatchers(vaultFsPath: string | undefined): void {
     if (this.watchedVaultFsPath === vaultFsPath) return;
 
@@ -68,9 +98,10 @@ export class TipsboardPanel {
       const watcher = vscode.workspace.createFileSystemWatcher(
         new vscode.RelativePattern(vaultRoot, pattern),
       );
-      watcher.onDidCreate(() => this.scheduleVaultFilesChanged());
-      watcher.onDidChange(() => this.scheduleVaultFilesChanged());
-      watcher.onDidDelete(() => this.scheduleVaultFilesChanged());
+      const onFsEvent = (uri: vscode.Uri) => this.scheduleVaultFilesChanged(uri);
+      watcher.onDidCreate(onFsEvent);
+      watcher.onDidChange(onFsEvent);
+      watcher.onDidDelete(onFsEvent);
       this.vaultWatchers.push(watcher);
     }
   }
@@ -80,21 +111,60 @@ export class TipsboardPanel {
       clearTimeout(this.vaultChangeTimer);
       this.vaultChangeTimer = undefined;
     }
+    this.pendingVaultChangePaths.clear();
+    this.pendingUnknownVaultChange = false;
     while (this.vaultWatchers.length > 0) {
       this.vaultWatchers.pop()?.dispose();
     }
   }
 
-  private scheduleVaultFilesChanged(): void {
+  private uriToVaultRelative(uri: vscode.Uri): string | null {
+    if (!this.watchedVaultFsPath) return null;
+    return fsPathToVaultRelative(this.watchedVaultFsPath, uri.fsPath);
+  }
+
+  private scheduleVaultFilesChanged(uri: vscode.Uri): void {
+    const rel = this.uriToVaultRelative(uri);
+    if (rel) {
+      this.pendingVaultChangePaths.add(rel);
+    } else {
+      this.pendingUnknownVaultChange = true;
+    }
+
     if (this.vaultChangeTimer) clearTimeout(this.vaultChangeTimer);
     this.vaultChangeTimer = setTimeout(() => {
       this.vaultChangeTimer = undefined;
+      const now = Date.now();
+
+      if (now < this.selfWriteBulkUntil) {
+        this.pendingVaultChangePaths.clear();
+        this.pendingUnknownVaultChange = false;
+        return;
+      }
+
+      if (this.pendingUnknownVaultChange) {
+        this.pendingUnknownVaultChange = false;
+        this.pendingVaultChangePaths.clear();
+        void this.panel.webview.postMessage({
+          source: "tipsboard-vscode-host",
+          kind: "event",
+          event: "vault-files-changed",
+        });
+        return;
+      }
+
+      const externalPaths = filterExternalChangePaths(this.pendingVaultChangePaths, this.selfWrittenUntil, now);
+      this.pendingVaultChangePaths.clear();
+
+      if (externalPaths.length === 0) return;
+
       void this.panel.webview.postMessage({
         source: "tipsboard-vscode-host",
         kind: "event",
         event: "vault-files-changed",
+        paths: externalPaths,
       });
-    }, 250);
+    }, VAULT_CHANGE_DEBOUNCE_MS);
   }
 
   /**

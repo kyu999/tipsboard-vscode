@@ -14,6 +14,7 @@ import { sanitizeExportFilename } from "@/export/exportMarkdownPreprocess";
 import { buildNoteIndex, searchNotes, type TwoHopLink } from "@/lib/noteIndex";
 import { sortNotesWithPinOrder } from "@/lib/sortNotesWithPinOrder";
 import { runUnlessInFlight } from "@/lib/runUnlessInFlight";
+import { resolveVaultFilesChangedAction } from "@/lib/vaultFilesChangedHandling";
 import { changeLanguage, getSupportedLanguage, supportedLanguages } from "@/shared/i18n";
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
 import { clearTipsboardResolvedAssetCache } from "@/vscode-bridge-client";
@@ -167,7 +168,13 @@ export function App() {
         return;
       }
       if (d.event === "vault-files-changed") {
-        if (hasUnsavedChanges) {
+        const payload = d as { paths?: string[] };
+        const action = resolveVaultFilesChangedAction({
+          paths: payload.paths,
+          selectedPath: selectedPathRef.current,
+          hasUnsavedChanges,
+        });
+        if (action === "banner") {
           setExternalChangesPending(true);
           return;
         }

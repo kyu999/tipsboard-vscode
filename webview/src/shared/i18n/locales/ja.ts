@@ -139,7 +139,8 @@ const ja = {
     error: "保存に失敗しました",
   },
   sync: {
-    externalChangesPending: "Vault内のファイルが外部で変更されました。未保存の変更を確認してから更新できます。",
+    externalChangesPending:
+      "このノートが別の場所で変更されました。再読み込みする前に未保存の編集を確認してください。",
     reload: "更新",
   },
   editor: {

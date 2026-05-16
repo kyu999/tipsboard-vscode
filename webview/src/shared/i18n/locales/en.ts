@@ -139,7 +139,8 @@ const en = {
     error: "Save failed",
   },
   sync: {
-    externalChangesPending: "Files in this Vault changed outside Tipsboard. Review your unsaved changes before reloading.",
+    externalChangesPending:
+      "This note was changed elsewhere. Review your unsaved edits before reloading.",
     reload: "Reload",
   },
   editor: {
