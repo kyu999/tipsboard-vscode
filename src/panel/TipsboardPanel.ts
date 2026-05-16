@@ -17,6 +17,9 @@ export class TipsboardPanel {
 
   private readonly panel: vscode.WebviewPanel;
   private readonly context: vscode.ExtensionContext;
+  private watchedVaultFsPath: string | undefined;
+  private readonly vaultWatchers: vscode.FileSystemWatcher[] = [];
+  private vaultChangeTimer: ReturnType<typeof setTimeout> | undefined;
 
   private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
     this.panel = panel;
@@ -31,6 +34,7 @@ export class TipsboardPanel {
 
     this.panel.onDidDispose(() => {
       TipsboardPanel.current = undefined;
+      this.disposeVaultWatchers();
       sub.dispose();
     });
 
@@ -47,6 +51,50 @@ export class TipsboardPanel {
       enableScripts: true,
       localResourceRoots: roots,
     };
+    this.configureVaultWatchers(vaultFsPath);
+  }
+
+  private configureVaultWatchers(vaultFsPath: string | undefined): void {
+    if (this.watchedVaultFsPath === vaultFsPath) return;
+
+    this.disposeVaultWatchers();
+    this.watchedVaultFsPath = vaultFsPath;
+
+    if (!vaultFsPath) return;
+
+    const vaultRoot = vscode.Uri.file(vaultFsPath);
+    const patterns = ["pages/*.md", ".tipsboard/kanban.json", ".tipsboard/pins.json"];
+    for (const pattern of patterns) {
+      const watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(vaultRoot, pattern),
+      );
+      watcher.onDidCreate(() => this.scheduleVaultFilesChanged());
+      watcher.onDidChange(() => this.scheduleVaultFilesChanged());
+      watcher.onDidDelete(() => this.scheduleVaultFilesChanged());
+      this.vaultWatchers.push(watcher);
+    }
+  }
+
+  private disposeVaultWatchers(): void {
+    if (this.vaultChangeTimer) {
+      clearTimeout(this.vaultChangeTimer);
+      this.vaultChangeTimer = undefined;
+    }
+    while (this.vaultWatchers.length > 0) {
+      this.vaultWatchers.pop()?.dispose();
+    }
+  }
+
+  private scheduleVaultFilesChanged(): void {
+    if (this.vaultChangeTimer) clearTimeout(this.vaultChangeTimer);
+    this.vaultChangeTimer = setTimeout(() => {
+      this.vaultChangeTimer = undefined;
+      void this.panel.webview.postMessage({
+        source: "tipsboard-vscode-host",
+        kind: "event",
+        event: "vault-files-changed",
+      });
+    }, 250);
   }
 
   /**

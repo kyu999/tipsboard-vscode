@@ -110,6 +110,8 @@ Works naturally with:
 
 No lock-in or proprietary storage format.
 
+While the Tipsboard panel is open, changes made **outside** Tipsboard (another editor, Git, or a sync tool) to `pages/*.md`, `.tipsboard/kanban.json`, or `.tipsboard/pins.json` are picked up automatically: the panel refreshes from disk when you have **no unsaved edits** in the Tipsboard editor. If you do have unsaved edits, a notice appears with **Reload**; choosing it asks to discard unsaved changes, then reloads.
+
 ---
 
 ### Kanban Boards

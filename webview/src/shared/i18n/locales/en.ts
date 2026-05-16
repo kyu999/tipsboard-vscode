@@ -134,6 +134,10 @@ const en = {
     saved: "Saved",
     error: "Save failed",
   },
+  sync: {
+    externalChangesPending: "Files in this Vault changed outside Tipsboard. Review your unsaved changes before reloading.",
+    reload: "Reload",
+  },
   editor: {
     clickToEnlargeImage: "Click to enlarge — scroll/pinch or +/- keys to zoom",
     fileTooLarge: "File too large (max 10MB)",

@@ -73,7 +73,9 @@ export function App() {
   const [listSearchFilter, setListSearchFilter] = useState<string | null>(null);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const hasUnsavedChanges = saveState === "unsaved" || saveState === "error";
   const [error, setError] = useState<string | null>(null);
+  const [externalChangesPending, setExternalChangesPending] = useState(false);
   const [vaultMenuOpen, setVaultMenuOpen] = useState(false);
   const [localMenuOpen, setLocalMenuOpen] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
@@ -85,15 +87,38 @@ export function App() {
   const exportHtmlErrorTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const createNoteInFlightRef = useRef(false);
   const prevVaultPathRef = useRef<string | null | undefined>(undefined);
+  const snapshotRef = useRef(snapshot);
+  const selectedPathRef = useRef(selectedPath);
   const [exportHtmlError, setExportHtmlError] = useState<string | null>(null);
   const [listWidth, setListWidth] = useState(0);
   const currentLanguage = getSupportedLanguage(i18n.resolvedLanguage ?? i18n.language);
+
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
+
+  useEffect(() => {
+    selectedPathRef.current = selectedPath;
+  }, [selectedPath]);
 
   const refreshSnapshot = useCallback(async () => {
     try {
       setError(null);
       const next = await window.tipsboardDesktop.getSnapshot();
+      const currentSelectedPath = selectedPathRef.current;
+      const previousSelectedNote = currentSelectedPath
+        ? snapshotRef.current.notes.find((note) => note.path === currentSelectedPath)
+        : null;
+      const nextSelectedNote = currentSelectedPath
+        ? next.notes.find((note) => note.path === currentSelectedPath)
+        : null;
+
+      if (previousSelectedNote && nextSelectedNote && previousSelectedNote.body !== nextSelectedNote.body) {
+        setEditorSessionId((current) => current + 1);
+      }
+
       setSnapshot(next);
+      setExternalChangesPending(false);
       setSelectedPath((current) =>
         current && next.notes.some((note) => note.path === current) ? current : null,
       );
@@ -109,13 +134,25 @@ export function App() {
   useEffect(() => {
     function onHostEvent(ev: MessageEvent) {
       const d = ev.data as { source?: string; kind?: string; event?: string };
-      if (d?.source === "tipsboard-vscode-host" && d?.kind === "event" && d?.event === "vault-root-changed") {
+      if (d?.source !== "tipsboard-vscode-host" || d?.kind !== "event") {
+        return;
+      }
+      if (d.event === "vault-root-changed") {
+        setExternalChangesPending(false);
+        void refreshSnapshot();
+        return;
+      }
+      if (d.event === "vault-files-changed") {
+        if (hasUnsavedChanges) {
+          setExternalChangesPending(true);
+          return;
+        }
         void refreshSnapshot();
       }
     }
     window.addEventListener("message", onHostEvent);
     return () => window.removeEventListener("message", onHostEvent);
-  }, [refreshSnapshot]);
+  }, [hasUnsavedChanges, refreshSnapshot]);
 
   useEffect(() => {
     if (prevVaultPathRef.current === undefined) {
@@ -192,7 +229,6 @@ export function App() {
 
   const listColumns = getColumnCount(listWidth);
   const listCardWidth = getCardWidth(listWidth, listColumns);
-  const hasUnsavedChanges = saveState === "unsaved" || saveState === "error";
   const vaultMenuRef = useClickOutside<HTMLDivElement>(vaultMenuOpen, () => setVaultMenuOpen(false));
   const localMenuRef = useClickOutside<HTMLDivElement>(localMenuOpen, () => setLocalMenuOpen(false));
   const actionsMenuRef = useClickOutside<HTMLDivElement>(actionsMenuOpen, () => setActionsMenuOpen(false));
@@ -308,6 +344,12 @@ export function App() {
       setError(messageForError(caught));
     }
   }, [confirmDiscardChanges]);
+
+  const handleApplyExternalChanges = useCallback(async () => {
+    if (!(await confirmDiscardChanges())) return;
+    setSaveState("idle");
+    await refreshSnapshot();
+  }, [confirmDiscardChanges, refreshSnapshot]);
 
   const handleCreateNote = useCallback(
     async (initialTitle?: string) => {
@@ -954,6 +996,21 @@ export function App() {
           <div className="tb-shell pt-4">
             <div className="rounded-xl border border-accent-error/25 bg-accent-error/10 px-4 py-3 text-sm text-accent-error">
               {error}
+            </div>
+          </div>
+        )}
+
+        {externalChangesPending && (
+          <div className="tb-shell pt-4">
+            <div className="flex flex-col gap-3 rounded-xl border border-accent-link/20 bg-accent-link/10 px-4 py-3 text-sm text-text-primary sm:flex-row sm:items-center sm:justify-between">
+              <p>{t("sync.externalChangesPending")}</p>
+              <button
+                type="button"
+                className="tb-btn-secondary self-start sm:self-auto"
+                onClick={() => void handleApplyExternalChanges()}
+              >
+                {t("sync.reload")}
+              </button>
             </div>
           </div>
         )}

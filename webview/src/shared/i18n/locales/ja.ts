@@ -134,6 +134,10 @@ const ja = {
     saved: "保存済み",
     error: "保存に失敗しました",
   },
+  sync: {
+    externalChangesPending: "Vault内のファイルが外部で変更されました。未保存の変更を確認してから更新できます。",
+    reload: "更新",
+  },
   editor: {
     clickToEnlargeImage: "クリックで拡大 · ホイール・トラックパッドまたは ± キーでズーム",
     fileTooLarge: "ファイルが大きすぎます（最大10MB）",

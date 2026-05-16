@@ -4,7 +4,14 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.1.3] - 2026-05-17
+## [0.1.4] - 2026-05-16
+
+### Added
+
+- Detect external changes to core vault files (`pages/*.md`, `.tipsboard/kanban.json`, `.tipsboard/pins.json`) while the Tipsboard panel is open, via Extension Host file watchers (`TipsboardPanel`), debounced `vault-files-changed` events to the WebView, and snapshot refresh from `App.tsx`.
+- When the in-panel editor has **unsaved** changes, defer auto-refresh and show a banner with **Reload**; reloading runs the existing discard confirmation, then replaces the snapshot and remounts the editor if the open note body changed on disk.
+
+## [0.1.3] - 2026-05-16
 
 ### Documentation
 
