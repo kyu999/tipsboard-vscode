@@ -1,0 +1,31 @@
+.vscode/**
+
+# Sources and alternate / stale build outputs (runtime uses dist/ only)
+src/**
+scripts/**
+out/**
+media/**
+
+# WebView sources / toolchain (Vite output is under dist/media/)
+webview/**
+
+# Dev / internal documentation (not needed in the published VSIX)
+docs/**
+docs_wiki/**
+DEVELOPMENT.md
+DEVELOPMENT_RULE.md
+
+# Lockfiles (not required at runtime)
+package-lock.json
+
+# Artifacts
+**/*.vsix
+**/*.map
+**/*.test.ts
+
+# Repo hygiene (if present)
+.gitignore
+
+tsconfig.extension.json
+vitest.config.mts
+**/node_modules/**

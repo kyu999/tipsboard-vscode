@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-bg-primary;
+  }
+
+  body {
+    @apply min-h-screen bg-bg-primary text-text-primary antialiased font-sans text-[15px] leading-snug tracking-[-0.01em];
+    background:
+      radial-gradient(circle at top left, rgba(15, 143, 61, 0.08), transparent 34rem),
+      linear-gradient(180deg, #fbfaf4 0%, #f7f5ee 45%, #f2efe5 100%);
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-bg-primary;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-accent-link/35;
+  }
+}
+
+@layer components {
+  .tb-shell {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .tb-card {
+    @apply rounded-2xl border border-accent-link/10 bg-bg-card shadow-card;
+  }
+
+  .tb-btn {
+    @apply inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition-[background-color,border-color,color,box-shadow,transform] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25;
+  }
+
+  .tb-btn-primary {
+    @apply tb-btn bg-accent-link text-white shadow-[0_8px_20px_rgba(8,127,54,0.18)] hover:-translate-y-px hover:bg-accent-save;
+  }
+
+  .tb-btn-secondary {
+    @apply tb-btn border border-accent-link/15 bg-bg-card text-text-secondary hover:border-accent-link/30 hover:bg-bg-hover hover:text-text-primary;
+  }
+
+  .tb-btn-ghost {
+    @apply tb-btn text-text-secondary hover:bg-bg-hover hover:text-text-primary;
+  }
+
+  .tb-btn-save {
+    @apply tb-btn bg-accent-save/10 text-accent-save ring-1 ring-inset ring-accent-save/25 hover:bg-accent-save/15;
+  }
+
+  .tb-btn-tag {
+    @apply tb-btn bg-accent-tag/10 text-accent-tag ring-1 ring-inset ring-accent-tag/25 hover:bg-accent-tag/20;
+  }
+
+  .tb-input {
+    @apply h-8 w-full rounded-xl border border-accent-link/15 bg-bg-card py-0 pl-3 pr-3 text-xs text-text-primary placeholder:text-text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] focus:border-accent-link/35 focus:outline-none focus:ring-accent-link/15;
+  }
+
+  /* アプリ同梱ユーザーガイド（markdown-it 出力） */
+  .tipsboard-user-guide {
+    @apply text-[15px] leading-relaxed text-text-primary;
+  }
+
+  .tipsboard-user-guide h1 {
+    @apply mt-0 border-b border-accent-link/10 pb-3 text-2xl font-bold tracking-tight text-text-primary;
+  }
+
+  .tipsboard-user-guide h2 {
+    @apply mb-3 mt-8 border-b border-accent-link/10 pb-2 text-lg font-semibold text-text-primary;
+  }
+
+  .tipsboard-user-guide h3 {
+    @apply mb-2 mt-6 text-base font-semibold text-text-primary;
+  }
+
+  .tipsboard-user-guide p {
+    @apply my-3 text-text-secondary;
+  }
+
+  .tipsboard-user-guide ul,
+  .tipsboard-user-guide ol {
+    @apply my-3 list-outside space-y-1.5 pl-5 text-text-secondary;
+  }
+
+  .tipsboard-user-guide ul {
+    @apply list-disc;
+  }
+
+  .tipsboard-user-guide ol {
+    @apply list-decimal;
+  }
+
+  .tipsboard-user-guide li > p {
+    @apply my-1;
+  }
+
+  .tipsboard-user-guide a {
+    @apply font-medium text-accent-link underline decoration-accent-link/30 underline-offset-2 transition-colors hover:decoration-accent-link;
+  }
+
+  .tipsboard-user-guide code {
+    @apply rounded-md bg-bg-secondary px-1 py-0.5 text-[13px] font-medium text-accent-tag;
+  }
+
+  .tipsboard-user-guide pre {
+    @apply my-4 overflow-x-auto rounded-xl border border-accent-link/10 bg-bg-secondary p-4 text-[13px] leading-relaxed text-text-primary;
+  }
+
+  .tipsboard-user-guide .katex-display {
+    @apply my-4 overflow-x-auto;
+  }
+
+  .tipsboard-user-guide .katex {
+    font-size: inherit;
+  }
+
+  .tipsboard-user-guide pre code {
+    @apply bg-transparent p-0 text-[13px] text-text-primary;
+  }
+
+  .tipsboard-user-guide blockquote {
+    @apply my-4 border-l-[3px] border-accent-link/25 pl-4 text-sm italic text-text-muted;
+  }
+
+  .tipsboard-user-guide hr {
+    @apply my-8 border-0 border-t border-accent-link/10;
+  }
+
+  .tipsboard-user-guide table {
+    @apply my-4 w-full border-collapse text-left text-sm text-text-secondary;
+  }
+
+  .tipsboard-user-guide .tipsboard-export-table-wrap {
+    @apply my-4 overflow-x-auto rounded-xl border border-accent-link/10 bg-bg-secondary/40;
+  }
+
+  .tipsboard-user-guide th,
+  .tipsboard-user-guide td {
+    @apply border border-accent-link/10 px-3 py-2 align-top;
+  }
+
+  .tipsboard-user-guide th {
+    @apply bg-bg-elevated text-2xs font-semibold uppercase tracking-wide text-text-muted;
+  }
+
+  .tipsboard-user-guide .task-list-item {
+    @apply list-none pl-0;
+  }
+
+  .tipsboard-user-guide .contains-task-list {
+    @apply pl-1;
+  }
+}

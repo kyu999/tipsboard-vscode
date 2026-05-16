@@ -1,0 +1,13 @@
+node_modules/
+dist/
+webview/node_modules/
+.vscode/
+*.vsix
+.DS_Store
+docs/.DS_Store
+out/
+media/
+coverage/
+*.log
+.env
+.env.*

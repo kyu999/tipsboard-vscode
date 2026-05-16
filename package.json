@@ -1,0 +1,103 @@
+{
+  "name": "tipsboard-vscode",
+  "displayName": "Tipsboard",
+  "description": "Markdown wiki and personal knowledge management workspace",
+  "version": "0.1.0",
+  "publisher": "tipsboard",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "author": {
+    "name": "kyu999",
+    "url": "https://github.com/kyu999"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/kyu999/tipsboard-vscode#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kyu999/tipsboard-vscode.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "markdown",
+    "notes",
+    "notebook",
+    "pkm",
+    "knowledge base",
+    "wiki",
+    "zettelkasten",
+    "second brain",
+    "local",
+    "offline",
+    "backlinks",
+    "kanban",
+    "mermaid",
+    "latex",
+    "katex",
+    "writing",
+    "tipsboard"
+  ],
+  "activationEvents": [
+    "onCommand:tipsboard-vscode.open"
+  ],
+  "main": "./dist/extension/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tipsboard-vscode.open",
+        "title": "Tipsboard: Open"
+      },
+      {
+        "command": "tipsboard-vscode.selectVaultFolder",
+        "title": "Tipsboard: Select Vault Folder..."
+      }
+    ],
+    "configuration": {
+      "title": "Tipsboard",
+      "properties": {
+        "tipsboard-vscode.vaultFolder": {
+          "type": "string",
+          "default": null,
+          "description": "When using a multi-root workspace, vault root folder name matching a workspace folder, or absolute path.",
+          "scope": "resource"
+        },
+        "tipsboard-vscode.manualVaultPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Absolute vault path from *Tipsboard: Select Vault Folder* or typed here. When set, overrides the workspace folder (including single-folder workspaces). Clear to use the open folder as the vault again.",
+          "description": "Absolute vault path. Overrides workspace folder when non-empty. Clear to use the workspace folder."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile && npm run build:extension && npm run build:webview",
+    "compile": "tsc --noEmit -p ./tsconfig.extension.json",
+    "build:extension": "node scripts/build-extension.cjs",
+    "watch": "tsc -watch -p ./tsconfig.extension.json",
+    "watch:webview": "npm run watch --prefix webview",
+    "build:webview": "npm install --prefix webview && npm run build --prefix webview",
+    "build:webview:fast": "npm run build --prefix webview",
+    "lint": "tsc --noEmit -p ./tsconfig.extension.json",
+    "test": "vitest run --config vitest.config.mts",
+    "package": "node scripts/package-vsix.cjs"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^20.17.14",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.9.1",
+    "esbuild": "^0.28.0",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  },
+  "private": true
+}

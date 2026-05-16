@@ -1,0 +1,144 @@
+const en = {
+  common: {
+    untitled: "Untitled",
+    cancel: "Cancel",
+  },
+  layout: {
+    userGuide: "User Guide",
+    settings: "Local settings",
+    newPage: "New note",
+    changeFolder: "Change folder",
+    importJson: "Import JSON",
+    exportJson: "Export JSON",
+    cardView: "Cards",
+    kanban: "KANBAN",
+    activityBar: "Primary navigation",
+    currentVault: "Vault folder",
+    shortcutCards: "Ctrl+Shift+L / ⌘⇧L",
+    shortcutKanban: "Ctrl+Shift+K / ⌘⇧K",
+    shortcutBack: "Alt+← · ⌘[ · Ctrl+[",
+    shortcutNewNote: "Ctrl+N / ⌘N",
+  },
+  onboarding: {
+    eyebrow: "Tipsboard",
+    title: "Start local notes",
+    description:
+      "Choose a folder to use as a Markdown workspace with the same visual style as the web app. Existing `.md` files are loaded as notes.",
+    selectFolder: "Select folder",
+  },
+  search: {
+    placeholder: "Search pages…",
+    noResults: "No results found",
+  },
+  settings: {
+    sections: {
+      language: "Language",
+    },
+    language: {
+      label: "Display language",
+      helper: "Your language selection is saved in this app.",
+    },
+  },
+  page: {
+    userGuide: {
+      closeGuide: "Close guide",
+    },
+    list: {
+      emptyTitle: "No pages yet",
+      emptyDescription:
+        "{{shortcut}}: new note. {{shortcutCards}}: cards. {{shortcutKanban}}: KANBAN. {{shortcutBack}}: go back. Or tap {{newPage}} below.",
+      searchEmptyTitle: "No matching pages",
+      searchEmptyDescription: "Try different keywords or clear the search to see all notes.",
+      clearSearch: "Clear search",
+    },
+    editor: {
+      deleteConfirm: "Delete “{{title}}”?",
+      discardUnsavedTitle: "Unsaved changes",
+      discardUnsavedConfirm: "You have unsaved changes. Leave without saving?",
+      discardUnsaved: "Leave without saving",
+      backToList: "Back to list",
+      pinNote: "Pin note",
+      unpinNote: "Unpin note",
+      actions: "Actions",
+      delete: "Delete",
+      exportHtml: "Export HTML",
+      exportHtmlHint:
+        "Downloads the current editor content (including unsaved changes). Images point to files inside your Vault; moving the Vault can break those links. Use the browser’s print dialog for PDF.",
+      exportHtmlError: "Failed to export HTML",
+      kanbanStatus: "KANBAN board and status",
+    },
+  },
+  kanban: {
+    board: "KANBAN board",
+    noBoard: "No board",
+    tagLegend: "Tag colors",
+    clearTagFilters: "Clear filters",
+    deleteBoardConfirm: "Delete this KANBAN board? Note bodies will not be changed.",
+    deleteColumnConfirm: "Delete this column? Cards in it will be removed from the board.",
+    removeCardConfirm: "Remove this card from the board? The note body will not be deleted.",
+    actions: {
+      newBoard: "New board",
+      renameBoard: "Rename board",
+      deleteBoard: "Delete board",
+      newColumn: "New column",
+      addAnotherColumn: "Add another list",
+      renameColumn: "Rename",
+      deleteColumn: "Delete",
+      newCard: "New card",
+      removeCard: "Remove from board",
+      addExisting: "Add existing note",
+      boardMenu: "Board menu",
+      columnMenu: "Column menu",
+    },
+    prompts: {
+      boardName: "Board name",
+      columnName: "Column name",
+      cardTitle: "New card note title",
+    },
+    createBoard: {
+      title: "New board",
+      description: "Enter a board name.",
+      name: "Board name",
+      create: "Create",
+    },
+    empty: {
+      title: "No KANBAN boards yet",
+      description: "Create a board to manage existing or new notes as task cards.",
+    },
+    emptyColumns: {
+      title: "No columns yet",
+      description: "Add a column first. Once a column exists, you can add existing or new notes as cards.",
+    },
+    existing: {
+      title: "Add an existing note as a card",
+      description: "This creates KANBAN state only. The note body is not changed.",
+      close: "Close",
+      quickSearchPlaceholder: "Search existing notes to add as cards…",
+      searchPlaceholder: "Search by title, tag, or preview…",
+      destination: "Add to",
+      empty: "No notes available to add",
+      noTags: "No tags",
+      selected: "{{count}} selected",
+      addSelected: "Add selected",
+    },
+  },
+  links: {
+    links: "Links",
+    newLinks: "New Links",
+    twoHop: "Two-hop links",
+    via: "Linked page",
+  },
+  saveStatus: {
+    unsaved: "Unsaved",
+    saving: "Saving…",
+    saved: "Saved",
+    error: "Save failed",
+  },
+  editor: {
+    clickToEnlargeImage: "Click to enlarge — scroll/pinch or +/- keys to zoom",
+    fileTooLarge: "File too large (max 10MB)",
+    importFailed: "Failed to import image",
+  },
+} as const;
+
+export default en;
