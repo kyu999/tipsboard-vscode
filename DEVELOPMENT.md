@@ -38,6 +38,8 @@ npm run package
 
 - [`docs_wiki/SPEC.md`](docs_wiki/SPEC.md)
 
+Marketplace-facing screenshots (README links use `raw.githubusercontent.com/.../assets/vscode/marketplace/`) stay in [`assets/vscode/marketplace/`](assets/vscode/marketplace/) in this repo. The bundled user guide pulls the same files over **https** inside the WebView.
+
 ## WebView blank screen (debugging)
 
 1. Focus the Tipsboard panel and open **Developer: Open Webview Developer Tools**.

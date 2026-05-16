@@ -66,6 +66,10 @@ const en = {
         "Downloads the current editor content (including unsaved changes). Images point to files inside your Vault; moving the Vault can break those links. Use the browser’s print dialog for PDF.",
       exportHtmlError: "Failed to export HTML",
       kanbanStatus: "KANBAN board and status",
+      rewriteInboundLinksTitle: "Update wiki link text?",
+      rewriteInboundLinksMessage:
+        "The title changed from “{{oldTitle}}” to “{{newTitle}}”. {{count}} note(s) still use internal `[…]` links that resolve to the old title. Rewrite them to match the new title?",
+      rewriteInboundLinksConfirm: "Rewrite links",
     },
   },
   kanban: {

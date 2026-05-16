@@ -132,6 +132,14 @@ Within a column, drag a card and drop it on another card’s **top half** to pla
 
 ---
 
+### Wiki brackets after renaming a note
+
+![Confirm updating wiki link labels after a title changes](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/rewrite_internal_link.png)
+
+After you edit the **opening title** and save, Tipsboard **may ask** whether to rewrite other notes’ **`[ … ]`** wiki links for consistency—not **`[Label](path)`** markdown. Confirm to apply in order; cancel to skip.
+
+---
+
 ### Built-in User Guide
 
 ![Built-in User Guide](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/user-guide.png)

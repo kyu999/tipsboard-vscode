@@ -4,6 +4,17 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.6] - 2026-05-17
+
+### Added
+
+- After saving when the **title changes**, optional confirmation before rewriting matching inbound wiki **`[Title]`** text (excluding **`[Label](path)`**). Same note included when its body still has old brackets.
+
+### Fixed
+
+- **`getSnapshot()`** before prompting so stale in-panel note bodies miss fewer matches.
+- **`diskCommittedTitle`** paths normalized to **`/`**.
+
 ## [0.1.5] - 2026-05-16
 
 ### Changed

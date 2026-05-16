@@ -66,6 +66,10 @@ const ja = {
         "エディタ上の現在の本文を保存（未保存の変更を含む）。画像は Vault 内のファイルを参照します。Vault の場所を変えると HTML 内の画像リンクは切れる場合があります。PDF はブラウザの印刷機能で出力できます。",
       exportHtmlError: "HTMLのエクスポートに失敗しました",
       kanbanStatus: "KANBANの所属ボードと状態",
+      rewriteInboundLinksTitle: "内部リンク表記を更新しますか",
+      rewriteInboundLinksMessage:
+        "タイトルが「{{oldTitle}}」から「{{newTitle}}」に変わりました。{{count}}件のノートに、旧タイトルを指す内部リンク `[ … ]` があります。このまますべて新タイトル表記へ書き換えますか。",
+      rewriteInboundLinksConfirm: "書き換える",
     },
   },
   kanban: {

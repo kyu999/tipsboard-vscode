@@ -81,10 +81,10 @@ flowchart LR
 | 共有型 | `src/types/editor.ts` | Host 側 TypeScript 型（`VaultSnapshot` など）。WebView 側は `webview/src/types` で同様。 |
 | WebView エントリ | `webview/src/main.tsx` | `process-shim` → **`vscode-bridge-client` を先に import**（`window.tipsboardDesktop` 注入）→ i18n/CSS → `App` マウント。 |
 | Bridge クライアント | `webview/src/vscode-bridge-client.ts` | RPC Promise、`prefetchAssets` / `ensureVaultImageUrl`、外部ブラウザ `openExternalInHost`。 |
-| UI 中枢 | `webview/src/App.tsx` | `VaultSnapshot` を React 状態の中心に持つ。一覧 / エディタ / KANBAN / ガイド / メニュー。 |
+| UI 中枢 | `webview/src/App.tsx` | `VaultSnapshot` を React 状態の中心に持つ。**`mergeVaultSnapshotFromHost`**（Host 一式を取り込みつつ **`diskCommittedTitle` 再構成**）、一覧 / エディタ / KANBAN / ガイド / メニュー。 |
 | エディタ | `webview/src/components/NoteEditor.tsx`, `webview/src/editor/` | CodeMirror 初期化、保存プラグイン、装飾、リンク、画像ドロップ。 |
 | グラフ・検索 | `webview/src/lib/noteIndex.ts`, `searchNotes` 等 | メモリ上のリンクグラフ、補完候補、タグ。 |
-| ドメイン | `webview/src/domain/` | タイトル正規化、リンク抽出など（Editor と思想を揃えた純関数群）。 |
+| ドメイン | `webview/src/domain/` | タイトル正規化、リンク抽出（`extractLinks`、`INTERNAL_LINK_RE`）、**改名時リンク文言書き換え**（`rewriteInboundWikiTitles.ts`）など Editor と整合した純関数群。 |
 | ユーザーガイド | `webview/src/user-guide/` | 同梱 Markdown 相当の長文（日英）。 |
 | Host ビルド | `tsconfig.extension.json` | `src` → `dist/extension/`（CommonJS）。 |
 | WebView ビルド | `webview/vite.config.ts` | 単一 ES バンドル → `dist/media/webview.js` + `webview.css`。 |
@@ -289,6 +289,7 @@ vault/
 - **タイトル**は本文 **先頭行**（`extractTitle`）。
 - **保存時**、先頭行から stem を作り、**既存ファイル名と異なればリネーム**（衝突時は `stem (2).md` のようにユニーク化）。Editor の §8 系仕様に整合。
 - リネーム時、**KANBAN** の `note_path` と **pins** のパスを **パッチ**する。
+- 本文側の単一ブラケット **内部ウィキリンク**の文言については、§9.6 のとおり WebView が **オプション**かつ確認付きで一括書き換えする（ホスト側 `saveNote` の責務外）。
 
 ### 8.4 `readVault` の正規化
 
@@ -367,6 +368,13 @@ vault/
 3. `onSave` → `App.handleSaveNote` → **`tipsboardDesktop.saveNote(path, body)`**。
 4. 成功後、`result.notePath` が変わっていれば（リネーム）**`selectedPath` と `noteRef` を更新**。
 5. `App` は **`upsertSavedNote`** で `snapshot.notes` の該当要素を **`NoteSummary` 全置換**（本文・タイトル・preview・日時）。
+6. **内部リンク文言の書き換え（任意・確認あり）**: ディスク準拠の直前タイトルを `diskCommittedTitle` ref（パスキーは **`/` に正規化**）で追跡し、保存後 **`normalizeTitle` が変わった**ときは、WebView の `snapshot` がディスクより遅れる（未保存時の外部変更バナー等）ことがあるため、**リンク一覧のために `getSnapshot()` を追加で読み直し**、コードフェンス外の内部 `[ … ]` で旧正規化名に一致する表示を列挙する。検出があると **確認ダイアログ** を出し、承認時は対象ごとに `saveNote` を順次実行する（当該ノート自身は同名パスでの再保存、終了後 **`editorSessionId` を進めてエディタを再マウント**）。却下または対象なしでは本文は変えない。直前スナップショット以降の競合編集までは検知しない。
+
+![](../assets/vscode/marketplace/rewrite_internal_link.png)
+
+*図: タイトルの正規化が変わる保存のあと、`[ … ]` 形式のリンクに一致する文言が複数ノートにある場合に表示される確認（文言は UI 言語設定に準拠）。*
+
+7. **`mergeVaultSnapshotFromHost`** が `getSnapshot`/import/delete など **Host が返す一式の `VaultSnapshot`** をセットするときのみ `diskCommittedTitle` を全ノートから再構成する。**`handleDraftNoteChange` では再構成しない**。
 
 入力中は **`handleDraftNoteChange`** で `snapshot` 内の当該ノートだけタイトル／preview を軽く更新し、一覧カードの見た目を即時反映する。
 
@@ -462,3 +470,6 @@ vault/
 | 2026-05-16 | RPC・設定等の実装追記。 |
 | 2026-05-16 | **本全面改訂**: 製品目的、アーキテクチャ、ディレクトリ索引、App 状態・保存・ショートカット、CodeMirror 地図、未監視の事実、初期リリース/ロードマップ中心の記述をやめ現行仕様へ一本化。 |
 | 2026-05-16 | KANBAN 列内カード並び替え（D&D と `moveKanbanNote` の `position`）、関連テスト、9.11 およびディレクトリ表の追記。 |
+| 2026-05-16 | タイトル正規化が変わる保存後、内部ウィキリンク文言の一括書き換え（確認ダイアログ・`diskCommittedTitle`・9.6 追記）。 |
+| 2026-05-16 | リンク検出時にディスク準拠の `getSnapshot()` を用い、`snapshot` 遅延でダイアログが出ないケースを防ぐ。ノートパスは `diskCommittedTitle` で `/` に正規化。 |
+| 2026-05-16 | §9.6 に確認ダイアログのスクショ `assets/vscode/marketplace/rewrite_internal_link.png` とキャプション。README／同梱ガイドにも同資産による解説を追加。 |

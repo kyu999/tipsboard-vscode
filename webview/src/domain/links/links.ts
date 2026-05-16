@@ -1,6 +1,6 @@
 import { parseIconSyntax } from "./iconSyntax";
 
-const INTERNAL_LINK_RE =
+export const INTERNAL_LINK_RE =
   /(?<!\\)\[(?!https?:\/\/)(?!image:)([^\[\]\n]+?)\](?![\]\(])/g;
 const TAG_RE = /(?:^|\s)#([^\s#]+)/g;
 const CODE_BLOCK_FENCE = /^\s*```/;

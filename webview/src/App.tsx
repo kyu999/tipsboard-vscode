@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { extractFirstCardRenderableImageSrc } from "@/domain/preview/firstCardImage";
+import { rewriteInboundWikiTitles, wouldRewriteInboundWikiTitles } from "@/domain/links/rewriteInboundWikiTitles";
 import { normalizeTitle } from "@/domain/title/title";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { KanbanBoardView } from "@/components/KanbanBoardView";
@@ -39,6 +40,16 @@ interface NavMemory {
   };
   userGuideOpen: boolean;
   listSearchFilter: string | null;
+}
+
+function normalizeVaultNotePath(notePath: string): string {
+  return notePath.replace(/\\/g, "/");
+}
+
+function rebuildDiskCommittedTitles(snapshot: VaultSnapshot, mapRef: { current: Map<string, string> }): void {
+  const map = mapRef.current;
+  map.clear();
+  for (const note of snapshot.notes) map.set(normalizeVaultNotePath(note.path), note.title);
 }
 
 function navMemoryEqual(a: NavMemory, b: NavMemory): boolean {
@@ -89,6 +100,7 @@ export function App() {
   const prevVaultPathRef = useRef<string | null | undefined>(undefined);
   const snapshotRef = useRef(snapshot);
   const selectedPathRef = useRef(selectedPath);
+  const diskCommittedTitleRef = useRef<Map<string, string>>(new Map());
   const [exportHtmlError, setExportHtmlError] = useState<string | null>(null);
   const [listWidth, setListWidth] = useState(0);
   const currentLanguage = getSupportedLanguage(i18n.resolvedLanguage ?? i18n.language);
@@ -100,6 +112,11 @@ export function App() {
   useEffect(() => {
     selectedPathRef.current = selectedPath;
   }, [selectedPath]);
+
+  const mergeVaultSnapshotFromHost = useCallback((next: VaultSnapshot) => {
+    rebuildDiskCommittedTitles(next, diskCommittedTitleRef);
+    setSnapshot(next);
+  }, []);
 
   const refreshSnapshot = useCallback(async () => {
     try {
@@ -117,7 +134,7 @@ export function App() {
         setEditorSessionId((current) => current + 1);
       }
 
-      setSnapshot(next);
+      mergeVaultSnapshotFromHost(next);
       setExternalChangesPending(false);
       setSelectedPath((current) =>
         current && next.notes.some((note) => note.path === current) ? current : null,
@@ -125,7 +142,7 @@ export function App() {
     } catch (caught) {
       setError(messageForError(caught));
     }
-  }, []);
+  }, [mergeVaultSnapshotFromHost]);
 
   useEffect(() => {
     void refreshSnapshot();
@@ -332,7 +349,7 @@ export function App() {
     try {
       setError(null);
       const next = await window.tipsboardDesktop.selectFolder();
-      setSnapshot(next);
+      mergeVaultSnapshotFromHost(next);
       setSelectedPath(null);
       setVaultMenuOpen(false);
       setLocalMenuOpen(false);
@@ -344,7 +361,7 @@ export function App() {
     } catch (caught) {
       setError(messageForError(caught));
     }
-  }, [confirmDiscardChanges]);
+  }, [confirmDiscardChanges, mergeVaultSnapshotFromHost]);
 
   const handleApplyExternalChanges = useCallback(async () => {
     if (!(await confirmDiscardChanges())) return;
@@ -361,7 +378,7 @@ export function App() {
         try {
           setError(null);
           const result = await window.tipsboardDesktop.createNote(title);
-          setSnapshot(result.snapshot);
+          mergeVaultSnapshotFromHost(result.snapshot);
           setSelectedPath(result.notePath);
           setViewMode("list");
           setUserGuideOpen(false);
@@ -375,17 +392,101 @@ export function App() {
       });
       return out ?? null;
     },
-    [confirmDiscardChanges, t],
+    [confirmDiscardChanges, mergeVaultSnapshotFromHost, t],
   );
 
-  const handleSaveNote = useCallback(async (path: string, body: string) => {
-    const result = await window.tipsboardDesktop.saveNote(path, body);
-    setSnapshot((current) => ({
-      ...current,
-      notes: upsertSavedNote(current.notes, path, result.note),
-    }));
-    return result.notePath;
-  }, []);
+  const handleSaveNote = useCallback(
+    async (path: string, body: string) => {
+      const pathNorm = normalizeVaultNotePath(path);
+      const oldCommittedTitle = diskCommittedTitleRef.current.get(pathNorm);
+      const result = await window.tipsboardDesktop.saveNote(path, body);
+      let mergedNotes: NoteSummary[] = [];
+      setSnapshot((current) => {
+        mergedNotes = upsertSavedNote(current.notes, path, result.note);
+        return { ...current, notes: mergedNotes };
+      });
+      const resultPathNorm = normalizeVaultNotePath(result.note.path);
+      if (pathNorm !== resultPathNorm) diskCommittedTitleRef.current.delete(pathNorm);
+      diskCommittedTitleRef.current.set(resultPathNorm, result.note.title);
+
+      if (
+        selectedPathRef.current != null &&
+        normalizeVaultNotePath(selectedPathRef.current) === pathNorm
+      ) {
+        selectedPathRef.current = result.note.path;
+        setSelectedPath(result.note.path);
+      }
+
+      if (oldCommittedTitle === undefined) return result.notePath;
+
+      const oldNorm = normalizeTitle(oldCommittedTitle);
+      const newTitle = result.note.title;
+      if (oldNorm === normalizeTitle(newTitle)) return result.notePath;
+
+      /** Disc-based bodies: in-memory snapshot can lag (e.g. deferred refresh while Tipsboard editor is dirty). */
+      const freshSnapshot = await window.tipsboardDesktop.getSnapshot();
+      const scannedNotes = freshSnapshot.notes.map((n) =>
+        normalizeVaultNotePath(n.path) === resultPathNorm ? result.note : n,
+      );
+
+      const targets: { path: string; nextBody: string }[] = [];
+      for (const note of scannedNotes) {
+        if (!wouldRewriteInboundWikiTitles(note.body, oldNorm, newTitle)) continue;
+        targets.push({
+          path: note.path,
+          nextBody: rewriteInboundWikiTitles(note.body, oldNorm, newTitle),
+        });
+      }
+      if (targets.length === 0) return result.notePath;
+
+      const confirmed = await requestConfirm({
+        title: t("page.editor.rewriteInboundLinksTitle"),
+        message: t("page.editor.rewriteInboundLinksMessage", {
+          count: targets.length,
+          oldTitle: oldCommittedTitle,
+          newTitle,
+        }),
+        confirmLabel: t("page.editor.rewriteInboundLinksConfirm"),
+        destructive: false,
+      });
+      if (!confirmed) return result.notePath;
+
+      const selfPath = result.note.path;
+      const others = targets.filter((t) => t.path !== selfPath);
+      const selfTarget = targets.find((t) => t.path === selfPath);
+
+      for (const { path: targetPath, nextBody } of others) {
+        try {
+          const r2 = await window.tipsboardDesktop.saveNote(targetPath, nextBody);
+          setSnapshot((current) => ({
+            ...current,
+            notes: upsertSavedNote(current.notes, targetPath, r2.note),
+          }));
+          diskCommittedTitleRef.current.set(r2.note.path, r2.note.title);
+        } catch (caught) {
+          setError(messageForError(caught));
+          break;
+        }
+      }
+
+      if (selfTarget) {
+        try {
+          const r2 = await window.tipsboardDesktop.saveNote(selfPath, selfTarget.nextBody);
+          setSnapshot((current) => ({
+            ...current,
+            notes: upsertSavedNote(current.notes, selfPath, r2.note),
+          }));
+          diskCommittedTitleRef.current.set(r2.note.path, r2.note.title);
+          setEditorSessionId((c) => c + 1);
+        } catch (caught) {
+          setError(messageForError(caught));
+        }
+      }
+
+      return result.notePath;
+    },
+    [requestConfirm, t],
+  );
 
   const handleDraftNoteChange = useCallback((path: string, body: string) => {
     setSnapshot((current) => ({
@@ -438,24 +539,24 @@ export function App() {
     if (!confirmed) return;
     try {
       const next = await window.tipsboardDesktop.deleteNote(selectedNote.path);
-      setSnapshot(next);
+      mergeVaultSnapshotFromHost(next);
       setSelectedPath(null);
       setSaveState("idle");
       setActionsMenuOpen(false);
     } catch (caught) {
       setError(messageForError(caught));
     }
-  }, [requestConfirm, selectedNote, t]);
+  }, [mergeVaultSnapshotFromHost, requestConfirm, selectedNote, t]);
 
   const handleToggleNotePin = useCallback(async (notePath: string, pinned: boolean) => {
     try {
       setError(null);
       const next = await window.tipsboardDesktop.setNotePinned(notePath, pinned);
-      setSnapshot(next);
+      mergeVaultSnapshotFromHost(next);
     } catch (caught) {
       setError(messageForError(caught));
     }
-  }, []);
+  }, [mergeVaultSnapshotFromHost]);
 
   const handleLinkClick = useCallback(
     async (title: string, type: "internal" | "external" | "tag") => {
@@ -494,7 +595,7 @@ export function App() {
     if (!(await confirmDiscardChanges())) return;
     try {
       const next = await window.tipsboardDesktop.importJson();
-      setSnapshot(next);
+      mergeVaultSnapshotFromHost(next);
       setSelectedPath(null);
       setVaultMenuOpen(false);
       setLocalMenuOpen(false);
@@ -506,7 +607,7 @@ export function App() {
     } catch (caught) {
       setError(messageForError(caught));
     }
-  }, [confirmDiscardChanges]);
+  }, [confirmDiscardChanges, mergeVaultSnapshotFromHost]);
 
   const handleOpenCardView = useCallback(async () => {
     if (!(await confirmDiscardChanges())) return;
@@ -1087,7 +1188,7 @@ export function App() {
               focusedBoardId={kanbanFocus.boardId}
               focusedColumnId={kanbanFocus.columnId}
               focusedNotePath={kanbanFocus.notePath}
-              onSnapshotChange={setSnapshot}
+              onSnapshotChange={mergeVaultSnapshotFromHost}
               onSelectNote={(path) => {
                 void handleSelectNote(path);
               }}
