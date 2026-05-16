@@ -8,9 +8,16 @@ export interface ParsedMathSpan {
   displayMode: boolean;
 }
 
-const DISPLAY_DOLLARS = /\$\$([\s\S]*?[^\\])\$\$/g;
 const DISPLAY_BRACKET = /\\\[([\s\S]*?)\\\]/g;
 const INLINE_BRACKET = /\\\(([\s\S]*?)\\\)/g;
+
+function isEscapedDelimiter(text: string, index: number): boolean {
+  let slashCount = 0;
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) {
+    slashCount++;
+  }
+  return slashCount % 2 === 1;
+}
 
 function collectMatches(pattern: RegExp, text: string, displayMode: boolean): ParsedMathSpan[] {
   const out: ParsedMathSpan[] = [];
@@ -23,6 +30,47 @@ function collectMatches(pattern: RegExp, text: string, displayMode: boolean): Pa
     if (!tex) continue;
     out.push({ from, to, tex, displayMode });
   }
+  return out;
+}
+
+function collectDisplayDollarMatches(text: string, state: EditorState): ParsedMathSpan[] {
+  const out: ParsedMathSpan[] = [];
+  let searchFrom = 0;
+
+  while (searchFrom < text.length) {
+    const from = text.indexOf("$$", searchFrom);
+    if (from < 0) break;
+
+    searchFrom = from + 2;
+    if (isEscapedDelimiter(text, from) || isCustomSyntaxIgnoredPosition(state, from)) {
+      continue;
+    }
+
+    let closeSearchFrom = searchFrom;
+    while (closeSearchFrom < text.length) {
+      const toDelimiter = text.indexOf("$$", closeSearchFrom);
+      if (toDelimiter < 0) {
+        searchFrom = text.length;
+        break;
+      }
+
+      closeSearchFrom = toDelimiter + 2;
+      if (
+        isEscapedDelimiter(text, toDelimiter) ||
+        isCustomSyntaxIgnoredPosition(state, toDelimiter)
+      ) {
+        continue;
+      }
+
+      const tex = text.slice(from + 2, toDelimiter).trim();
+      if (tex) {
+        out.push({ from, to: toDelimiter + 2, tex, displayMode: true });
+      }
+      searchFrom = toDelimiter + 2;
+      break;
+    }
+  }
+
   return out;
 }
 
@@ -41,7 +89,7 @@ function dropOverlapping(sorted: ParsedMathSpan[]): ParsedMathSpan[] {
  * Skips fenced / inline code via Lezer markdown tree (same rules as Tipsboard links).
  */
 export function findRenderableMathSpans(text: string, state: EditorState): ParsedMathSpan[] {
-  const displayDollar = collectMatches(DISPLAY_DOLLARS, text, true);
+  const displayDollar = collectDisplayDollarMatches(text, state);
   const displayBracket = collectMatches(DISPLAY_BRACKET, text, true);
   const inlineBracket = collectMatches(INLINE_BRACKET, text, false);
 

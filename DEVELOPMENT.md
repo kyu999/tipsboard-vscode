@@ -53,4 +53,10 @@ Marketplace-facing screenshots (README links use `raw.githubusercontent.com/.../
 npm test
 ```
 
-Runs Vitest for extension-host vault I/O and related code.
+Runs Vitest for extension-host vault I/O, WebView domain logic, and lightweight editor fixtures.
+
+```bash
+npm run test:webview:e2e
+```
+
+Runs Playwright against a Vite-served WebView test page for browser-level editor behavior such as cursor movement through decorated CodeMirror content. If Playwright browsers are not installed yet, run `npx playwright install chromium` once.

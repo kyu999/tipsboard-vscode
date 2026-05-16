@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.1.7",
+  "version": "0.1.9",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {
@@ -100,9 +100,11 @@
     "build:webview:fast": "npm run build --prefix webview",
     "lint": "tsc --noEmit -p ./tsconfig.extension.json",
     "test": "vitest run --config vitest.config.mts",
+    "test:webview:e2e": "playwright test --config playwright.config.ts",
     "package": "node scripts/package-vsix.cjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/jsdom": "^21.1.7",
     "@types/node": "^20.17.14",
     "@types/vscode": "^1.85.0",

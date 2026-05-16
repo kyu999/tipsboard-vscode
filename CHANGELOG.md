@@ -4,6 +4,29 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.9] - 2026-05-16
+
+### Fixed
+
+- **Editor**: Display math `$$…$$` detection pairs opening and closing delimiters in order and ignores delimiters inside fenced code, so a code sample and a rendered block are no longer merged into one span (fixes Arrow Up jumping to the wrong block) (`tipsboard-katex-math.ts`).
+- **Editor**: Arrow Up from the line below display math advances through an intervening blank line instead of skipping it (`tipsboard-keymap.ts`).
+- **Editor**: Arrow Up / Arrow Down through fenced Markdown code blocks moves one document line per key press, avoiding jumps across tall rendered regions into another fence (`tipsboard-keymap.ts`).
+
+### Added
+
+- **Tests**: Additional Playwright cursor scenarios for multi-block rendered math, tall display math with a blank spacer, and fenced code below rendered math (`webview/e2e/cursor-movement.spec.ts`).
+
+## [0.1.8] - 2026-05-16
+
+### Fixed
+
+- **Editor**: Around **display-mode math** (`$$…$$`, `\[…\]`) rendered as KaTeX widgets, **Arrow Up / Arrow Down** now advances **one logical markdown line** at a time instead of jumping past the whole block. Horizontal movement remains **one character** at a time (`tipsboard-keymap.ts`).
+
+### Added
+
+- **Tests**: Vitest fixtures for the editor cursor harness (`webview/src/editor/tipsboard-cursor-movement.test.ts`).
+- **Tests**: Playwright E2E for the WebView editor only (`npm run test:webview:e2e`): `webview/cursor-test.html`, `webview/src/editor/cursor-test-main.ts`, `webview/e2e/cursor-movement.spec.ts` (decorated markdown, tables, fenced blocks, wrapping, display math).
+
 ## [0.1.7] - 2026-05-16
 
 ### Added

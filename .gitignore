@@ -8,6 +8,8 @@ docs/.DS_Store
 out/
 media/
 coverage/
+test-results/
+playwright-report/
 *.log
 .env
 .env.*
