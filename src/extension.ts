@@ -13,6 +13,9 @@ export function activate(context: vscode.ExtensionContext): void {
       TipsboardPanel.notifyVaultChanged(resolveVaultFsPath() ?? p);
       TipsboardPanel.render(context);
     }),
+    vscode.commands.registerCommand("tipsboard-vscode.newNote", () => {
+      TipsboardPanel.notifyCreateNote();
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
         !e.affectsConfiguration("tipsboard-vscode.manualVaultPath") &&

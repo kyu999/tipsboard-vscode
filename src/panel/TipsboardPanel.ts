@@ -113,6 +113,16 @@ export class TipsboardPanel {
     });
   }
 
+  static notifyCreateNote(): void {
+    const inst = TipsboardPanel.current;
+    if (!inst) return;
+    void inst.panel.webview.postMessage({
+      source: "tipsboard-vscode-host",
+      kind: "event",
+      event: "create-note",
+    });
+  }
+
   static render(context: vscode.ExtensionContext): void {
     const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One;
     if (TipsboardPanel.current) {

@@ -17,7 +17,7 @@ const en = {
     shortcutCards: "Ctrl+Shift+L / ⌘⇧L",
     shortcutKanban: "Ctrl+Shift+K / ⌘⇧K",
     shortcutBack: "Alt+← · ⌘[ · Ctrl+[",
-    shortcutNewNote: "Ctrl+N / ⌘N",
+    shortcutNewNote: "Ctrl+N / ⌘N (Tipsboard panel focused)",
   },
   onboarding: {
     eyebrow: "Tipsboard",
@@ -59,7 +59,7 @@ const en = {
       backToList: "Back to list",
       pinNote: "Pin note",
       unpinNote: "Unpin note",
-      actions: "Actions",
+      stickyNav: "Note quick actions",
       delete: "Delete",
       exportHtml: "Export HTML",
       exportHtmlHint:

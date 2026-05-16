@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {
@@ -45,7 +45,8 @@
     "tipsboard"
   ],
   "activationEvents": [
-    "onCommand:tipsboard-vscode.open"
+    "onCommand:tipsboard-vscode.open",
+    "onCommand:tipsboard-vscode.newNote"
   ],
   "main": "./dist/extension/extension.js",
   "contributes": {
@@ -57,6 +58,18 @@
       {
         "command": "tipsboard-vscode.selectVaultFolder",
         "title": "Tipsboard: Select Vault Folder..."
+      },
+      {
+        "command": "tipsboard-vscode.newNote",
+        "title": "Tipsboard: New Note"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "tipsboard-vscode.newNote",
+        "key": "ctrl+n",
+        "mac": "cmd+n",
+        "when": "activeWebviewPanelId == 'tipsboard-vscode.main'"
       }
     ],
     "configuration": {

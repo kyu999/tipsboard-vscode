@@ -2,38 +2,22 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import en from "./locales/en";
 import ja from "./locales/ja";
+import { coerceSupportedLanguage, resolveInitialLanguage } from "./languageResolution";
+import { FALLBACK_LANGUAGE, LANGUAGE_STORAGE_KEY, supportedLanguages, type SupportedLanguage } from "./supportedLocales";
 
-export const supportedLanguages = [
-  { code: "ja", label: "日本語" },
-  { code: "en", label: "English" },
-] as const;
-
-export type SupportedLanguage = (typeof supportedLanguages)[number]["code"];
-
-const LANGUAGE_STORAGE_KEY = "tipsboard.language";
-const fallbackLanguage: SupportedLanguage = "ja";
-
-function isSupportedLanguage(value: string | null | undefined): value is SupportedLanguage {
-  return supportedLanguages.some((language) => language.code === value);
-}
-
-function getBrowserLanguage(): SupportedLanguage | null {
-  if (typeof navigator === "undefined") return null;
-  const preferred = navigator.languages?.[0] ?? navigator.language;
-  const language = preferred?.split("-")[0];
-  return isSupportedLanguage(language) ? language : null;
-}
+export { supportedLanguages, type SupportedLanguage };
 
 export function getInitialLanguage(): SupportedLanguage {
   if (typeof window !== "undefined") {
     const storedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (isSupportedLanguage(storedLanguage)) return storedLanguage;
+    const nav = typeof navigator !== "undefined" ? navigator : undefined;
+    return resolveInitialLanguage(storedLanguage, nav, FALLBACK_LANGUAGE);
   }
-  return getBrowserLanguage() ?? fallbackLanguage;
+  return FALLBACK_LANGUAGE;
 }
 
 export function getSupportedLanguage(value: string | null | undefined): SupportedLanguage {
-  return isSupportedLanguage(value) ? value : fallbackLanguage;
+  return coerceSupportedLanguage(value, FALLBACK_LANGUAGE);
 }
 
 export async function changeLanguage(language: SupportedLanguage) {
@@ -49,7 +33,7 @@ void i18n.use(initReactI18next).init({
     en: { translation: en },
   },
   lng: getInitialLanguage(),
-  fallbackLng: fallbackLanguage,
+  fallbackLng: FALLBACK_LANGUAGE,
   interpolation: {
     escapeValue: false,
   },

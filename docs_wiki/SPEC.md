@@ -81,7 +81,7 @@ flowchart LR
 | 共有型 | `src/types/editor.ts` | Host 側 TypeScript 型（`VaultSnapshot` など）。WebView 側は `webview/src/types` で同様。 |
 | WebView エントリ | `webview/src/main.tsx` | `process-shim` → **`vscode-bridge-client` を先に import**（`window.tipsboardDesktop` 注入）→ i18n/CSS → `App` マウント。 |
 | Bridge クライアント | `webview/src/vscode-bridge-client.ts` | RPC Promise、`prefetchAssets` / `ensureVaultImageUrl`、外部ブラウザ `openExternalInHost`。 |
-| UI 中枢 | `webview/src/App.tsx` | `VaultSnapshot` を React 状態の中心に持つ。**`mergeVaultSnapshotFromHost`**（Host 一式を取り込みつつ **`diskCommittedTitle` 再構成**）、一覧 / エディタ / KANBAN / ガイド / メニュー。 |
+| UI 中枢 | `webview/src/App.tsx` | `VaultSnapshot` を React 状態の中心に持つ。**`mergeVaultSnapshotFromHost`**（Host 一式を取り込みつつ **`diskCommittedTitle` 再構成**）、一覧 / エディタ / KANBAN / ガイド。ノート編集中は本文幅を変えず、エディタカード右上に **控えめなアイコンのみの操作**（ピン・HTML エクスポート・削除）。 |
 | エディタ | `webview/src/components/NoteEditor.tsx`, `webview/src/editor/` | CodeMirror 初期化、保存プラグイン、装飾、リンク、画像ドロップ。 |
 | グラフ・検索 | `webview/src/lib/noteIndex.ts`, `searchNotes` 等 | メモリ上のリンクグラフ、補完候補、タグ。 |
 | ドメイン | `webview/src/domain/` | タイトル正規化、リンク抽出（`extractLinks`、`INTERNAL_LINK_RE`）、**改名時リンク文言書き換え**（`rewriteInboundWikiTitles.ts`）など Editor と整合した純関数群。 |
@@ -378,16 +378,23 @@ vault/
 
 入力中は **`handleDraftNoteChange`** で `snapshot` 内の当該ノートだけタイトル／preview を軽く更新し、一覧カードの見た目を即時反映する。
 
-### 9.7 グローバルキーボードショートカット（`document`）
+### 9.7 キーボードショートカット
 
-`INPUT` / `TEXTAREA` / `SELECT` にフォーカスがあるときは **処理しない**（フォームと競合させない）。
+**VS Code 拡張がバインドする操作（WebView パネルがアクティブなとき）**
+
+| 操作 | キー | 備考 |
+| --- | --- | --- |
+| 新規ノート | `mod+N` | `package.json` の `keybindings`（`when: activeWebviewPanelId == 'tipsboard-vscode.main'`）。Host から `create-note` イベントで WebView の `handleCreateNote` を起動。 |
+
+**WebView 内 `document` のキーダウン（`App.tsx`）**
+
+`INPUT` / `TEXTAREA` / `SELECT` にフォーカスがあるときは **処理しない**（フォームと競合させない）。`create-note` イベント受信時も同じくネイティブ入力フォーカス中は無視する。
 
 | 操作 | キー（Windows/Linux では Ctrl、macOS では Cmd を mod とする） |
 | --- | --- |
 | カード一覧を開く | `mod+Shift+L` |
 | KANBAN を開く | `mod+Shift+K` |
 | 戻る | `Alt+ArrowLeft` または `mod+[` |
-| 新規ノート | `mod+N`（`repeat` 無視） |
 
 内部リンクのクリックや CodeMirror 内キーマップは **`editor/index.ts` の `tipsboardKeymap` 等**に別途定義がある。
 
@@ -404,6 +411,8 @@ vault/
 ### 9.10 国際化（i18n）
 
 - `webview/src/shared/i18n/`。言語切替は `App` のセレクトから `changeLanguage`。
+- 保存キーとフォールバックは **`supportedLocales.ts`**。初回解決の純関数は **`languageResolution.ts`**（`config.ts` は `window` / `navigator` を渡して利用）。
+- **初回の既定表示言語**は **英語**（`fallbackLng` / `FALLBACK_LANGUAGE`）。`localStorage` の `tipsboard.language` と、対応している場合はブラウザ優先言語がその前に使われる。
 - ユーザーガイド本文は **`bundledGuide.ts` に ja / en の定数配列**として内蔵。
 
 ### 9.11 KANBAN UI（`KanbanBoardView` と D&D）
@@ -472,4 +481,4 @@ vault/
 | 2026-05-16 | KANBAN 列内カード並び替え（D&D と `moveKanbanNote` の `position`）、関連テスト、9.11 およびディレクトリ表の追記。 |
 | 2026-05-16 | タイトル正規化が変わる保存後、内部ウィキリンク文言の一括書き換え（確認ダイアログ・`diskCommittedTitle`・9.6 追記）。 |
 | 2026-05-16 | リンク検出時にディスク準拠の `getSnapshot()` を用い、`snapshot` 遅延でダイアログが出ないケースを防ぐ。ノートパスは `diskCommittedTitle` で `/` に正規化。 |
-| 2026-05-16 | §9.6 に確認ダイアログのスクショ `assets/vscode/marketplace/rewrite_internal_link.png` とキャプション。README／同梱ガイドにも同資産による解説を追加。 |
+| 2026-05-18 | 拡張 **v0.1.7** に合わせ、`package.json` keybinding・`create-note` イベント、エディタ右の操作、既定 i18n（英語フォールバック・`languageResolution`）、関連リンク遷移時のスクロール、§9.7 / §9.10 の整理。 |

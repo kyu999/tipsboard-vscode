@@ -17,7 +17,7 @@ const ja = {
     shortcutCards: "Ctrl+Shift+L / ⌘⇧L",
     shortcutKanban: "Ctrl+Shift+K / ⌘⇧K",
     shortcutBack: "Alt+← · ⌘[ · Ctrl+[",
-    shortcutNewNote: "Ctrl+N / ⌘N",
+    shortcutNewNote: "Tipsboard 表示中: Ctrl+N / ⌘N",
   },
   onboarding: {
     eyebrow: "Tipsboard",
@@ -59,7 +59,7 @@ const ja = {
       backToList: "一覧へ戻る",
       pinNote: "ピン留め",
       unpinNote: "ピンを外す",
-      actions: "操作",
+      stickyNav: "メモのクイック操作",
       delete: "削除",
       exportHtml: "HTMLをエクスポート",
       exportHtmlHint:

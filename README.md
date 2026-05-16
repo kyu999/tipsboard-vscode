@@ -218,7 +218,7 @@ assets/images/*
 |---|---|
 | `Ctrl+Shift+L` | Open note grid |
 | `Ctrl+Shift+K` | Open Kanban |
-| `Ctrl+N` | Create note |
+| `Ctrl+N` | Create note (while the Tipsboard panel is focused; otherwise VS Code keeps this for New File) |
 | `Alt+←` / `Ctrl+[` | Navigate back |
 
 ---
@@ -229,6 +229,7 @@ assets/images/*
 |---|---|
 | `Tipsboard: Open` | Open or focus the Tipsboard panel |
 | `Tipsboard: Select Vault Folder...` | Choose a vault directory |
+| `Tipsboard: New Note` | Create a note (also bound to Ctrl/Cmd+N while the Tipsboard panel is focused) |
 
 ---
 

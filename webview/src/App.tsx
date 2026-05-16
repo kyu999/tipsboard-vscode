@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { extractFirstCardRenderableImageSrc } from "@/domain/preview/firstCardImage";
@@ -89,9 +89,9 @@ export function App() {
   const [externalChangesPending, setExternalChangesPending] = useState(false);
   const [vaultMenuOpen, setVaultMenuOpen] = useState(false);
   const [localMenuOpen, setLocalMenuOpen] = useState(false);
-  const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const [userGuideOpen, setUserGuideOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const noteViewScrollContainerRef = useRef<HTMLElement | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const listContentRef = useRef<HTMLDivElement>(null);
   const confirmResolverRef = useRef<((value: boolean) => void) | null>(null);
@@ -111,6 +111,13 @@ export function App() {
 
   useEffect(() => {
     selectedPathRef.current = selectedPath;
+  }, [selectedPath]);
+
+  useLayoutEffect(() => {
+    if (!selectedPath) return;
+    const el = noteViewScrollContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [selectedPath]);
 
   const mergeVaultSnapshotFromHost = useCallback((next: VaultSnapshot) => {
@@ -249,7 +256,6 @@ export function App() {
 
   const vaultMenuRef = useClickOutside<HTMLDivElement>(vaultMenuOpen, () => setVaultMenuOpen(false));
   const localMenuRef = useClickOutside<HTMLDivElement>(localMenuOpen, () => setLocalMenuOpen(false));
-  const actionsMenuRef = useClickOutside<HTMLDivElement>(actionsMenuOpen, () => setActionsMenuOpen(false));
 
   const navHistoryRef = useRef<NavMemory[]>([]);
   const applyingNavHistoryRef = useRef(false);
@@ -322,7 +328,6 @@ export function App() {
       setUserGuideOpen(false);
       setEditorSessionId((current) => current + 1);
       setSaveState("idle");
-      setActionsMenuOpen(false);
       return true;
     },
     [confirmDiscardChanges, selectedPath],
@@ -394,6 +399,23 @@ export function App() {
     },
     [confirmDiscardChanges, mergeVaultSnapshotFromHost, t],
   );
+
+  useEffect(() => {
+    function onCreateNoteFromHost(ev: MessageEvent) {
+      const d = ev.data as { source?: string; kind?: string; event?: string };
+      if (d?.source !== "tipsboard-vscode-host" || d?.kind !== "event" || d.event !== "create-note") {
+        return;
+      }
+      const target = document.activeElement as HTMLElement | null;
+      const tag = target?.tagName ?? "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+        return;
+      }
+      void handleCreateNote();
+    }
+    window.addEventListener("message", onCreateNoteFromHost);
+    return () => window.removeEventListener("message", onCreateNoteFromHost);
+  }, [handleCreateNote]);
 
   const handleSaveNote = useCallback(
     async (path: string, body: string) => {
@@ -520,7 +542,6 @@ export function App() {
       anchor.click();
       URL.revokeObjectURL(url);
       setExportHtmlError(null);
-      setActionsMenuOpen(false);
     } catch {
       setExportHtmlError(t("page.editor.exportHtmlError"));
       clearTimeout(exportHtmlErrorTimer.current);
@@ -542,7 +563,6 @@ export function App() {
       mergeVaultSnapshotFromHost(next);
       setSelectedPath(null);
       setSaveState("idle");
-      setActionsMenuOpen(false);
     } catch (caught) {
       setError(messageForError(caught));
     }
@@ -618,7 +638,6 @@ export function App() {
     setSaveState("idle");
     setVaultMenuOpen(false);
     setLocalMenuOpen(false);
-    setActionsMenuOpen(false);
     setUserGuideOpen(false);
   }, [confirmDiscardChanges]);
 
@@ -632,7 +651,6 @@ export function App() {
     setSaveState("idle");
     setVaultMenuOpen(false);
     setLocalMenuOpen(false);
-    setActionsMenuOpen(false);
     setUserGuideOpen(false);
   }, [confirmDiscardChanges]);
 
@@ -641,7 +659,6 @@ export function App() {
       setUserGuideOpen(false);
       setVaultMenuOpen(false);
       setLocalMenuOpen(false);
-      setActionsMenuOpen(false);
       return;
     }
     if (!(await confirmDiscardChanges())) return;
@@ -653,7 +670,6 @@ export function App() {
     setSaveState("idle");
     setVaultMenuOpen(false);
     setLocalMenuOpen(false);
-    setActionsMenuOpen(false);
     setShowSearchResults(false);
   }, [confirmDiscardChanges, userGuideOpen]);
 
@@ -679,7 +695,6 @@ export function App() {
       setSaveState("idle");
       setVaultMenuOpen(false);
       setLocalMenuOpen(false);
-      setActionsMenuOpen(false);
       setShowSearchResults(false);
       if (path) setEditorSessionId((current) => current + 1);
     } finally {
@@ -726,17 +741,10 @@ export function App() {
         void handleNavigateBack();
         return;
       }
-
-      if (mod && event.key.toLowerCase() === "n" && !event.shiftKey) {
-        if (inNativeField) return;
-        if (event.repeat) return;
-        event.preventDefault();
-        void handleCreateNote();
-      }
     }
     document.addEventListener("keydown", onDocumentKeyDown);
     return () => document.removeEventListener("keydown", onDocumentKeyDown);
-  }, [handleCreateNote, handleNavigateBack, handleOpenCardView, handleOpenKanban]);
+  }, [handleNavigateBack, handleOpenCardView, handleOpenKanban]);
 
   const handleLanguageChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     void changeLanguage(getSupportedLanguage(event.target.value));
@@ -841,7 +849,6 @@ export function App() {
               void handleOpenCardView();
               setVaultMenuOpen(false);
               setLocalMenuOpen(false);
-              setActionsMenuOpen(false);
             }}
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
               viewMode === "list" && !userGuideOpen
@@ -860,7 +867,6 @@ export function App() {
               void handleOpenKanban();
               setVaultMenuOpen(false);
               setLocalMenuOpen(false);
-              setActionsMenuOpen(false);
             }}
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
               viewMode === "kanban"
@@ -872,6 +878,19 @@ export function App() {
             aria-label={t("layout.kanban")}
           >
             <i className="fa-solid fa-table-columns" aria-hidden />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void handleCreateNote();
+              setVaultMenuOpen(false);
+              setLocalMenuOpen(false);
+            }}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25"
+            title={`${t("layout.newPage")} — ${t("layout.shortcutNewNote")}`}
+            aria-label={t("layout.newPage")}
+          >
+            <i className="fa-solid fa-plus" aria-hidden />
           </button>
           <div className="min-h-2 flex-1" aria-hidden />
           <div ref={localMenuRef} className="relative flex flex-col items-center">
@@ -983,7 +1002,6 @@ export function App() {
                           setUserGuideOpen(false);
                           setKanbanFocus({ boardId: null, columnId: null, notePath: null });
                           setSaveState("idle");
-                          setActionsMenuOpen(false);
                           setVaultMenuOpen(false);
                           setLocalMenuOpen(false);
                         }
@@ -1032,61 +1050,6 @@ export function App() {
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <SaveStatus state={saveState} />
-                {selectedNote ? (
-                  <div ref={actionsMenuRef} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setActionsMenuOpen((open) => !open)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-accent-link/20 bg-bg-elevated text-lg font-semibold leading-none text-accent-link shadow-sm transition-colors hover:bg-bg-hover"
-                      aria-expanded={actionsMenuOpen}
-                      aria-haspopup="true"
-                      aria-label={t("page.editor.actions")}
-                      title={t("page.editor.actions")}
-                    >
-                      <span aria-hidden="true">☰</span>
-                    </button>
-                    {actionsMenuOpen && (
-                      <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-2xl border border-accent-link/15 bg-bg-elevated p-1.5 shadow-dropdown">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void handleSelectNote(null);
-                          }}
-                          className="w-full px-2 py-1.5 text-left text-2xs font-semibold uppercase tracking-wide text-text-primary transition-colors hover:bg-bg-hover"
-                        >
-                          {t("page.editor.backToList")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void handleToggleNotePin(selectedNote.path, !selectedNotePinned);
-                            setActionsMenuOpen(false);
-                          }}
-                          className={`w-full px-2 py-1.5 text-left text-2xs font-semibold uppercase tracking-wide transition-colors hover:bg-bg-hover ${
-                            selectedNotePinned ? "text-accent-link" : "text-text-primary"
-                          }`}
-                        >
-                          {selectedNotePinned ? t("page.editor.unpinNote") : t("page.editor.pinNote")}
-                        </button>
-                        <button
-                          type="button"
-                          title={t("page.editor.exportHtmlHint")}
-                          onClick={() => void handleExportHtml()}
-                          className="w-full px-2 py-1.5 text-left text-2xs font-semibold uppercase tracking-wide text-text-primary transition-colors hover:bg-bg-hover"
-                        >
-                          {t("page.editor.exportHtml")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDeleteNote()}
-                          className="w-full px-2 py-1.5 text-left text-2xs font-semibold uppercase tracking-wide text-accent-error transition-colors hover:bg-bg-hover"
-                        >
-                          {t("page.editor.delete")}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : null}
               </div>
             </div>
           </header>
@@ -1118,8 +1081,11 @@ export function App() {
         )}
 
         {selectedNote ? (
-          <section className="tb-shell flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-4 sm:py-6">
-            <div className="mx-auto w-full max-w-5xl">
+          <section
+            ref={noteViewScrollContainerRef}
+            className="tb-shell flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-4 sm:py-6"
+          >
+            <div className="relative mx-auto w-full min-w-0 max-w-5xl">
               {exportHtmlError && (
                 <div className="mb-2 rounded-lg border border-accent-error/25 bg-accent-error/10 px-2 py-1 text-xs text-accent-error">
                   {exportHtmlError}
@@ -1149,33 +1115,73 @@ export function App() {
                 </div>
               )}
 
-              <NoteEditor
-                key={editorSessionId}
-                note={selectedNote}
-                suggestions={index.suggestions}
-                existingNormalizedTitles={Array.from(index.byNormalizedTitle.keys())}
-                onSave={handleSaveNote}
-                onSavedPathChange={setSelectedPath}
-                onSaveStateChange={setSaveState}
-                onLinkClick={handleLinkClick}
-                onContentChange={handleDraftNoteChange}
-                onImageDropError={setError}
-              />
-            </div>
+              <div className="relative">
+                <nav
+                  className="absolute right-1 top-1 z-20 flex flex-col gap-0.5 rounded-lg border border-accent-link/[0.08] bg-bg-elevated/80 p-0.5 shadow-sm backdrop-blur-[6px] sm:right-2 sm:top-2"
+                  aria-label={t("page.editor.stickyNav")}
+                >
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleNotePin(selectedNote.path, !selectedNotePinned)}
+                    aria-pressed={selectedNotePinned}
+                    aria-label={selectedNotePinned ? t("page.editor.unpinNote") : t("page.editor.pinNote")}
+                    title={selectedNotePinned ? t("page.editor.unpinNote") : t("page.editor.pinNote")}
+                    className={`inline-flex h-8 w-8 items-center justify-center rounded-md text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
+                      selectedNotePinned
+                        ? "text-accent-link bg-accent-link/[0.09]"
+                        : "text-text-muted/80 hover:bg-bg-hover hover:text-text-primary"
+                    }`}
+                  >
+                    <i className="fa-solid fa-thumbtack" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleExportHtml()}
+                    aria-label={t("page.editor.exportHtml")}
+                    title={t("page.editor.exportHtmlHint")}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[13px] text-text-muted/80 transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25"
+                  >
+                    <i className="fa-solid fa-file-export" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteNote()}
+                    aria-label={t("page.editor.delete")}
+                    title={t("page.editor.delete")}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[13px] text-text-muted/70 transition-colors hover:bg-accent-error/[0.08] hover:text-accent-error focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-error/25"
+                  >
+                    <i className="fa-solid fa-trash-can" aria-hidden />
+                  </button>
+                </nav>
 
-            <div className="mx-auto mt-6 w-full max-w-5xl border-t border-accent-link/10 pt-6">
-              <RelatedLinks
-                outgoing={selectedEntry?.outgoing ?? []}
-                backlinks={selectedEntry?.backlinks ?? []}
-                twoHop={selectedEntry?.twoHop ?? []}
-                newLinks={selectedEntry?.newLinks ?? []}
-                onSelect={(note) => {
-                  void handleSelectNote(note.path);
-                }}
-                onCreateLink={(title) => {
-                  void handleLinkClick(title, "internal");
-                }}
-              />
+                <NoteEditor
+                  key={editorSessionId}
+                  note={selectedNote}
+                  suggestions={index.suggestions}
+                  existingNormalizedTitles={Array.from(index.byNormalizedTitle.keys())}
+                  onSave={handleSaveNote}
+                  onSavedPathChange={setSelectedPath}
+                  onSaveStateChange={setSaveState}
+                  onLinkClick={handleLinkClick}
+                  onContentChange={handleDraftNoteChange}
+                  onImageDropError={setError}
+                />
+              </div>
+
+              <div className="mt-6 border-t border-accent-link/10 pt-6">
+                <RelatedLinks
+                  outgoing={selectedEntry?.outgoing ?? []}
+                  backlinks={selectedEntry?.backlinks ?? []}
+                  twoHop={selectedEntry?.twoHop ?? []}
+                  newLinks={selectedEntry?.newLinks ?? []}
+                  onSelect={(note) => {
+                    void handleSelectNote(note.path);
+                  }}
+                  onCreateLink={(title) => {
+                    void handleLinkClick(title, "internal");
+                  }}
+                />
+              </div>
             </div>
           </section>
         ) : userGuideOpen ? (

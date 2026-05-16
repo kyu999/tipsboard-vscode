@@ -4,7 +4,21 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.1.6] - 2026-05-17
+## [0.1.7] - 2026-05-16
+
+### Added
+
+- **Tipsboard: New Note** command and **Ctrl/Cmd+N** keybinding while the Tipsboard webview is active (`activeWebviewPanelId`), replacing the in-webview `document` handler so VS Code no longer opens a blank file instead.
+- **+** button in the left sidebar below KANBAN to create a note.
+- Unit tests for i18n **language resolution** (`webview/src/shared/i18n/languageResolution.test.ts`).
+
+### Changed
+
+- Note **actions** as subtle **icon-only controls** floating on the editor card (pin / export HTML / delete), without narrowing the `max-w-5xl` content column.
+- **Default i18n fallback** is **English** when neither `localStorage` nor the browser requests `ja` or `en` as the primary language (unchanged: saved preference and `ja`/`en` browser locales still win).
+- When **opening another note** from the in-page editor (e.g. **related link cards** at the bottom), the note scroll area **scrolls to the top** so the new page is visible from the start.
+
+## [0.1.6] - 2026-05-16
 
 ### Added
 
