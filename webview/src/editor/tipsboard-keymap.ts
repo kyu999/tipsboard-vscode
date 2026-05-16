@@ -159,6 +159,15 @@ function isBlankLine(state: EditorState, lineNumber: number): boolean {
   return state.doc.line(lineNumber).text.length === 0;
 }
 
+const REPLACEMENT_BLOCK_BOUNDARY_WINDOW = 6;
+const SINGLE_STEP_LINE_MAX_LENGTH = 120;
+
+function canForceLogicalLineStep(state: EditorState, fromLineNumber: number, toLineNumber: number): boolean {
+  const fromLine = state.doc.line(fromLineNumber);
+  const toLine = state.doc.line(toLineNumber);
+  return fromLine.text.length <= SINGLE_STEP_LINE_MAX_LENGTH && toLine.text.length <= SINGLE_STEP_LINE_MAX_LENGTH;
+}
+
 /**
  * Moves by one document line across Markdown tables, fenced code blocks, fenced Mermaid blocks,
  * and display-mode KaTeX spans where decorations can make default vertical motion skip hidden
@@ -174,6 +183,25 @@ function moveReplacementBlockBoundaryLine(view: EditorView, direction: "down" | 
   const currentLine = doc.lineAt(range.head);
   const currentColumn = range.head - currentLine.from;
   const spans = collectTipsboardReplacementBlockSpans(view);
+  const adjacentLineNumber =
+    direction === "down" ? currentLine.number + 1 : currentLine.number - 1;
+
+  if (
+    spans.length > 0 &&
+    adjacentLineNumber >= 1 &&
+    adjacentLineNumber <= doc.lines &&
+    canForceLogicalLineStep(view.state, currentLine.number, adjacentLineNumber)
+  ) {
+    const targetLine = doc.line(adjacentLineNumber);
+    view.dispatch({
+      selection: EditorSelection.cursor(
+        targetLine.from + Math.min(currentColumn, targetLine.length),
+      ),
+      scrollIntoView: true,
+      userEvent: "select",
+    });
+    return true;
+  }
 
   for (const span of spans) {
     const startLine = doc.lineAt(span.from);
@@ -188,6 +216,12 @@ function moveReplacementBlockBoundaryLine(view: EditorView, direction: "down" | 
         isBlankLine(view.state, startLine.number - 1)
       ) {
         targetLineNumber = startLine.number - 1;
+      } else if (
+        currentLine.number < startLine.number - 1 &&
+        currentLine.number >= startLine.number - REPLACEMENT_BLOCK_BOUNDARY_WINDOW &&
+        canForceLogicalLineStep(view.state, currentLine.number, currentLine.number + 1)
+      ) {
+        targetLineNumber = currentLine.number + 1;
       } else if (currentLine.number >= startLine.number && currentLine.number < endLine.number) {
         targetLineNumber = currentLine.number + 1;
       } else if (currentLine.number === endLine.number && endLine.number < doc.lines) {
@@ -200,6 +234,12 @@ function moveReplacementBlockBoundaryLine(view: EditorView, direction: "down" | 
       isBlankLine(view.state, endLine.number + 1)
     ) {
       targetLineNumber = endLine.number + 1;
+    } else if (
+      currentLine.number > endLine.number + 1 &&
+      currentLine.number <= endLine.number + REPLACEMENT_BLOCK_BOUNDARY_WINDOW &&
+      canForceLogicalLineStep(view.state, currentLine.number, currentLine.number - 1)
+    ) {
+      targetLineNumber = currentLine.number - 1;
     } else if (currentLine.number > startLine.number && currentLine.number <= endLine.number) {
       targetLineNumber = currentLine.number - 1;
     } else if (currentLine.number === startLine.number && startLine.number > 1) {

@@ -484,3 +484,5 @@ vault/
 | 2026-05-16 | リンク検出時にディスク準拠の `getSnapshot()` を用い、`snapshot` 遅延でダイアログが出ないケースを防ぐ。ノートパスは `diskCommittedTitle` で `/` に正規化。 |
 | 2026-05-18 | 拡張 **v0.1.7** に合わせ、`package.json` keybinding・`create-note` イベント、エディタ右の操作、既定 i18n（英語フォールバック・`languageResolution`）、関連リンク遷移時のスクロール、§9.7 / §9.10 の整理。 |
 | 2026-05-16 | 拡張 **v0.1.8**: 表示モード数式ブロック付近の縦矢印で論理行が飛ばないようキーマップ調整（`tipsboard-keymap.ts`）。WebView エディタのカーソルを Vitest / Playwright で検証（§13、`DEVELOPMENT.md`）。 |
+| 2026-05-16 | 拡張 **v0.1.9**: fenced code 内の `$$` を表示数式として結合しない検出修正と、数式・fenced block 近傍での `ArrowUp` / `ArrowDown` 論理行移動を追加補強。提示された fenced math examples + prose の回帰テストを Playwright に追加。 |
+| 2026-05-17 | 拡張 **v0.2.0**: 置換装飾がある文書で隣接する短い行同士の縦矢印を論理1行ずつに固定し、リスト末尾から数式領域へのカーソル飛びを防ぐ。Math Expressions 体裁の Playwright 回帰を追加。 |

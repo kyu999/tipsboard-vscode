@@ -406,3 +406,152 @@ test("ArrowUp moves line-by-line in a fenced block below rendered display math",
     await expectCursorPosition(page, lineNumber - 1, 0);
   }
 });
+
+test("ArrowUp from prose below fenced math examples does not jump into an earlier block", async ({
+  page,
+}) => {
+  const doc = [
+    "Untitled2",
+    "```md",
+    "$$",
+    String.raw`\hat{f}(\xi)`,
+    "=",
+    String.raw`\int_{-\infty}^{\infty}`,
+    String.raw`f(x)\,`,
+    String.raw`e^{-2\pi i x \xi}`,
+    String.raw`\,dx`,
+    "$$",
+    "```",
+    "$$",
+    String.raw`\hat{f}(\xi)`,
+    "=",
+    String.raw`\int_{-\infty}^{\infty}`,
+    String.raw`f(x)\,`,
+    String.raw`e^{-2\pi i x \xi}`,
+    String.raw`\,dx`,
+    "$$",
+    "```md",
+    "$$",
+    String.raw`\frac{\partial}{\partial t} \psi(\mathbf{x}, t)`,
+    "=",
+    String.raw`\left(`,
+    String.raw`-\frac{\hbar^2}{2m}\nabla^2`,
+    "+",
+    String.raw`V(\mathbf{x})`,
+    String.raw`\right)`,
+    String.raw`\psi(\mathbf{x}, t)`,
+    "$$",
+    "```",
+    "",
+    "# Document with Mermaid (for testing)",
+    "",
+    "Normal prose before the diagrams.",
+    "",
+  ].join("\n");
+  await mountDoc(page, doc);
+  await expect(page.locator(".cm-tipsboard-katex-display")).toHaveCount(1);
+
+  await setCursor(page, 35, 0);
+  const proseCursor = await cursorBox(page);
+
+  await page.keyboard.press("ArrowUp");
+  await expectCursorPosition(page, 34, 0);
+  const blankCursor = await cursorBox(page);
+  expect(blankCursor.y).toBeLessThan(proseCursor.y - 10);
+
+  await page.keyboard.press("ArrowUp");
+  await expectCursorPosition(page, 33, 0);
+  const headingCursor = await cursorBox(page);
+  expect(headingCursor.y).toBeLessThan(blankCursor.y - 10);
+
+  await page.keyboard.press("ArrowUp");
+  await expectCursorPosition(page, 32, 0);
+  const spacerCursor = await cursorBox(page);
+  expect(spacerCursor.y).toBeLessThan(headingCursor.y - 10);
+
+  await page.keyboard.press("ArrowUp");
+  await expectCursorPosition(page, 31, 0);
+  const fenceCloseCursor = await cursorBox(page);
+  expect(fenceCloseCursor.y).toBeLessThan(spacerCursor.y - 10);
+});
+
+test("ArrowUp from the bottom of math expression bullets walks list and prose lines", async ({
+  page,
+}) => {
+  const doc = [
+    "Math Expressions",
+    "Tipsboard supports [KaTeX]-style mathematical expressions inside Markdown notes.",
+    "**You** can write both inline equations and block equations while keeping everything in plain Markdown files.",
+    "",
+    "**Block equation example:**",
+    "```md",
+    "$$",
+    String.raw`\hat{f}(\xi)`,
+    "=",
+    String.raw`\int_{-\infty}^{\infty}`,
+    String.raw`f(x)\,`,
+    String.raw`e^{-2\pi i x \xi}`,
+    String.raw`\,dx`,
+    "$$",
+    "```",
+    "",
+    "**Rendered result:**",
+    "",
+    "$$",
+    String.raw`\hat{f}(\xi)`,
+    "=",
+    String.raw`\int_{-\infty}^{\infty}`,
+    String.raw`f(x)\,`,
+    String.raw`e^{-2\pi i x \xi}`,
+    String.raw`\,dx`,
+    "$$",
+    "",
+    "---",
+    "",
+    "",
+    "**More advanced expressions are also supported:**",
+    "",
+    "```md",
+    "$$",
+    String.raw`\frac{\partial}{\partial t} \psi(\mathbf{x}, t)`,
+    "=",
+    String.raw`\left(`,
+    String.raw`-\frac{\hbar^2}{2m}\nabla^2`,
+    "+",
+    String.raw`V(\mathbf{x})`,
+    String.raw`\right)`,
+    String.raw`\psi(\mathbf{x}, t)`,
+    "$$",
+    "```",
+    "",
+    "##### Rendered result:",
+    "",
+    "$$",
+    String.raw`\frac{\partial}{\partial t} \psi(\mathbf{x}, t)`,
+    "=",
+    String.raw`\left(`,
+    String.raw`-\frac{\hbar^2}{2m}\nabla^2`,
+    "+",
+    String.raw`V(\mathbf{x})`,
+    String.raw`\right)`,
+    String.raw`\psi(\mathbf{x}, t)`,
+    "$$",
+    "",
+    "This makes Tipsboard suitable for:",
+    "",
+    "- research notes",
+    "- engineering documentation",
+    "- mathematics",
+    "- physics",
+    "- technical writing",
+    "- academic knowledge bases",
+  ].join("\n");
+  await mountDoc(page, doc);
+  await expect(page.locator(".cm-tipsboard-katex-display")).toBeVisible();
+
+  for (let lineNumber = 66; lineNumber > 57; lineNumber -= 1) {
+    await setCursor(page, lineNumber, 0);
+    await page.keyboard.press("ArrowUp");
+    await expectCursorPosition(page, lineNumber - 1, 0);
+  }
+});

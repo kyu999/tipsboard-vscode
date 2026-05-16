@@ -4,6 +4,16 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-05-17
+
+### Fixed
+
+- **Editor**: When replacement decorations are present (tables, KaTeX display math, fenced blocks, etc.), **Arrow Up / Arrow Down** between adjacent short lines (both ≤120 characters) moves **one logical document line** at a time so list tails and prose no longer jump into distant math regions (`tipsboard-keymap.ts`).
+
+### Added
+
+- **Tests**: Playwright regression for the full “Math Expressions” sample ending in bullet lists (`webview/e2e/cursor-movement.spec.ts`).
+
 ## [0.1.9] - 2026-05-16
 
 ### Fixed
@@ -11,10 +21,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Editor**: Display math `$$…$$` detection pairs opening and closing delimiters in order and ignores delimiters inside fenced code, so a code sample and a rendered block are no longer merged into one span (fixes Arrow Up jumping to the wrong block) (`tipsboard-katex-math.ts`).
 - **Editor**: Arrow Up from the line below display math advances through an intervening blank line instead of skipping it (`tipsboard-keymap.ts`).
 - **Editor**: Arrow Up / Arrow Down through fenced Markdown code blocks moves one document line per key press, avoiding jumps across tall rendered regions into another fence (`tipsboard-keymap.ts`).
+- **Editor**: Arrow Up from prose below fenced math examples now steps through the intervening prose/blank/heading lines instead of jumping into an earlier fenced block (`tipsboard-keymap.ts`).
 
 ### Added
 
-- **Tests**: Additional Playwright cursor scenarios for multi-block rendered math, tall display math with a blank spacer, and fenced code below rendered math (`webview/e2e/cursor-movement.spec.ts`).
+- **Tests**: Additional Playwright cursor scenarios for multi-block rendered math, tall display math with a blank spacer, fenced code below rendered math, and prose below fenced math examples (`webview/e2e/cursor-movement.spec.ts`).
 
 ## [0.1.8] - 2026-05-16
 
