@@ -17,7 +17,6 @@ import {
   type Extension,
 } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
-import mermaid from "mermaid";
 import katex from "katex";
 import { bareHttpUrlInTextRe, trimAutolinkUrl } from "@/domain/autolink";
 import { parseIconSyntax } from "@/domain/links/iconSyntax";
@@ -40,6 +39,11 @@ import { findRenderableMathSpans } from "./tipsboard-katex-math";
 import i18n from "@/shared/i18n/config";
 import { openImageLightbox } from "@/shared/utils/imageLightbox";
 import { ensureVaultImageUrl } from "@/vscode-bridge-client";
+import { palette } from "@/theme/palette";
+
+const pe = palette.editor;
+const pa = palette.accent;
+const pt = palette.text;
 
 function attachEmbeddedImageLightbox(img: HTMLImageElement): void {
   const label = i18n.t("editor.clickToEnlargeImage");
@@ -185,8 +189,26 @@ class TableWidget extends WidgetType {
   }
 }
 
-let isMermaidInitialized = false;
+type MermaidInstance = typeof import("mermaid").default;
+
+let mermaidReady: Promise<MermaidInstance> | null = null;
 let mermaidRenderSequence = 0;
+
+function getMermaid(): Promise<MermaidInstance> {
+  if (!mermaidReady) {
+    mermaidReady = import("mermaid").then((mod) => {
+      const mermaid = mod.default;
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: "strict",
+        theme: "neutral",
+      });
+      return mermaid;
+    });
+  }
+  return mermaidReady;
+}
+
 let mermaidWrapperGenCounter = 0;
 
 async function waitAnimationFrames(count: number): Promise<void> {
@@ -280,23 +302,13 @@ class KaTeXWidget extends WidgetType {
   }
 }
 
-function initializeMermaid() {
-  if (isMermaidInitialized) return;
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: "strict",
-    theme: "neutral",
-  });
-  isMermaidInitialized = true;
-}
-
 async function paintMermaidIntoWrapper(
   code: string,
   wrapper: HTMLElement,
   view: EditorView,
   gen: number,
 ): Promise<boolean> {
-  initializeMermaid();
+  const mermaid = await getMermaid();
   const renderId = `tipsboard-mermaid-${Date.now()}-${mermaidRenderSequence}`;
   mermaidRenderSequence += 1;
   const { svg } = await mermaid.render(renderId, code);
@@ -1334,47 +1346,49 @@ export const tipsboardTheme = EditorView.baseTheme({
     lineHeight: "1.35",
     letterSpacing: "-0.02em",
     paddingBottom: "12px",
-    borderBottom: "1px solid rgba(8,127,54,0.10)",
+    borderBottom: `1px solid ${pe.borderStrong}`,
     marginBottom: "10px",
     display: "inline-block",
     width: "100%",
+    color: pt.primary,
   },
   ".cm-tipsboard-bold": { fontWeight: "bold" },
   ".cm-tipsboard-italic": { fontStyle: "italic" },
   ".cm-tipsboard-strike": { textDecoration: "line-through", opacity: "0.6" },
-  ".cm-tipsboard-h1": { fontWeight: "700", fontSize: "1.5em", lineHeight: "1.4" },
-  ".cm-tipsboard-h2": { fontWeight: "700", fontSize: "1.3em", lineHeight: "1.4" },
-  ".cm-tipsboard-h3": { fontWeight: "700", fontSize: "1.15em", lineHeight: "1.4" },
-  ".cm-tipsboard-h4": { fontWeight: "700", fontSize: "1.08em" },
-  ".cm-tipsboard-h5": { fontWeight: "600", fontSize: "1.0em" },
-  ".cm-tipsboard-h6": { fontWeight: "600", fontSize: "0.95em", color: "#748075" },
+  ".cm-tipsboard-h1": { fontWeight: "700", fontSize: "1.5em", lineHeight: "1.4", color: pt.primary },
+  ".cm-tipsboard-h2": { fontWeight: "700", fontSize: "1.3em", lineHeight: "1.4", color: pt.primary },
+  ".cm-tipsboard-h3": { fontWeight: "700", fontSize: "1.15em", lineHeight: "1.4", color: pt.primary },
+  ".cm-tipsboard-h4": { fontWeight: "700", fontSize: "1.08em", color: pt.primary },
+  ".cm-tipsboard-h5": { fontWeight: "600", fontSize: "1.0em", color: pt.primary },
+  ".cm-tipsboard-h6": { fontWeight: "600", fontSize: "0.95em", color: pt.primary },
   ".cm-tipsboard-bullet-marker": {
-    color: "#087f36",
+    color: pt.primary,
     fontSize: "0.9em",
     marginRight: "1px",
   },
   ".cm-tipsboard-ordered-marker": {
-    color: "#087f36",
+    color: pt.primary,
     fontWeight: "600",
     fontVariantNumeric: "tabular-nums",
   },
   ".cm-tipsboard-indent": {},
   ".cm-tipsboard-inline-code": {
     fontFamily: "monospace",
-    backgroundColor: "#f2efe5",
+    backgroundColor: pe.paperInset,
+    color: pe.textCode,
     borderRadius: "5px",
     padding: "0 3px",
   },
   ".cm-tipsboard-link": {
-    color: "#087f36",
+    color: pa.link,
     textDecoration: "underline",
     textDecorationThickness: "0.08em",
     textUnderlineOffset: "0.18em",
     cursor: "pointer",
   },
   ".cm-tipsboard-missing-link": {
-    color: "#d97706",
-    backgroundColor: "rgba(217,119,6,0.08)",
+    color: pa["link-new"],
+    backgroundColor: pe.missingLinkBg,
     borderRadius: "5px",
     padding: "0 2px",
     textDecoration: "underline",
@@ -1384,29 +1398,29 @@ export const tipsboardTheme = EditorView.baseTheme({
     cursor: "pointer",
   },
   ".cm-tipsboard-external-link": {
-    color: "#0f8f3d",
+    color: pa.external,
     textDecoration: "underline",
     textDecorationThickness: "0.08em",
     textUnderlineOffset: "0.18em",
     cursor: "pointer",
   },
   ".cm-tipsboard-tag": {
-    color: "#6b7f2a",
+    color: pa.tag,
     fontWeight: "600",
     cursor: "pointer",
   },
   ".cm-tipsboard-quote": {
-    borderLeft: "3px solid #5b8f3a",
+    borderLeft: `3px solid ${pa.quote}`,
     paddingLeft: "10px",
-    color: "#526257",
+    color: pt.primary,
     fontStyle: "italic",
   },
   ".cm-tipsboard-code-shell": {
     boxSizing: "border-box",
     display: "block",
-    border: "1px solid rgba(36,48,38,0.09)",
+    border: `1px solid ${pe.border}`,
     borderRadius: "7px",
-    backgroundColor: "rgba(36,48,38,0.035)",
+    backgroundColor: "rgba(28,25,23,0.035)",
     margin: "6px 0",
     padding: "0 8px",
   },
@@ -1427,9 +1441,9 @@ export const tipsboardTheme = EditorView.baseTheme({
       'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
     fontSize: "0.88em",
     lineHeight: "1.7",
-    color: "#2f3a34",
-    backgroundColor: "rgba(36,48,38,0.045)",
-    borderLeft: "2px solid rgba(8,127,54,0.14)",
+    color: pe.textCode,
+    backgroundColor: "rgba(28,25,23,0.045)",
+    borderLeft: `2px solid ${pe.borderStrong}`,
     boxDecorationBreak: "clone",
     padding: "0 4px",
     margin: "2px 0",
@@ -1446,7 +1460,7 @@ export const tipsboardTheme = EditorView.baseTheme({
   },
   ".cm-tipsboard-divider-line": {
     flex: "1",
-    borderTop: "1px solid rgba(8,127,54,0.18)",
+    borderTop: `1px solid ${pe.borderStrong}`,
   },
   ".cm-tipsboard-table-wrapper": {
     boxSizing: "border-box",
@@ -1456,9 +1470,9 @@ export const tipsboardTheme = EditorView.baseTheme({
     maxWidth: "min(100%, calc(100vw - 72px))",
     overflowX: "auto",
     margin: "8px 0",
-    border: "1px solid rgba(8,127,54,0.14)",
+    border: `1px solid ${pe.borderStrong}`,
     borderRadius: "10px",
-    backgroundColor: "#fffdf7",
+    backgroundColor: pe.paper,
   },
   ".cm-tipsboard-table": {
     width: "100%",
@@ -1468,13 +1482,13 @@ export const tipsboardTheme = EditorView.baseTheme({
     lineHeight: "1.55",
   },
   ".cm-tipsboard-table th": {
-    backgroundColor: "#f2efe5",
-    color: "#243026",
+    backgroundColor: pe.paperInset,
+    color: pt.primary,
     fontWeight: "700",
   },
   ".cm-tipsboard-table-cell": {
-    borderBottom: "1px solid rgba(8,127,54,0.10)",
-    borderRight: "1px solid rgba(8,127,54,0.10)",
+    borderBottom: `1px solid ${pe.border}`,
+    borderRight: `1px solid ${pe.border}`,
     padding: "6px 10px",
     verticalAlign: "top",
     whiteSpace: "pre-wrap",
@@ -1497,8 +1511,9 @@ export const tipsboardTheme = EditorView.baseTheme({
     overflowX: "auto",
     margin: "10px 0",
     padding: "16px",
+    border: `1px solid ${pe.diagramFrame}`,
     borderRadius: "10px",
-    backgroundColor: "#fffdf7",
+    backgroundColor: pe.paperMuted,
   },
   ".cm-tipsboard-mermaid-wrapper svg": {
     display: "block",
@@ -1509,11 +1524,11 @@ export const tipsboardTheme = EditorView.baseTheme({
     overflow: "hidden",
   },
   ".cm-tipsboard-mermaid-loading": {
-    color: "#748075",
+    color: pt.muted,
     fontSize: "0.88em",
   },
   ".cm-tipsboard-mermaid-error": {
-    color: "#c8473f",
+    color: pa.error,
     fontSize: "0.88em",
     whiteSpace: "pre-wrap",
   },
@@ -1533,7 +1548,7 @@ export const tipsboardTheme = EditorView.baseTheme({
     fontSize: "inherit",
   },
   ".cm-tipsboard-katex-error": {
-    color: "#c8473f",
+    color: pa.error,
     fontFamily: "monospace",
     fontSize: "0.9em",
   },

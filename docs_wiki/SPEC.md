@@ -5,7 +5,7 @@
 - **目的**: コードを読み込まなくても、**何のための拡張か**、**どの技術境界で何をしているか**、**変更するときどこを触るか**を短時間で把握できること。
 - **正（normative）の分割**:
   - **本文書**: VS Code 拡張としてのプロセス構成、設定、Bridge、Host のファイル I/O、WebView の状態設計、ビルド。
-  - **Editor 共通仕様**: ノートの意味・Markdown / Tipsboard 記法・KANBAN の意味論は `tipsboard-editor/docs_wiki/CURRENT_SPEC.md` を正とする（VS Code 版も同じ `.md` と `.tipsboard/*.json` を使う）。
+  - **Editor 共通仕様**: ノートの意味・Markdown / Tipsboard 記法・KANBAN の意味論は **デスクトップ版 Tipsboard** の製品ドキュメント（`CURRENT_SPEC.md`、本リポジトリ外）を正とする。VS Code 版も同じ `.md` と `.tipsboard/*.json` を使う。
 - **更新方針**: 挙動の「意図」が変わったら本書を直す。ロードマップより **今のコードの事実** を優先する。
 
 ---

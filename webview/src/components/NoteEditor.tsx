@@ -105,8 +105,8 @@ export function NoteEditor({
   }, []);
 
   return (
-    <div className="tb-card min-h-36 overflow-hidden bg-bg-card ring-1 ring-accent-link/10">
-      <div ref={editorRef} className="min-h-36 bg-bg-card" />
+    <div className="tb-card tb-reading-panel min-h-36 overflow-hidden bg-bg-elevated ring-1 ring-white/80">
+      <div ref={editorRef} className="min-h-36 bg-bg-elevated" />
     </div>
   );
 }

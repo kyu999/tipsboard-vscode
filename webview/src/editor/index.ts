@@ -13,23 +13,28 @@ import { createLinkClickHandler, type LinkClickHandler } from "./tipsboard-links
 import { createManualSavePlugin, type EditorSaveConfig } from "./tipsboard-save";
 import { createLocalLinkCompletionSource } from "./tipsboard-link-completion";
 import { createLocalImageDropExtension } from "./tipsboard-image-drop";
+import { palette } from "@/theme/palette";
+
+const ed = palette.editor;
+const accent = palette.accent;
+const text = palette.text;
 
 const notebookTheme = EditorView.theme(
   {
     "&": {
-      backgroundColor: "#fffdf7",
-      color: "#243026",
+      backgroundColor: ed.paper,
+      color: text.primary,
       fontSize: "15px",
       lineHeight: "1.85",
       minHeight: "9rem",
     },
     ".cm-content": {
-      caretColor: "#087f36",
+      caretColor: accent.link,
       padding: "28px 32px 24px",
       minHeight: "9rem",
     },
     ".cm-scroller": {
-      backgroundColor: "#fffdf7",
+      backgroundColor: ed.paper,
       fontFamily:
         "Inter, ui-sans-serif, system-ui, 'Segoe UI', Helvetica Neue, Hiragino Sans, 'Noto Sans JP', sans-serif",
     },
@@ -42,16 +47,16 @@ const notebookTheme = EditorView.theme(
       paddingBottom: "14px",
     },
     ".cm-cursor": {
-      borderLeftColor: "#087f36",
+      borderLeftColor: accent.link,
     },
     ".cm-activeLine": {
-      backgroundColor: "rgba(8,127,54,0.06)",
+      backgroundColor: ed.activeLine,
     },
     ".cm-selectionBackground": {
-      backgroundColor: "rgba(8,127,54,0.18) !important",
+      backgroundColor: `${ed.selection} !important`,
     },
     ".cm-matchingBracket": {
-      backgroundColor: "rgba(8,127,54,0.14)",
+      backgroundColor: ed.accentSoft,
     },
     ".cm-nonmatchingBracket": {
       backgroundColor: "rgba(200,71,63,0.2)",
@@ -67,10 +72,10 @@ const notebookTheme = EditorView.theme(
     },
     ".cm-panel.cm-search": {
       alignItems: "center",
-      backgroundColor: "#ffffff",
-      border: "1px solid rgba(36,48,38,0.16)",
+      backgroundColor: ed.paper,
+      border: `1px solid ${ed.border}`,
       borderRadius: "10px",
-      boxShadow: "0 10px 28px rgba(36,48,38,0.18)",
+      boxShadow: `0 14px 34px rgba(${palette.shadow.ink}, 0.14)`,
       display: "inline-flex",
       flexWrap: "wrap",
       gap: "6px",
@@ -98,12 +103,12 @@ const notebookTheme = EditorView.theme(
       whiteSpace: "nowrap",
     },
     ".cm-panel.cm-search input[type=checkbox]": {
-      accentColor: "#087f36",
+      accentColor: accent.link,
       height: "14px",
       width: "14px",
     },
     ".cm-panel.cm-search input[name=search], .cm-panel.cm-search input[name=replace]": {
-      border: "1px solid rgba(36,48,38,0.16)",
+      border: `1px solid ${ed.border}`,
       borderRadius: "7px",
       font: "inherit",
       height: "28px",
@@ -112,20 +117,20 @@ const notebookTheme = EditorView.theme(
     },
     ".cm-panel.cm-search button": {
       backgroundColor: "transparent",
-      border: "1px solid rgba(36,48,38,0.12)",
+      border: `1px solid ${ed.border}`,
       borderRadius: "7px",
-      color: "#243026",
+      color: text.primary,
       cursor: "pointer",
       font: "inherit",
       height: "28px",
       padding: "0 8px",
     },
     ".cm-panel.cm-search button:hover": {
-      backgroundColor: "rgba(8,127,54,0.08)",
+      backgroundColor: ed.hover,
     },
     ".cm-panel.cm-search button[name=close]": {
       border: "none",
-      color: "#748075",
+      color: text.muted,
       fontSize: "18px",
       height: "28px",
       position: "absolute",

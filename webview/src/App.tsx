@@ -229,6 +229,7 @@ export function App() {
 
   const listColumns = getColumnCount(listWidth);
   const listCardWidth = getCardWidth(listWidth, listColumns);
+
   const vaultMenuRef = useClickOutside<HTMLDivElement>(vaultMenuOpen, () => setVaultMenuOpen(false));
   const localMenuRef = useClickOutside<HTMLDivElement>(localMenuOpen, () => setLocalMenuOpen(false));
   const actionsMenuRef = useClickOutside<HTMLDivElement>(actionsMenuOpen, () => setActionsMenuOpen(false));
@@ -665,10 +666,10 @@ export function App() {
   }
 
   return (
-    <div className="flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-transparent">
-      <div className="flex min-h-0 flex-1">
+    <div className="m-0 flex h-[100dvh] min-h-0 w-full min-w-0 max-w-none flex-col overflow-hidden bg-bg-primary p-0">
+      <div className="m-0 flex min-h-0 min-w-0 flex-1 p-0">
         <aside
-          className="relative z-20 flex w-[52px] shrink-0 flex-col items-center gap-1 border-r border-accent-link/10 bg-bg-secondary py-2"
+          className="relative z-20 flex w-[52px] min-w-[52px] shrink-0 flex-col items-center gap-1 border-r border-stone-300/70 bg-bg-primary py-2"
           aria-label={t("layout.activityBar")}
         >
           <button
@@ -830,7 +831,7 @@ export function App() {
 
         <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
           <header className="relative z-10 shrink-0 border-b border-accent-link/10 bg-bg-card/95 px-4 py-2 backdrop-blur-sm sm:px-6 lg:px-8 supports-[backdrop-filter]:bg-bg-card/80">
-            <div className="mx-auto flex w-full max-w-6xl items-center gap-3">
+            <div className="mx-auto flex w-full min-w-0 max-w-6xl items-center gap-3">
               {selectedNote ? (
                 <button
                   type="button"
@@ -989,7 +990,7 @@ export function App() {
             </div>
           </header>
 
-          <div className="relative z-0 flex min-h-0 flex-1 flex-col overflow-hidden px-4 sm:px-6 lg:px-8">
+          <div className="relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 sm:px-6 lg:px-8">
 
 
         {error && (
@@ -1016,7 +1017,7 @@ export function App() {
         )}
 
         {selectedNote ? (
-          <section className="tb-shell flex min-h-0 flex-1 flex-col overflow-y-auto py-4 sm:py-6">
+          <section className="tb-shell flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-4 sm:py-6">
             <div className="mx-auto w-full max-w-5xl">
               {exportHtmlError && (
                 <div className="mb-2 rounded-lg border border-accent-error/25 bg-accent-error/10 px-2 py-1 text-xs text-accent-error">
@@ -1226,7 +1227,7 @@ function NoteCard({
     >
       {showPinnedBadge ? (
         <span
-          className="pointer-events-none absolute right-2.5 top-2.5 z-10 text-accent-link drop-shadow-[0_0_1px_rgba(255,253,247,0.9)]"
+          className="pointer-events-none absolute right-2.5 top-2.5 z-10 text-accent-link drop-shadow-[0_0_1px_rgba(255,255,255,0.95)]"
           aria-hidden
         >
           <i className="fa-solid fa-thumbtack text-xs" />
@@ -1246,7 +1247,7 @@ function NoteCard({
           {note.title}
         </h3>
         {cardImageUrl && !previewImageFailed ? (
-          <div className="mt-2.5 min-h-0 w-full flex-1 basis-0 overflow-hidden rounded-xl bg-bg-secondary">
+          <div className="mt-2.5 min-h-0 w-full flex-1 basis-0 overflow-hidden rounded-xl bg-bg-primary">
             <img
               src={cardImageUrl}
               alt=""

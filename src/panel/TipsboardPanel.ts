@@ -148,7 +148,7 @@ export class TipsboardPanel {
     ].join("; ");
 
     return `<!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" style="height:100%;width:100%;margin:0;padding:0;box-sizing:border-box">
 <head>
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
@@ -156,8 +156,8 @@ export class TipsboardPanel {
 <title>Tipsboard</title>
 <link rel="stylesheet" href="${styleUri}" />
 </head>
-<body>
-<div id="root"></div>
+<body style="height:100%;width:100%;margin:0;padding:0;overflow:hidden;box-sizing:border-box">
+<div id="root" style="height:100%;width:100%;margin:0;padding:0;box-sizing:border-box"></div>
 <script nonce="${nonce}" type="module" src="${scriptUri}"></script>
 </body>
 </html>`;

@@ -4,6 +4,14 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.5] - 2026-05-16
+
+### Changed
+
+- WebView: refreshed theme and link colors; adjusted layout spacing and shell padding.
+- Kanban: clearer column surface vs. cards.
+- Webview fills the panel edge-to-edge (no default margin on `html` / `body` / `#root`).
+
 ## [0.1.4] - 2026-05-16
 
 ### Added

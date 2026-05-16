@@ -1,4 +1,4 @@
-/** Types aligned with CURRENT_SPEC.md (Tipsboard Editor). Independent copy for VS Code extension. */
+/** Types aligned with the shared Tipsboard product spec (`CURRENT_SPEC.md`). Independent copy for this extension. */
 
 export type SaveState = "idle" | "unsaved" | "saving" | "saved" | "error";
 

@@ -29,7 +29,7 @@ export function ConfirmDialog({
       }}
     >
       <div className="w-full max-w-md overflow-hidden rounded-2xl border border-accent-link/20 bg-bg-card shadow-soft">
-        <div className="border-b border-accent-link/15 bg-bg-secondary px-5 py-3">
+        <div className="border-b border-accent-link/15 bg-bg-elevated px-5 py-3">
           <p className="text-sm font-semibold text-text-primary">{title}</p>
         </div>
         <div className="space-y-5 px-5 py-5">

@@ -357,7 +357,7 @@ export function KanbanBoardView({
   }, []);
 
   return (
-    <div className="tb-shell flex min-h-0 flex-1 flex-col py-4 sm:py-5">
+    <div className="tb-shell flex min-h-0 min-w-0 flex-1 flex-col py-4 sm:py-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <div ref={boardPickerRef} className="relative">
@@ -437,7 +437,7 @@ export function KanbanBoardView({
       </div>
 
       {!selectedBoard ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-accent-link/20 bg-bg-secondary p-8 text-center">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-accent-link/20 bg-bg-primary p-8 text-center">
           <p className="text-lg font-semibold text-text-primary">{t("kanban.empty.title")}</p>
           <p className="mt-2 max-w-md text-sm leading-6 text-text-muted">{t("kanban.empty.description")}</p>
           <button type="button" className="tb-btn-primary mt-5" onClick={handleCreateBoard}>
@@ -490,7 +490,7 @@ export function KanbanBoardView({
           <div className="min-h-0 flex-1 overflow-x-auto pb-3">
             <div className="flex min-h-full gap-2">
               {selectedBoard.columns.length === 0 && (
-                <div className="flex min-h-[28rem] w-60 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-accent-link/20 bg-bg-secondary p-6 text-center">
+                <div className="flex min-h-[28rem] w-60 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-accent-link/20 bg-bg-primary p-6 text-center">
                   <p className="text-sm font-semibold text-text-primary">{t("kanban.emptyColumns.title")}</p>
                   <p className="mt-2 text-xs leading-5 text-text-muted">{t("kanban.emptyColumns.description")}</p>
                   <button type="button" className="tb-btn-primary mt-4 px-4 py-2 text-xs" onClick={handleCreateColumn}>
@@ -522,7 +522,7 @@ export function KanbanBoardView({
               {selectedBoard.columns.length > 0 && (
                 <button
                   type="button"
-                  className="flex h-11 w-60 shrink-0 items-center gap-2 rounded-xl border border-accent-link/10 bg-bg-secondary px-3 text-left text-sm font-medium text-text-muted transition-colors hover:border-accent-link/20 hover:bg-bg-hover hover:text-text-primary"
+                  className="flex h-11 w-60 shrink-0 items-center gap-2 rounded-xl border border-accent-link/10 bg-bg-elevated px-3 text-left text-sm font-medium text-text-muted transition-colors hover:border-accent-link/20 hover:bg-bg-hover hover:text-text-primary"
                   onClick={handleCreateColumn}
                 >
                   <span className="text-base leading-none">+</span>
@@ -542,7 +542,7 @@ export function KanbanBoardView({
           }}
         >
           <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-accent-link/20 bg-bg-card shadow-soft">
-            <div className="flex items-center justify-between border-b border-accent-link/15 bg-bg-secondary px-5 py-3">
+            <div className="flex items-center justify-between border-b border-accent-link/15 bg-bg-elevated px-5 py-3">
               <div>
                 <p className="text-sm font-semibold text-text-primary">{t("kanban.existing.title")}</p>
                 <p className="mt-1 text-2xs text-text-muted">{t("kanban.existing.description")}</p>
@@ -711,7 +711,7 @@ function KanbanColumnLane({
   return (
     <section
       id={`kanban-column-${columnId}`}
-      className={`flex max-h-full min-h-[28rem] w-60 shrink-0 flex-col rounded-xl border bg-bg-secondary p-2 transition-colors ${
+      className={`flex max-h-full min-h-[28rem] w-60 shrink-0 flex-col rounded-xl border bg-bg-code p-2 transition-colors ${
         dragOver || focusedColumnId === columnId ? "border-accent-link/50" : "border-accent-link/10"
       }`}
       onDragOver={(event) => {
@@ -787,12 +787,12 @@ function KanbanColumnLane({
                 {tags.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-1" title={tags.map((tag) => `#${tag}`).join(" ")}>
                     {tags.slice(0, 3).map((tag) => (
-                      <span key={tag} className="inline-flex max-w-[6.5rem] items-center gap-1 rounded-full bg-bg-secondary px-1.5 py-0.5 text-[10px] font-medium leading-none text-text-muted">
+                      <span key={tag} className="inline-flex max-w-[6.5rem] items-center gap-1 rounded-full bg-stone-200/55 px-1.5 py-0.5 text-[10px] font-medium leading-none text-text-muted">
                         <span className={`h-1.5 w-4 shrink-0 rounded-full ${tagColors.get(tag) ?? fallbackTagColorClass(tag)}`} aria-hidden />
                         <span className="truncate">#{tag}</span>
                       </span>
                     ))}
-                    {tags.length > 3 && <span className="rounded-full bg-bg-secondary px-1.5 py-0.5 text-[10px] font-medium leading-none text-text-muted">+{tags.length - 3}</span>}
+                    {tags.length > 3 && <span className="rounded-full bg-stone-200/55 px-1.5 py-0.5 text-[10px] font-medium leading-none text-text-muted">+{tags.length - 3}</span>}
                   </div>
                 )}
                 <h3 className="line-clamp-2 min-h-0 min-w-0 shrink-0 overflow-hidden break-words pr-4 text-xs font-medium leading-4 text-text-primary">

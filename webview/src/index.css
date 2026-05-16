@@ -3,19 +3,24 @@
 @tailwind utilities;
 
 @layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  /** Webview 全体を端から埋める（VS Code が body に入れる余白を相殺しやすくする） */
   html {
-    @apply bg-bg-primary;
+    @apply m-0 h-full w-full max-w-[100%] bg-bg-primary p-0;
   }
 
   body {
-    @apply min-h-screen bg-bg-primary text-text-primary antialiased font-sans text-[15px] leading-snug tracking-[-0.01em];
-    background:
-      radial-gradient(circle at top left, rgba(15, 143, 61, 0.08), transparent 34rem),
-      linear-gradient(180deg, #fbfaf4 0%, #f7f5ee 45%, #f2efe5 100%);
+    @apply m-0 min-h-full min-w-0 w-full max-w-[100%] bg-bg-primary p-0 text-text-primary antialiased font-sans text-[15px] leading-snug tracking-[-0.01em];
+    background: linear-gradient(180deg, #fafaf9 0%, #f5f5f4 52%, #ecebea 100%);
   }
 
   #root {
-    @apply min-h-screen;
+    @apply m-0 min-h-full min-w-0 w-full max-w-[100%] p-0;
   }
 
   ::-webkit-scrollbar {
@@ -32,12 +37,24 @@
 }
 
 @layer components {
+  /** デスクトップ版と同系の shell: 最大幅 + 内側ガター */
   .tb-shell {
-    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+    @apply mx-auto w-full min-w-0 max-w-6xl px-4 sm:px-6 lg:px-8;
   }
 
   .tb-card {
     @apply rounded-2xl border border-accent-link/10 bg-bg-card shadow-card;
+  }
+
+  /** User Guide / ノート編集のスクロール列（中央をほんのり白く） */
+  .tb-reading-canvas {
+    background: radial-gradient(ellipse 110% 62% at 50% 0%, rgba(255, 255, 255, 0.7), transparent 56%);
+  }
+
+  /** エディタ／ガイド記事カード */
+  .tb-reading-panel {
+    @apply border border-stone-200/80;
+    box-shadow: 0 14px 40px rgba(28, 25, 23, 0.06);
   }
 
   .tb-btn {
@@ -45,7 +62,7 @@
   }
 
   .tb-btn-primary {
-    @apply tb-btn bg-accent-link text-white shadow-[0_8px_20px_rgba(8,127,54,0.18)] hover:-translate-y-px hover:bg-accent-save;
+    @apply tb-btn bg-accent-link text-white shadow-[0_8px_22px_rgba(8,127,54,0.22)] hover:-translate-y-px hover:bg-accent-save;
   }
 
   .tb-btn-secondary {
@@ -86,12 +103,12 @@
   }
 
   .tipsboard-user-guide p {
-    @apply my-3 text-text-secondary;
+    @apply my-3 text-text-primary;
   }
 
   .tipsboard-user-guide ul,
   .tipsboard-user-guide ol {
-    @apply my-3 list-outside space-y-1.5 pl-5 text-text-secondary;
+    @apply my-3 list-outside space-y-1.5 pl-5 text-text-primary;
   }
 
   .tipsboard-user-guide ul {
@@ -110,12 +127,18 @@
     @apply font-medium text-accent-link underline decoration-accent-link/30 underline-offset-2 transition-colors hover:decoration-accent-link;
   }
 
+  /* http(s) のみ外部リンク色（Wiki / 相対リンクは上記のまま） */
+  .tipsboard-user-guide a[href^="http://"],
+  .tipsboard-user-guide a[href^="https://"] {
+    @apply font-medium text-accent-external underline decoration-accent-external/35 underline-offset-2 transition-colors hover:decoration-accent-external;
+  }
+
   .tipsboard-user-guide code {
-    @apply rounded-md bg-bg-secondary px-1 py-0.5 text-[13px] font-medium text-accent-tag;
+    @apply rounded-md bg-bg-code px-1 py-0.5 text-[13px] font-medium text-text-primary;
   }
 
   .tipsboard-user-guide pre {
-    @apply my-4 overflow-x-auto rounded-xl border border-accent-link/10 bg-bg-secondary p-4 text-[13px] leading-relaxed text-text-primary;
+    @apply my-4 overflow-x-auto rounded-xl border border-accent-link/10 bg-bg-code p-4 text-[13px] leading-relaxed text-text-primary;
   }
 
   .tipsboard-user-guide .katex-display {
@@ -131,7 +154,7 @@
   }
 
   .tipsboard-user-guide blockquote {
-    @apply my-4 border-l-[3px] border-accent-link/25 pl-4 text-sm italic text-text-muted;
+    @apply my-4 border-l-[3px] border-accent-quote/35 pl-4 text-sm italic text-text-primary;
   }
 
   .tipsboard-user-guide hr {
@@ -139,11 +162,11 @@
   }
 
   .tipsboard-user-guide table {
-    @apply my-4 w-full border-collapse text-left text-sm text-text-secondary;
+    @apply my-4 w-full border-collapse text-left text-sm text-text-primary;
   }
 
   .tipsboard-user-guide .tipsboard-export-table-wrap {
-    @apply my-4 overflow-x-auto rounded-xl border border-accent-link/10 bg-bg-secondary/40;
+    @apply my-4 overflow-x-auto rounded-xl border border-accent-link/10 bg-bg-code/40;
   }
 
   .tipsboard-user-guide th,
