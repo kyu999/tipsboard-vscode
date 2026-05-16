@@ -4,11 +4,24 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.1] - 2026-05-16
+
+### Changed
+
+- README screenshot links now target this repository’s `assets/vscode/marketplace/` on GitHub.
+- `package.json` `homepage` and `repository` URLs point to `kyu999/tipsboard-vscode`.
+
+### Documentation
+
+- README documents **Shift** + drop for image insertion and uses `insert_image.png`.
+- Broaden `.gitignore` (for example `.vscode/`, `out/`, `media/`, `.env*`) for open-source hygiene.
+- Remove the obsolete `docs/marketplace/` screenshot checklist and duplicate hero asset.
+
 ## [0.1.0] - 2026-05-16
 
 ### Added
 
-- Initial Marketplace-oriented README, **CHANGELOG**, and screenshot checklist under `docs/marketplace/`.
+- Initial Marketplace-oriented README and **CHANGELOG**.
 - **Tipsboard: Open** — WebView panel with note grid, editor, Kanban, settings, and built-in user guide.
 - **Tipsboard: Select Vault Folder...** — persist vault path (`tipsboard-vscode.manualVaultPath`).
 - Vault layout: `pages/*.md`, `assets/images/`, `.tipsboard/kanban.json`; bridge RPC for file I/O from the WebView.
