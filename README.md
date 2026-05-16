@@ -166,8 +166,8 @@ Supports:
 
 ## Getting Started
 
-1. Install Tipsboard from the Marketplace
-2. Open a folder in VS Code
+1. In VS Code, open **Extensions** (`Cmd+Shift+X` on macOS, `Ctrl+Shift+X` on Windows/Linux), search for **Tipsboard**, then choose **Install**
+2. Open a folder in VS Code (this folder is your vault)
 3. Open the Command Palette (`Cmd+Shift+P` on macOS, `Ctrl+Shift+P` on Windows/Linux) and run:
 
 ```txt

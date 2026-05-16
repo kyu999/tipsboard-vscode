@@ -4,6 +4,12 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.3] - 2026-05-17
+
+### Documentation
+
+- README **Getting Started** now leads with installing from VS Code **Extensions** (search “Tipsboard”) before opening the vault and running **Tipsboard: Open**.
+
 ## [0.1.2] - 2026-05-16
 
 ### Added
