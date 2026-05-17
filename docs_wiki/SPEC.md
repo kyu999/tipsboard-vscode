@@ -259,6 +259,7 @@ vault 未選択時、**`getSnapshot` と `selectFolder` を除き**概ね `Error
 | `createKanbanColumn` | `{ boardId, name }` | `VaultSnapshot` | |
 | `updateKanbanColumn` | `{ columnId, name?, position? }` | `VaultSnapshot` | |
 | `deleteKanbanColumn` | string | `VaultSnapshot` | |
+| `reorderKanbanColumns` | `{ boardId, columnIds }`（列 ID の並び順） | `VaultSnapshot` | |
 | `moveKanbanNote` | `{ boardId, notePath, toColumnId, position? }` | `VaultSnapshot` | |
 | `exportJson` | なし | boolean | Save ダイアログ、キャンセルで `false` |
 | `importJson` | なし | `VaultSnapshot` | Open ダイアログ |

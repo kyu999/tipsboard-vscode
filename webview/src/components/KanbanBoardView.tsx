@@ -2,10 +2,35 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 import { useTranslation } from "react-i18next";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TextInputDialog } from "@/components/TextInputDialog";
+import { reorderColumnsWithPlacement } from "@/lib/kanbanColumnReorder";
 import { getKanbanDropPosition, type KanbanDropPlacement } from "@/lib/kanbanDropPosition";
 import { runUnlessInFlight } from "@/lib/runUnlessInFlight";
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
-import type { KanbanBoard, KanbanCardState, NoteSummary, VaultSnapshot } from "@/types";
+import type { KanbanCardState, NoteSummary, VaultSnapshot } from "@/types";
+
+const KANBAN_COLUMN_DRAG_MIME = "application/x-tipsboard-kanban-column";
+
+function dragEventHasKanbanColumnPayload(event: { dataTransfer: DataTransfer }): boolean {
+  return Array.from(event.dataTransfer.types).some(
+    (type) => type.toLowerCase() === KANBAN_COLUMN_DRAG_MIME.toLowerCase(),
+  );
+}
+
+function readKanbanColumnDragId(dataTransfer: DataTransfer): string {
+  let id = dataTransfer.getData(KANBAN_COLUMN_DRAG_MIME);
+  if (id) return id;
+  for (const type of dataTransfer.types) {
+    if (type.toLowerCase() !== KANBAN_COLUMN_DRAG_MIME.toLowerCase()) continue;
+    id = dataTransfer.getData(type);
+    if (id) return id;
+  }
+  return "";
+}
+
+/** 列ドラッグの起点にしない領域（カード／操作ボタンなど） */
+function isKanbanSuppressColumnDragTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("[data-kanban-suppress-column-drag]") !== null;
+}
 
 interface KanbanBoardViewProps {
   snapshot: VaultSnapshot;
@@ -99,6 +124,17 @@ export function KanbanBoardView({
       onFocusConsumed();
     }, 0);
   }, [focusedColumnId, focusedNotePath, onFocusConsumed, selectedBoard]);
+
+  const sortedBoardColumns = useMemo(() => {
+    if (!selectedBoard) return [];
+    return [...selectedBoard.columns].sort((a, b) => {
+      const dp = a.position - b.position;
+      if (dp !== 0) return dp;
+      const ct = a.created_at.localeCompare(b.created_at);
+      if (ct !== 0) return ct;
+      return a.id.localeCompare(b.id);
+    });
+  }, [selectedBoard]);
 
   const cardsByColumn = useMemo(() => {
     const grouped = new Map<string, KanbanCardState[]>();
@@ -303,6 +339,22 @@ export function KanbanBoardView({
     });
   }, [applySnapshot, cardsByColumn, onError, selectedBoard, t]);
 
+  const handleReorderColumns = useCallback(
+    async (dragColumnId: string, targetColumnId: string, placement: "before" | "after") => {
+      if (!selectedBoard) return;
+      const order = sortedBoardColumns.map((c) => c.id);
+      const nextOrder = reorderColumnsWithPlacement(order, dragColumnId, targetColumnId, placement);
+      if (!nextOrder) return;
+      if (nextOrder.every((id, index) => id === order[index])) return;
+      try {
+        applySnapshot(await window.tipsboardDesktop.reorderKanbanColumns(selectedBoard.id, nextOrder));
+      } catch (error) {
+        onError(messageForError(error));
+      }
+    },
+    [applySnapshot, onError, selectedBoard, sortedBoardColumns],
+  );
+
   const handleMoveNote = useCallback(async (notePath: string, columnId: string | null, position?: number) => {
     if (!selectedBoard) return;
     try {
@@ -452,12 +504,12 @@ export function KanbanBoardView({
               <input
                 value={existingPicker ? existingQuery : ""}
                 onFocus={() => {
-                  const columnId = selectedBoard.columns[0]?.id;
+                  const columnId = sortedBoardColumns[0]?.id;
                   if (columnId) setExistingPicker({ columnId });
                 }}
                 onChange={(event) => setExistingQuery(event.target.value)}
                 placeholder={t("kanban.existing.quickSearchPlaceholder")}
-                disabled={selectedBoard.columns.length === 0}
+                disabled={sortedBoardColumns.length === 0}
                 className="w-full rounded-full border border-accent-link/15 bg-bg-elevated py-2 pl-9 pr-4 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent-link/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </div>
@@ -489,7 +541,7 @@ export function KanbanBoardView({
           )}
           <div className="min-h-0 flex-1 overflow-x-auto pb-3">
             <div className="flex min-h-full gap-2">
-              {selectedBoard.columns.length === 0 && (
+              {sortedBoardColumns.length === 0 && (
                 <div className="flex min-h-[28rem] w-60 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-accent-link/20 bg-bg-primary p-6 text-center">
                   <p className="text-sm font-semibold text-text-primary">{t("kanban.emptyColumns.title")}</p>
                   <p className="mt-2 text-xs leading-5 text-text-muted">{t("kanban.emptyColumns.description")}</p>
@@ -498,7 +550,7 @@ export function KanbanBoardView({
                   </button>
                 </div>
               )}
-              {selectedBoard.columns.map((column) => (
+              {sortedBoardColumns.map((column) => (
                 <KanbanColumnLane
                   key={column.id}
                   columnId={column.id}
@@ -510,6 +562,7 @@ export function KanbanBoardView({
                   tagColors={tagColors}
                   focusedNotePath={focusedNotePath}
                   focusedColumnId={focusedColumnId}
+                  onColumnReorder={handleReorderColumns}
                   onDropCard={(notePath, position) => void handleMoveNote(notePath, column.id, position)}
                   onRemoveCard={handleRemoveCard}
                   onCreateCard={() => handleCreateCard(column.id)}
@@ -519,7 +572,7 @@ export function KanbanBoardView({
                   onSelectNote={onSelectNote}
                 />
               ))}
-              {selectedBoard.columns.length > 0 && (
+              {sortedBoardColumns.length > 0 && (
                 <button
                   type="button"
                   className="flex h-11 w-60 shrink-0 items-center gap-2 rounded-xl border border-accent-link/10 bg-bg-elevated px-3 text-left text-sm font-medium text-text-muted transition-colors hover:border-accent-link/20 hover:bg-bg-hover hover:text-text-primary"
@@ -570,7 +623,7 @@ export function KanbanBoardView({
                     onChange={(event) => setExistingPicker({ columnId: event.target.value })}
                     className="rounded-full border border-accent-link/15 bg-bg-elevated px-3 py-2 text-xs font-medium normal-case tracking-normal text-text-primary"
                   >
-                    {selectedBoard.columns.map((column) => (
+                    {sortedBoardColumns.map((column) => (
                       <option key={column.id} value={column.id}>
                         {column.name}
                       </option>
@@ -676,6 +729,7 @@ function KanbanColumnLane({
   onRename,
   onDelete,
   onSelectNote,
+  onColumnReorder,
 }: {
   columnId: string;
   title: string;
@@ -693,45 +747,101 @@ function KanbanColumnLane({
   onRename: () => void;
   onDelete: () => void;
   onSelectNote: (path: string) => void;
+  onColumnReorder: (dragColumnId: string, targetColumnId: string, placement: "before" | "after") => void;
 }) {
   const { t } = useTranslation();
   const [dragOver, setDragOver] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [columnReorderPlacement, setColumnReorderPlacement] = useState<"before" | "after" | null>(null);
   const menuRef = useClickOutside<HTMLDivElement>(menuOpen, () => setMenuOpen(false));
+
+  useEffect(() => {
+    const onDragEnd = (): void => {
+      setColumnReorderPlacement(null);
+    };
+    window.addEventListener("dragend", onDragEnd);
+    return () => window.removeEventListener("dragend", onDragEnd);
+  }, []);
 
   const dropCard = useCallback((event: DragEvent<HTMLElement>, targetNotePath: string | null, placement: KanbanDropPlacement) => {
     event.preventDefault();
     event.stopPropagation();
     setDragOver(false);
     const notePath = event.dataTransfer.getData("text/plain");
-    if (!notePath) return;
+    if (!notePath || dragEventHasKanbanColumnPayload(event)) return;
     onDropCard(notePath, getKanbanDropPosition(allCards, notePath, targetNotePath, placement));
   }, [allCards, onDropCard]);
+
+  const sectionBorderClasses =
+    columnReorderPlacement !== null
+      ? "border-accent-link/55 ring-2 ring-accent-link/25"
+      : dragOver || focusedColumnId === columnId
+        ? "border-accent-link/50"
+        : "border-accent-link/10";
 
   return (
     <section
       id={`kanban-column-${columnId}`}
-      className={`flex max-h-full min-h-[28rem] w-60 shrink-0 flex-col rounded-xl border bg-bg-code p-2 transition-colors ${
-        dragOver || focusedColumnId === columnId ? "border-accent-link/50" : "border-accent-link/10"
-      }`}
+      draggable
+      onDragStart={(event) => {
+        if (!(event.target instanceof Element) || !event.currentTarget.contains(event.target)) return;
+        if (isKanbanSuppressColumnDragTarget(event.target)) return;
+        event.dataTransfer.setData(KANBAN_COLUMN_DRAG_MIME, columnId);
+        event.dataTransfer.effectAllowed = "move";
+      }}
+      className={`flex max-h-full min-h-[28rem] w-60 shrink-0 cursor-grab flex-col rounded-xl border bg-bg-code p-2 transition-[border-color,box-shadow] active:cursor-grabbing ${sectionBorderClasses}`}
       onDragOver={(event) => {
+        if (dragEventHasKanbanColumnPayload(event)) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          const rect = event.currentTarget.getBoundingClientRect();
+          setColumnReorderPlacement(event.clientX < rect.left + rect.width / 2 ? "before" : "after");
+          setDragOver(false);
+          return;
+        }
         event.preventDefault();
         setDragOver(true);
       }}
-      onDragLeave={() => setDragOver(false)}
+      onDragLeave={(event) => {
+        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
+          setDragOver(false);
+          setColumnReorderPlacement(null);
+        }
+      }}
       onDrop={(event) => {
+        if (dragEventHasKanbanColumnPayload(event)) {
+          event.preventDefault();
+          event.stopPropagation();
+          setColumnReorderPlacement(null);
+          setDragOver(false);
+          const dragId = readKanbanColumnDragId(event.dataTransfer);
+          if (!dragId || dragId === columnId) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          const placement = event.clientX < rect.left + rect.width / 2 ? "before" : "after";
+          void onColumnReorder(dragId, columnId, placement);
+          return;
+        }
         dropCard(event, null, "end");
       }}
     >
-      <div className="mb-2 flex items-center justify-between gap-2 px-1">
-        <h2 className="truncate text-sm font-semibold text-text-primary">{title}</h2>
-        <div className="flex items-center gap-1">
+      <div className="mb-2 flex min-w-0 cursor-grab items-center gap-1 px-1 active:cursor-grabbing">
+        <span
+          className="-ml-0.5 inline-flex h-8 w-7 shrink-0 select-none items-center justify-center rounded-md text-text-muted"
+          aria-hidden
+          title={t("kanban.actions.dragColumnReorder")}
+        >
+          <i className="fa-solid fa-grip text-[13px]" />
+        </span>
+        <div className="relative min-h-8 min-w-0 flex-1 px-1 py-0.5">
+          <h2 className="truncate text-sm font-semibold leading-6 text-text-primary">{title}</h2>
+        </div>
+        <div data-kanban-suppress-column-drag className="flex shrink-0 items-center gap-1">
           <span className="rounded-full px-2 py-0.5 text-2xs text-text-muted">{cards.length}</span>
-          <button type="button" className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-base font-semibold text-text-muted hover:bg-bg-hover hover:text-accent-link" onClick={onCreateCard} title={t("kanban.actions.newCard")} aria-label={t("kanban.actions.newCard")}>
+          <button type="button" className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-base font-semibold text-text-muted hover:bg-bg-hover hover:text-accent-link" onClick={onCreateCard} title={t("kanban.actions.newCard")} aria-label={t("kanban.actions.newCard")}>
             +
           </button>
           <div ref={menuRef} className="relative">
-            <button type="button" className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-sm font-semibold text-text-muted hover:bg-bg-hover hover:text-text-primary" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-haspopup="true" aria-label={t("kanban.actions.columnMenu")} title={t("kanban.actions.columnMenu")}>
+            <button type="button" className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-sm font-semibold text-text-muted hover:bg-bg-hover hover:text-text-primary" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-haspopup="true" aria-label={t("kanban.actions.columnMenu")} title={t("kanban.actions.columnMenu")}>
               ⋯
             </button>
             {menuOpen && (
@@ -759,13 +869,22 @@ function KanbanColumnLane({
             <div
               key={note.path}
               id={`kanban-card-${encodeURIComponent(note.path)}`}
+              data-kanban-suppress-column-drag
               className="group relative scroll-m-6"
               onDragOver={(event) => {
+                if (dragEventHasKanbanColumnPayload(event)) {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  return;
+                }
                 event.preventDefault();
                 event.stopPropagation();
                 setDragOver(true);
               }}
               onDrop={(event) => {
+                if (dragEventHasKanbanColumnPayload(event)) {
+                  return;
+                }
                 const rect = event.currentTarget.getBoundingClientRect();
                 const placement = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
                 dropCard(event, note.path, placement);
@@ -775,6 +894,7 @@ function KanbanColumnLane({
                 type="button"
                 draggable
                 onDragStart={(event) => {
+                  event.stopPropagation();
                   event.dataTransfer.setData("text/plain", note.path);
                   event.dataTransfer.effectAllowed = "move";
                 }}

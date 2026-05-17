@@ -4,6 +4,21 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.2] - 2026-05-17
+
+### Added
+
+- **Kanban**: Reorder columns by dragging a column (whole lane and header chrome; excludes card stacks and toolbar buttons). Drops use the pointer’s horizontal position versus the column to insert **before** or **after**.
+- Host RPC **`reorderKanbanColumns`** (`{ boardId, columnIds }`) and `.tipsboard/kanban.json` updates with contiguous `position` values (see SPEC).
+
+### Changed
+
+- **Kanban**: Board columns render in **`position`** order (`KanbanBoardView.tsx`).
+
+### Tests
+
+- **Vitest**: `webview/src/lib/kanbanColumnReorder.ts` (+ `kanbanColumnReorder.test.ts`), extended `kanban.host.test.ts` for `reorderKanbanColumns` success, errors, card preservation, and three-column reorder.
+
 ## [0.2.1] - 2026-05-17
 
 ### Fixed

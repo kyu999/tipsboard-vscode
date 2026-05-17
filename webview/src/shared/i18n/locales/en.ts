@@ -93,6 +93,7 @@ const en = {
       addExisting: "Add existing note",
       boardMenu: "Board menu",
       columnMenu: "Column menu",
+      dragColumnReorder: "Drag to reorder column",
     },
     prompts: {
       boardName: "Board name",

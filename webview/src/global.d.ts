@@ -23,6 +23,7 @@ declare global {
         data: { name?: string; position?: number },
       ) => Promise<VaultSnapshot>;
       deleteKanbanColumn: (columnId: string) => Promise<VaultSnapshot>;
+      reorderKanbanColumns: (boardId: string, columnIds: string[]) => Promise<VaultSnapshot>;
       moveKanbanNote: (
         boardId: string,
         notePath: string,

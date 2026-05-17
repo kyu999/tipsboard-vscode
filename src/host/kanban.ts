@@ -154,6 +154,39 @@ export async function updateKanbanColumn(
   throw new Error("Column not found");
 }
 
+export async function reorderKanbanColumns(
+  vaultPath: string,
+  boardId: string,
+  orderedColumnIds: readonly string[],
+): Promise<void> {
+  const state = await loadKanbanState(vaultPath);
+  const b = state.boards.find((br) => br.id === boardId);
+  if (!b) throw new Error("Board not found");
+  const prevIds = new Set(b.columns.map((c) => c.id));
+  if (orderedColumnIds.length !== prevIds.size || new Set(orderedColumnIds).size !== orderedColumnIds.length) {
+    throw new Error("Invalid column order");
+  }
+  for (const id of orderedColumnIds) {
+    if (!prevIds.has(id)) throw new Error("Invalid column order");
+  }
+  const byId = new Map(b.columns.map((c) => [c.id, c] as const));
+  const ts = nowIso();
+  b.columns = orderedColumnIds.map((id) => {
+    const col = byId.get(id);
+    if (!col) throw new Error("Invalid column order");
+    return col;
+  });
+  orderedColumnIds.forEach((id, index) => {
+    const col = byId.get(id);
+    if (col) {
+      col.position = index;
+      col.updated_at = ts;
+    }
+  });
+  b.updated_at = ts;
+  await saveKanbanState(vaultPath, state);
+}
+
 export async function deleteKanbanColumn(vaultPath: string, columnId: string): Promise<void> {
   const state = await loadKanbanState(vaultPath);
   for (const b of state.boards) {

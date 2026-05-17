@@ -77,6 +77,9 @@ function wireDesktop(): typeof window.tipsboardDesktop {
     deleteKanbanColumn: (columnId: string) =>
       rpc("deleteKanbanColumn", columnId) as Promise<VaultSnapshot>,
 
+    reorderKanbanColumns: (boardId: string, columnIds: string[]) =>
+      rpc("reorderKanbanColumns", { boardId, columnIds }) as Promise<VaultSnapshot>,
+
     moveKanbanNote: (
       boardId: string,
       notePath: string,

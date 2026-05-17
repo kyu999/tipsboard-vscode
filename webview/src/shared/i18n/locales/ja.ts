@@ -93,6 +93,7 @@ const ja = {
       addExisting: "既存メモを追加",
       boardMenu: "ボードメニュー",
       columnMenu: "列メニュー",
+      dragColumnReorder: "ドラッグして列の並び順を変更",
     },
     prompts: {
       boardName: "ボード名",

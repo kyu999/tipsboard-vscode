@@ -21,6 +21,7 @@ import {
   updateKanbanBoard,
   updateKanbanColumn,
   createKanbanColumn,
+  reorderKanbanColumns,
 } from "../host/kanban.js";
 import { resolveVaultFsPath, pickVaultFolder } from "../host/vaultRoot.js";
 import { toAssetWebviewUri } from "../host/assetUri.js";
@@ -150,6 +151,15 @@ export async function handleRpcInbound(
       case "deleteKanbanColumn": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
         await deleteKanbanColumn(vaultPath, String(raw.payload ?? ""));
+        panel.recordSelfWrites([".tipsboard/kanban.json"]);
+        reply({ ok: true, result: await readVault(vaultPath) });
+        return;
+      }
+
+      case "reorderKanbanColumns": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const payload = raw.payload as { boardId?: string; columnIds?: string[] };
+        await reorderKanbanColumns(vaultPath, payload.boardId ?? "", payload.columnIds ?? []);
         panel.recordSelfWrites([".tipsboard/kanban.json"]);
         reply({ ok: true, result: await readVault(vaultPath) });
         return;
