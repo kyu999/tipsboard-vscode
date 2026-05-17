@@ -338,6 +338,7 @@ vault/
 | --- | --- |
 | `snapshot` | 上記。KANBAN・pins・全ノート本文。 |
 | `selectedPath` | 現在選んでいるノートの `pages/...` または null。 |
+| `openTabs` / `activeTabId` | WebView 内タブ（ノート path またはタグ検索）。`webview/src/lib/editorTabs.ts` のヘルパで追加・フォーカス・重複排除。 |
 | `viewMode` | `"list"` \| `"kanban"` |
 | `kanbanFocus` | ボード / 列 / カードのフォーカス情報 |
 | `editorSessionId` | ノート切り替え時にインクリメントし **`NoteEditor` をリマウント**させるトリガ |
@@ -355,7 +356,7 @@ vault/
 
 ### 9.4 ナビゲーション履歴（NavMemory）
 
-- スタック最大 **50**。`pushNavHistory` は「戻る」のために **選択ノート・viewMode・KANBAN フォーカス・ガイド開閉・一覧フィルタ**をまとめて保存。
+- スタック最大 **50**。`pushNavHistory` は「戻る」のために **選択ノート・viewMode・KANBAN フォーカス・ガイド開閉・一覧フィルタ・`openTabs` / `activeTabId`・検索バー `query` / `showSearchResults`** をまとめて保存。
 - **戻る**（`Alt+←` または `Ctrl/Cmd+[`）は未保存時に確認ダイアログを挟んだのち、スタックを pop して状態を復元。
 - 新規ノート作成・別ノート選択・フォルダ変更などで適宜 push。
 
@@ -389,6 +390,7 @@ vault/
 | 操作 | キー | 備考 |
 | --- | --- | --- |
 | 新規ノート | `mod+N` | `package.json` の `keybindings`（`when: activeWebviewPanelId == 'tipsboard-vscode.main'`）。Host から `create-note` イベントで WebView の `handleCreateNote` を起動。 |
+| アクティブタブを閉じる | `ctrl+alt+shift+w` / mac: `cmd+alt+shift+w` | コマンド `tipsboard-vscode.closeEditorTab`。Host から `close-editor-tab` イベント。タブが 1 枚だけのときは no-op。ネイティブ入力フォーカス中は WebView 側で無視。 |
 
 **WebView 内 `document` のキーダウン（`App.tsx`）**
 
@@ -400,7 +402,7 @@ vault/
 | KANBAN を開く | `mod+Shift+K` |
 | 戻る | `Alt+ArrowLeft` または `mod+[` |
 
-内部リンクのクリックや CodeMirror 内キーマップは **`editor/index.ts` の `tipsboardKeymap` 等**に別途定義がある。
+内部リンク・タグ・関連リンク UI では **`metaKey` / `ctrlKey` 付きクリック**で新規タブ（`tipsboard-links.ts` の `createLinkClickHandler`、`App.handleLinkClick` / `handleSelectNote`）。外部リンクは従来どおり。タブ UI は **`NoteTabBar.tsx`**。KANBAN・ユーザーガイド表示中はタブバー非表示（`viewMode` / `userGuideOpen` による）。
 
 ### 9.8 画像
 
@@ -490,3 +492,4 @@ vault/
 | 2026-05-16 | 拡張 **v0.1.8**: 表示モード数式ブロック付近の縦矢印で論理行が飛ばないようキーマップ調整（`tipsboard-keymap.ts`）。WebView エディタのカーソルを Vitest / Playwright で検証（§13、`DEVELOPMENT.md`）。 |
 | 2026-05-16 | 拡張 **v0.1.9**: fenced code 内の `$$` を表示数式として結合しない検出修正と、数式・fenced block 近傍での `ArrowUp` / `ArrowDown` 論理行移動を追加補強。提示された fenced math examples + prose の回帰テストを Playwright に追加。 |
 | 2026-05-17 | 拡張 **v0.2.0**: 置換装飾がある文書で隣接する短い行同士の縦矢印を論理1行ずつに固定し、リスト末尾から数式領域へのカーソル飛びを防ぐ。Math Expressions 体裁の Playwright 回帰を追加。 |
+| 2026-05-17 | WebView **ノート／タグタブ**: `openTabs` / `activeTabId`、`NoteTabBar`、`editorTabs.ts`。Cmd/Ctrl+クリックで新規タブ、重複タブなし、最後の1タブは閉じ不可。コマンド `tipsboard-vscode.closeEditorTab`（既定 `ctrl+alt+shift+w` / mac `cmd+alt+shift+w`）、`NavMemory` にタブと検索バー状態を含む。§9.2・9.4・9.7 追記。 |

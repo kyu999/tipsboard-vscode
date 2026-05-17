@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {
@@ -46,7 +46,8 @@
   ],
   "activationEvents": [
     "onCommand:tipsboard-vscode.open",
-    "onCommand:tipsboard-vscode.newNote"
+    "onCommand:tipsboard-vscode.newNote",
+    "onCommand:tipsboard-vscode.closeEditorTab"
   ],
   "main": "./dist/extension/extension.js",
   "contributes": {
@@ -62,6 +63,10 @@
       {
         "command": "tipsboard-vscode.newNote",
         "title": "Tipsboard: New Note"
+      },
+      {
+        "command": "tipsboard-vscode.closeEditorTab",
+        "title": "Tipsboard: Close active tab"
       }
     ],
     "keybindings": [
@@ -69,6 +74,12 @@
         "command": "tipsboard-vscode.newNote",
         "key": "ctrl+n",
         "mac": "cmd+n",
+        "when": "activeWebviewPanelId == 'tipsboard-vscode.main'"
+      },
+      {
+        "command": "tipsboard-vscode.closeEditorTab",
+        "key": "ctrl+alt+shift+w",
+        "mac": "cmd+alt+shift+w",
         "when": "activeWebviewPanelId == 'tipsboard-vscode.main'"
       }
     ],

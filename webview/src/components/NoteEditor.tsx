@@ -11,7 +11,7 @@ interface NoteEditorProps {
   onSave: (path: string, body: string) => Promise<string>;
   onSavedPathChange: (path: string) => void;
   onSaveStateChange: (state: SaveState) => void;
-  onLinkClick: (title: string, type: "internal" | "external" | "tag") => void;
+  onLinkClick: (title: string, type: "internal" | "external" | "tag", options?: { openInNewTab?: boolean }) => void;
   onContentChange?: (path: string, body: string) => void;
   onImageDropError?: (message: string) => void;
 }
@@ -62,7 +62,7 @@ export function NoteEditor({
       doc: initialNote.body,
       parent: editorRef.current,
       getCurrentUserPageTitle: () => noteRef.current.title,
-      onLinkClick: (title, type) => onLinkClickRef.current(title, type),
+      onLinkClick: (title, type, options) => onLinkClickRef.current(title, type, options),
       getLinkSuggestions: () => suggestionsRef.current,
       existingNormalizedTitles: existingNormalizedTitlesRef.current,
       onImageDropError: (message) => onImageDropErrorRef.current?.(message),

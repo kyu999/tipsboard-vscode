@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, ReactNode } from "react";
+import type { ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { extractFirstCardRenderableImageSrc } from "@/domain/preview/firstCardImage";
 import { rewriteInboundWikiTitles, wouldRewriteInboundWikiTitles } from "@/domain/links/rewriteInboundWikiTitles";
@@ -7,12 +7,21 @@ import { normalizeTitle } from "@/domain/title/title";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { KanbanBoardView } from "@/components/KanbanBoardView";
 import { NoteEditor } from "@/components/NoteEditor";
+import { NoteTabBar } from "@/components/NoteTabBar";
 import { SaveStatus } from "@/components/SaveStatus";
 import { buildStandalonePageHtml } from "@/export/buildPageHtml";
 import { UserGuideView } from "@/user-guide/UserGuideView";
 import { sanitizeExportFilename } from "@/export/exportMarkdownPreprocess";
 import { buildNoteIndex, searchNotes, type TwoHopLink } from "@/lib/noteIndex";
 import { sortNotesWithPinOrder } from "@/lib/sortNotesWithPinOrder";
+import {
+  addOrFocusNoteTab,
+  addOrFocusTagTab,
+  dropTabsForMissingPaths,
+  type EditorTab,
+  removeTabAtId,
+  renameNotePathInTabs,
+} from "@/lib/editorTabs";
 import { runUnlessInFlight } from "@/lib/runUnlessInFlight";
 import { resolveVaultFilesChangedAction } from "@/lib/vaultFilesChangedHandling";
 import { changeLanguage, getSupportedLanguage, supportedLanguages } from "@/shared/i18n";
@@ -41,6 +50,10 @@ interface NavMemory {
   };
   userGuideOpen: boolean;
   listSearchFilter: string | null;
+  openTabs: EditorTab[];
+  activeTabId: string | null;
+  query: string;
+  showSearchResults: boolean;
 }
 
 function normalizeVaultNotePath(notePath: string): string {
@@ -61,7 +74,11 @@ function navMemoryEqual(a: NavMemory, b: NavMemory): boolean {
     a.kanbanFocus.columnId === b.kanbanFocus.columnId &&
     a.kanbanFocus.notePath === b.kanbanFocus.notePath &&
     a.userGuideOpen === b.userGuideOpen &&
-    a.listSearchFilter === b.listSearchFilter
+    a.listSearchFilter === b.listSearchFilter &&
+    a.activeTabId === b.activeTabId &&
+    a.query === b.query &&
+    a.showSearchResults === b.showSearchResults &&
+    JSON.stringify(a.openTabs) === JSON.stringify(b.openTabs)
   );
 }
 
@@ -74,6 +91,8 @@ export function App() {
     kanban: { version: 1, boards: [] },
   });
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [openTabs, setOpenTabs] = useState<EditorTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [kanbanFocus, setKanbanFocus] = useState<{
     boardId: string | null;
@@ -101,6 +120,8 @@ export function App() {
   const prevVaultPathRef = useRef<string | null | undefined>(undefined);
   const snapshotRef = useRef(snapshot);
   const selectedPathRef = useRef(selectedPath);
+  const openTabsRef = useRef(openTabs);
+  const activeTabIdRef = useRef(activeTabId);
   const diskCommittedTitleRef = useRef<Map<string, string>>(new Map());
   const [exportHtmlError, setExportHtmlError] = useState<string | null>(null);
   const [listWidth, setListWidth] = useState(0);
@@ -113,6 +134,14 @@ export function App() {
   useEffect(() => {
     selectedPathRef.current = selectedPath;
   }, [selectedPath]);
+
+  useEffect(() => {
+    openTabsRef.current = openTabs;
+  }, [openTabs]);
+
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId;
+  }, [activeTabId]);
 
   useLayoutEffect(() => {
     if (!selectedPath) return;
@@ -144,9 +173,26 @@ export function App() {
 
       mergeVaultSnapshotFromHost(next);
       setExternalChangesPending(false);
-      setSelectedPath((current) =>
-        current && next.notes.some((note) => note.path === current) ? current : null,
-      );
+
+      const pathSet = new Set(next.notes.map((n) => normalizeVaultNotePath(n.path)));
+      const tabSync = dropTabsForMissingPaths(openTabsRef.current, activeTabIdRef.current, pathSet);
+      setOpenTabs(tabSync.tabs);
+      setActiveTabId(tabSync.activeTabId);
+
+      const at = tabSync.tabs.find((t) => t.id === tabSync.activeTabId);
+      if (tabSync.tabs.length === 0) {
+        setSelectedPath((current) =>
+          current && next.notes.some((note) => note.path === current) ? current : null,
+        );
+      } else if (at?.kind === "note") {
+        setSelectedPath(next.notes.some((n) => n.path === at.path) ? at.path : null);
+        setShowSearchResults(false);
+      } else if (at?.kind === "tag") {
+        setSelectedPath(null);
+        setQuery(`#${at.tag}`);
+        setListSearchFilter(null);
+        setShowSearchResults(true);
+      }
     } catch (caught) {
       setError(messageForError(caught));
     }
@@ -197,7 +243,7 @@ export function App() {
   }, [snapshot.vaultPath]);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside(event: globalThis.MouseEvent) {
       if (
         searchContainerRef.current &&
         !searchContainerRef.current.contains(event.target as Node)
@@ -210,6 +256,13 @@ export function App() {
   }, []);
 
   const index = useMemo(() => buildNoteIndex(snapshot.notes), [snapshot.notes]);
+  const notesByPath = useMemo(() => {
+    const m = new Map<string, NoteSummary>();
+    for (const n of snapshot.notes) {
+      m.set(normalizeVaultNotePath(n.path), n);
+    }
+    return m;
+  }, [snapshot.notes]);
   const selectedNote = useMemo(
     () => snapshot.notes.find((note) => note.path === selectedPath) ?? null,
     [selectedPath, snapshot.notes],
@@ -272,6 +325,10 @@ export function App() {
     kanbanFocus: { boardId: null, columnId: null, notePath: null },
     userGuideOpen: false,
     listSearchFilter: null,
+    openTabs: [],
+    activeTabId: null,
+    query: "",
+    showSearchResults: false,
   });
 
   useEffect(() => {
@@ -281,8 +338,12 @@ export function App() {
       kanbanFocus: { ...kanbanFocus },
       userGuideOpen,
       listSearchFilter,
+      openTabs,
+      activeTabId,
+      query,
+      showSearchResults,
     };
-  }, [selectedPath, viewMode, kanbanFocus, userGuideOpen, listSearchFilter]);
+  }, [selectedPath, viewMode, kanbanFocus, userGuideOpen, listSearchFilter, openTabs, activeTabId, query, showSearchResults]);
 
   function pushNavHistory() {
     if (applyingNavHistoryRef.current) return;
@@ -293,6 +354,10 @@ export function App() {
       kanbanFocus: { ...s.kanbanFocus },
       userGuideOpen: s.userGuideOpen,
       listSearchFilter: s.listSearchFilter,
+      openTabs: s.openTabs.map((t) => ({ ...t })),
+      activeTabId: s.activeTabId,
+      query: s.query,
+      showSearchResults: s.showSearchResults,
     };
     const stack = navHistoryRef.current;
     const last = stack[stack.length - 1];
@@ -326,19 +391,105 @@ export function App() {
   }, [hasUnsavedChanges, requestConfirm, t]);
 
   const handleSelectNote = useCallback(
-    async (path: string | null) => {
-      if (path === selectedPath) return true;
-      if (!(await confirmDiscardChanges())) return false;
-      pushNavHistory();
-      setSelectedPath(path);
-      setViewMode("list");
-      setUserGuideOpen(false);
-      setEditorSessionId((current) => current + 1);
-      setSaveState("idle");
+    async (path: string | null, options?: { openInNewTab?: boolean }) => {
+      const openInNewTab = Boolean(options?.openInNewTab);
+
+      if (path === null) {
+        if (!(await confirmDiscardChanges())) return false;
+        pushNavHistory();
+        setSelectedPath(null);
+        setViewMode("list");
+        setUserGuideOpen(false);
+        setSaveState("idle");
+        return true;
+      }
+
+      if (!openInNewTab && path === selectedPath && selectedPath != null) return true;
+
+      if (!openInNewTab && !(await confirmDiscardChanges())) return false;
+
+      if (!openInNewTab) pushNavHistory();
+
+      const prevPath = selectedPathRef.current;
+      const r = addOrFocusNoteTab(openTabsRef.current, activeTabIdRef.current, path, {
+        newTab: openInNewTab,
+      });
+      setOpenTabs(r.tabs);
+      setActiveTabId(r.activeTabId);
+      const active = r.tabs.find((t) => t.id === r.activeTabId);
+      if (active?.kind === "note") {
+        const needsRemount = !r.focusedExisting || prevPath !== active.path;
+        setSelectedPath(active.path);
+        if (needsRemount) setEditorSessionId((c) => c + 1);
+        setUserGuideOpen(false);
+        setViewMode("list");
+        setSaveState("idle");
+        setShowSearchResults(false);
+      }
       return true;
     },
     [confirmDiscardChanges, selectedPath],
   );
+
+  const handleActivateTab = useCallback(
+    async (tabId: string) => {
+      if (tabId === activeTabId) return;
+      if (!(await confirmDiscardChanges())) return;
+      pushNavHistory();
+      setActiveTabId(tabId);
+      const target = openTabsRef.current.find((t) => t.id === tabId);
+      if (!target) return;
+      if (target.kind === "note") {
+        setSelectedPath(target.path);
+        setEditorSessionId((c) => c + 1);
+        setSaveState("idle");
+        setUserGuideOpen(false);
+        setViewMode("list");
+        setShowSearchResults(false);
+      } else {
+        setSelectedPath(null);
+        setQuery(`#${target.tag}`);
+        setListSearchFilter(null);
+        setUserGuideOpen(false);
+        setViewMode("list");
+        setSaveState("idle");
+        setShowSearchResults(true);
+      }
+    },
+    [activeTabId, confirmDiscardChanges],
+  );
+
+  const handleCloseTab = useCallback(
+    async (tabId: string) => {
+      if (tabId === activeTabIdRef.current && hasUnsavedChanges) {
+        if (!(await confirmDiscardChanges())) return;
+      }
+      const removed = removeTabAtId(openTabsRef.current, activeTabIdRef.current, tabId);
+      if (!removed) return;
+      pushNavHistory();
+      setOpenTabs(removed.tabs);
+      setActiveTabId(removed.activeTabId);
+      const na = removed.tabs.find((t) => t.id === removed.activeTabId);
+      if (na?.kind === "note") {
+        setSelectedPath(na.path);
+        setEditorSessionId((c) => c + 1);
+        setSaveState("idle");
+        setShowSearchResults(false);
+      } else if (na?.kind === "tag") {
+        setSelectedPath(null);
+        setQuery(`#${na.tag}`);
+        setListSearchFilter(null);
+        setSaveState("idle");
+        setShowSearchResults(true);
+      }
+    },
+    [confirmDiscardChanges, hasUnsavedChanges],
+  );
+
+  const handleCloseActiveTabFromHost = useCallback(() => {
+    const id = activeTabIdRef.current;
+    if (id) void handleCloseTab(id);
+  }, [handleCloseTab]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -363,6 +514,8 @@ export function App() {
       const next = await window.tipsboardDesktop.selectFolder();
       mergeVaultSnapshotFromHost(next);
       setSelectedPath(null);
+      setOpenTabs([]);
+      setActiveTabId(null);
       setVaultMenuOpen(false);
       setLocalMenuOpen(false);
       setUserGuideOpen(false);
@@ -382,20 +535,30 @@ export function App() {
   }, [confirmDiscardChanges, refreshSnapshot]);
 
   const handleCreateNote = useCallback(
-    async (initialTitle?: string) => {
+    async (initialTitle?: string, options?: { openInNewTab?: boolean }) => {
+      const wantNewTab = Boolean(options?.openInNewTab);
       const out = await runUnlessInFlight(createNoteInFlightRef, async () => {
-        if (!(await confirmDiscardChanges())) return null;
-        pushNavHistory();
+        if (!wantNewTab && !(await confirmDiscardChanges())) return null;
+        if (!wantNewTab) pushNavHistory();
         const title = initialTitle?.trim() || t("common.untitled");
         try {
           setError(null);
           const result = await window.tipsboardDesktop.createNote(title);
           mergeVaultSnapshotFromHost(result.snapshot);
+          const r = addOrFocusNoteTab(
+            openTabsRef.current,
+            activeTabIdRef.current,
+            result.notePath,
+            { newTab: wantNewTab || openTabsRef.current.length === 0 },
+          );
+          setOpenTabs(r.tabs);
+          setActiveTabId(r.activeTabId);
           setSelectedPath(result.notePath);
           setViewMode("list");
           setUserGuideOpen(false);
           setEditorSessionId((current) => current + 1);
           setSaveState("saved");
+          setShowSearchResults(false);
           return result.notePath;
         } catch (caught) {
           setError(messageForError(caught));
@@ -424,6 +587,23 @@ export function App() {
     return () => window.removeEventListener("message", onCreateNoteFromHost);
   }, [handleCreateNote]);
 
+  useEffect(() => {
+    function onCloseTabFromHost(ev: MessageEvent) {
+      const d = ev.data as { source?: string; kind?: string; event?: string };
+      if (d?.source !== "tipsboard-vscode-host" || d?.kind !== "event" || d.event !== "close-editor-tab") {
+        return;
+      }
+      const target = document.activeElement as HTMLElement | null;
+      const tag = target?.tagName ?? "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+        return;
+      }
+      handleCloseActiveTabFromHost();
+    }
+    window.addEventListener("message", onCloseTabFromHost);
+    return () => window.removeEventListener("message", onCloseTabFromHost);
+  }, [handleCloseActiveTabFromHost]);
+
   const handleSaveNote = useCallback(
     async (path: string, body: string) => {
       const pathNorm = normalizeVaultNotePath(path);
@@ -444,6 +624,10 @@ export function App() {
       ) {
         selectedPathRef.current = result.note.path;
         setSelectedPath(result.note.path);
+      }
+
+      if (resultPathNorm !== pathNorm) {
+        setOpenTabs((prev) => renameNotePathInTabs(prev, path, result.note.path));
       }
 
       if (oldCommittedTitle === undefined) return result.notePath;
@@ -566,9 +750,37 @@ export function App() {
     });
     if (!confirmed) return;
     try {
+      const pathNorm = normalizeVaultNotePath(selectedNote.path);
       const next = await window.tipsboardDesktop.deleteNote(selectedNote.path);
       mergeVaultSnapshotFromHost(next);
-      setSelectedPath(null);
+      const prevTabs = openTabsRef.current;
+      const filtered = prevTabs.filter(
+        (t) => t.kind === "tag" || normalizeVaultNotePath(t.path) !== pathNorm,
+      );
+      if (filtered.length === 0) {
+        setOpenTabs([]);
+        setActiveTabId(null);
+        setSelectedPath(null);
+        setSaveState("idle");
+        return;
+      }
+      let nextActive = activeTabIdRef.current;
+      if (!filtered.some((t) => t.id === nextActive)) {
+        nextActive = filtered[0]!.id;
+      }
+      const na = filtered.find((t) => t.id === nextActive);
+      setOpenTabs(filtered);
+      setActiveTabId(nextActive);
+      if (na?.kind === "note") {
+        setSelectedPath(na.path);
+        setEditorSessionId((c) => c + 1);
+        setShowSearchResults(false);
+      } else if (na?.kind === "tag") {
+        setSelectedPath(null);
+        setQuery(`#${na.tag}`);
+        setListSearchFilter(null);
+        setShowSearchResults(true);
+      }
       setSaveState("idle");
     } catch (caught) {
       setError(messageForError(caught));
@@ -586,24 +798,39 @@ export function App() {
   }, [mergeVaultSnapshotFromHost]);
 
   const handleLinkClick = useCallback(
-    async (title: string, type: "internal" | "external" | "tag") => {
+    async (
+      title: string,
+      type: "internal" | "external" | "tag",
+      options?: { openInNewTab?: boolean },
+    ) => {
+      const wantNewTab = Boolean(options?.openInNewTab);
       if (type === "tag") {
-        if (!(await confirmDiscardChanges())) return;
-        pushNavHistory();
-        setQuery(`#${title}`);
-        setListSearchFilter(null);
-        setSelectedPath(null);
-        setUserGuideOpen(false);
-        setSaveState("idle");
-        setShowSearchResults(true);
+        if (!wantNewTab && !(await confirmDiscardChanges())) return;
+        if (!wantNewTab) pushNavHistory();
+        const r = addOrFocusTagTab(openTabsRef.current, activeTabIdRef.current, title, {
+          newTab: wantNewTab,
+        });
+        setOpenTabs(r.tabs);
+        setActiveTabId(r.activeTabId);
+        const active = r.tabs.find((t) => t.id === r.activeTabId);
+        if (active?.kind === "tag") {
+          setSelectedPath(null);
+          setQuery(`#${active.tag}`);
+          setListSearchFilter(null);
+          setUserGuideOpen(false);
+          setSaveState("idle");
+          setShowSearchResults(true);
+          setViewMode("list");
+          setKanbanFocus({ boardId: null, columnId: null, notePath: null });
+        }
         return;
       }
       const existing = index.byNormalizedTitle.get(normalizeTitle(title));
       if (existing) {
-        void handleSelectNote(existing.path);
+        void handleSelectNote(existing.path, { openInNewTab: wantNewTab });
         return;
       }
-      await handleCreateNote(title);
+      await handleCreateNote(title, { openInNewTab: wantNewTab });
     },
     [confirmDiscardChanges, handleCreateNote, handleSelectNote, index.byNormalizedTitle],
   );
@@ -624,6 +851,8 @@ export function App() {
       const next = await window.tipsboardDesktop.importJson();
       mergeVaultSnapshotFromHost(next);
       setSelectedPath(null);
+      setOpenTabs([]);
+      setActiveTabId(null);
       setVaultMenuOpen(false);
       setLocalMenuOpen(false);
       setUserGuideOpen(false);
@@ -694,6 +923,10 @@ export function App() {
     }
     applyingNavHistoryRef.current = true;
     try {
+      setOpenTabs(prev.openTabs.map((t) => ({ ...t })));
+      setActiveTabId(prev.activeTabId);
+      setQuery(prev.query);
+      setShowSearchResults(prev.showSearchResults);
       setSelectedPath(path);
       setViewMode(prev.viewMode);
       setKanbanFocus({ ...prev.kanbanFocus });
@@ -702,7 +935,6 @@ export function App() {
       setSaveState("idle");
       setVaultMenuOpen(false);
       setLocalMenuOpen(false);
-      setShowSearchResults(false);
       if (path) setEditorSessionId((current) => current + 1);
     } finally {
       applyingNavHistoryRef.current = false;
@@ -1029,8 +1261,9 @@ export function App() {
                       <button
                         key={note.path}
                         type="button"
-                        onClick={() => {
-                          void handleSelectNote(note.path).then((selected) => {
+                        onClick={(event) => {
+                          const openInNewTab = event.metaKey || event.ctrlKey;
+                          void handleSelectNote(note.path, { openInNewTab }).then((selected) => {
                             if (selected) {
                               setQuery("");
                               setShowSearchResults(false);
@@ -1084,6 +1317,25 @@ export function App() {
                 {t("sync.reload")}
               </button>
             </div>
+          </div>
+        )}
+
+        {openTabs.length > 0 && viewMode === "list" && !userGuideOpen && (
+          <div className="tb-shell shrink-0 pt-1">
+            <NoteTabBar
+              tabs={openTabs}
+              activeTabId={activeTabId}
+              notesByPath={notesByPath}
+              canClose={openTabs.length > 1}
+              tabListAriaLabel={t("layout.editorTabs.tabListLabel")}
+              onActivate={(id) => {
+                void handleActivateTab(id);
+              }}
+              onClose={(id) => {
+                void handleCloseTab(id);
+              }}
+              lastTabCloseTitle={t("layout.editorTabs.lastTabCannotClose")}
+            />
           </div>
         )}
 
@@ -1181,11 +1433,12 @@ export function App() {
                   backlinks={selectedEntry?.backlinks ?? []}
                   twoHop={selectedEntry?.twoHop ?? []}
                   newLinks={selectedEntry?.newLinks ?? []}
-                  onSelect={(note) => {
-                    void handleSelectNote(note.path);
+                  onSelect={(note, event) => {
+                    const openInNewTab = event.metaKey || event.ctrlKey;
+                    void handleSelectNote(note.path, { openInNewTab });
                   }}
-                  onCreateLink={(title) => {
-                    void handleLinkClick(title, "internal");
+                  onCreateLink={(title, linkOpts) => {
+                    void handleLinkClick(title, "internal", linkOpts);
                   }}
                 />
               </div>
@@ -1269,8 +1522,10 @@ export function App() {
                         note={note}
                         showPinnedBadge={pinnedPathSet.has(note.path.replace(/\\/g, "/"))}
                         className="h-[150px] w-full"
-                        onClick={() => {
-                          void handleSelectNote(note.path);
+                        onClick={(event) => {
+                          void handleSelectNote(note.path, {
+                            openInNewTab: event.metaKey || event.ctrlKey,
+                          });
                         }}
                       />
                     ))}
@@ -1309,7 +1564,7 @@ function NoteCard({
   note: NoteSummary;
   /** Shown only on pinned notes; toggle pin from the editor header. */
   showPinnedBadge?: boolean;
-  onClick: () => void;
+  onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   className?: string;
 }) {
   const [previewImageFailed, setPreviewImageFailed] = useState(false);
@@ -1350,7 +1605,7 @@ function NoteCard({
 
       <button
         type="button"
-        onClick={onClick}
+        onClick={(e) => onClick(e)}
         title={note.title}
         aria-label={note.title}
         className="relative flex min-h-0 flex-1 flex-col items-stretch overflow-hidden p-3 text-left"
@@ -1392,8 +1647,8 @@ function RelatedLinks({
   backlinks: NoteSummary[];
   twoHop: TwoHopLink[];
   newLinks: string[];
-  onSelect: (note: NoteSummary) => void;
-  onCreateLink: (title: string) => void;
+  onSelect: (note: NoteSummary, event: ReactMouseEvent) => void;
+  onCreateLink: (title: string, options?: { openInNewTab?: boolean }) => void;
 }) {
   const { t } = useTranslation();
 
@@ -1407,7 +1662,12 @@ function RelatedLinks({
     <div className="space-y-4">
       {linkedNotes.length > 0 && (
         <RelatedLinkRow title={t("links.links")} variant="links">
-          <LinkCardGrid notes={linkedNotes} onSelect={onSelect} />
+          <LinkCardGrid
+            notes={linkedNotes}
+            onSelect={(note, event) => {
+              onSelect(note, event);
+            }}
+          />
         </RelatedLinkRow>
       )}
 
@@ -1438,7 +1698,7 @@ function RelatedLinkRow({
   children,
 }: {
   title: string;
-  onNavigate?: () => void;
+  onNavigate?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   variant?: NavigationVariant;
   children: ReactNode;
 }) {
@@ -1462,7 +1722,7 @@ function RelatedLinkRow({
   return (
     <section className="flex flex-col gap-3 md:flex-row md:items-start">
       {onNavigate ? (
-        <button type="button" onClick={onNavigate} className={navCardClass} title={title}>
+        <button type="button" onClick={(e) => onNavigate(e)} className={navCardClass} title={title}>
           <span className={`pointer-events-none absolute -right-3 top-1/2 hidden -translate-y-1/2 border-y-[12px] border-r-[12px] border-y-transparent md:block ${notchClass}`} />
           {titleNode}
         </button>
@@ -1484,12 +1744,14 @@ function TwoHopSection({
 }: {
   hop: TwoHopLink;
   linkedNote?: NoteSummary;
-  onSelect: (note: NoteSummary) => void;
+  onSelect: (note: NoteSummary, event: ReactMouseEvent) => void;
 }) {
   return (
     <RelatedLinkRow
       title={hop.linkingTitle}
-      onNavigate={linkedNote ? () => onSelect(linkedNote) : undefined}
+      onNavigate={
+        linkedNote ? (e) => onSelect(linkedNote, e) : undefined
+      }
       variant="hop"
     >
       <LinkCardGrid notes={hop.pages} onSelect={onSelect} />
@@ -1502,7 +1764,7 @@ function NewLinkSection({
   onCreate,
 }: {
   titles: string[];
-  onCreate: (title: string) => void;
+  onCreate: (title: string, options?: { openInNewTab?: boolean }) => void;
 }) {
   const { t } = useTranslation();
 
@@ -1512,7 +1774,13 @@ function NewLinkSection({
     <RelatedLinkRow title={t("links.newLinks")} variant="new">
       <div className="grid flex-1 grid-cols-[repeat(auto-fill,156px)] auto-rows-[156px] justify-start gap-3">
         {titles.map((title) => (
-          <NewLinkCard key={title} title={title} onCreate={() => onCreate(title)} />
+          <NewLinkCard
+            key={title}
+            title={title}
+            onCreate={(e) =>
+              onCreate(title, { openInNewTab: e.metaKey || e.ctrlKey })
+            }
+          />
         ))}
       </div>
     </RelatedLinkRow>
@@ -1524,12 +1792,12 @@ function NewLinkCard({
   onCreate,
 }: {
   title: string;
-  onCreate: () => void;
+  onCreate: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onCreate}
+      onClick={(e) => onCreate(e)}
       className="group tb-card relative flex h-[156px] w-[156px] min-w-0 flex-col overflow-hidden p-3 text-left transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-accent-link/30 hover:shadow-soft"
       title={title}
     >
@@ -1545,13 +1813,17 @@ function LinkCardGrid({
   onSelect,
 }: {
   notes: NoteSummary[];
-  onSelect: (note: NoteSummary) => void;
+  onSelect: (note: NoteSummary, event: ReactMouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <div className="grid flex-1 grid-cols-[repeat(auto-fill,156px)] auto-rows-[156px] justify-start gap-3">
       {notes.map((note) => (
         <div key={note.path} className="h-[156px] w-[156px]">
-          <NoteCard note={note} className="h-[156px] w-[156px]" onClick={() => onSelect(note)} />
+          <NoteCard
+            note={note}
+            className="h-[156px] w-[156px]"
+            onClick={(e) => onSelect(note, e)}
+          />
         </div>
       ))}
     </div>

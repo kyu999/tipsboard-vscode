@@ -18,6 +18,10 @@ const en = {
     shortcutKanban: "Ctrl+Shift+K / ⌘⇧K",
     shortcutBack: "Alt+← · ⌘[ · Ctrl+[",
     shortcutNewNote: "Ctrl+N / ⌘N (Tipsboard panel focused)",
+    editorTabs: {
+      tabListLabel: "Open notes and tag searches",
+      lastTabCannotClose: "Cannot close the last tab",
+    },
   },
   onboarding: {
     eyebrow: "Tipsboard",

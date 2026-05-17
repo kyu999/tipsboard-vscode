@@ -18,6 +18,10 @@ const ja = {
     shortcutKanban: "Ctrl+Shift+K / ⌘⇧K",
     shortcutBack: "Alt+← · ⌘[ · Ctrl+[",
     shortcutNewNote: "Tipsboard 表示中: Ctrl+N / ⌘N",
+    editorTabs: {
+      tabListLabel: "開いているメモとタグ検索",
+      lastTabCannotClose: "最後のタブは閉じられません",
+    },
   },
   onboarding: {
     eyebrow: "Tipsboard",

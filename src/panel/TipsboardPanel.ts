@@ -193,6 +193,16 @@ export class TipsboardPanel {
     });
   }
 
+  static notifyCloseEditorTab(): void {
+    const inst = TipsboardPanel.current;
+    if (!inst) return;
+    void inst.panel.webview.postMessage({
+      source: "tipsboard-vscode-host",
+      kind: "event",
+      event: "close-editor-tab",
+    });
+  }
+
   static render(context: vscode.ExtensionContext): void {
     const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One;
     if (TipsboardPanel.current) {

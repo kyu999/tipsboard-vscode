@@ -16,6 +16,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("tipsboard-vscode.newNote", () => {
       TipsboardPanel.notifyCreateNote();
     }),
+    vscode.commands.registerCommand("tipsboard-vscode.closeEditorTab", () => {
+      TipsboardPanel.notifyCloseEditorTab();
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
         !e.affectsConfiguration("tipsboard-vscode.manualVaultPath") &&

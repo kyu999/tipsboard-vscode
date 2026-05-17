@@ -4,6 +4,24 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.3] - 2026-05-18
+
+### Added
+
+- **WebView tabs**: Open **notes** and **tag search** (`#tag`) in a compact tab strip under the header (list view). **Ctrl+click** (Windows/Linux) or **Cmd+click** (macOS) on internal links, tags, related-link cards, New Links, list cards, or search dropdown results opens **another tab** without a discard prompt; normal clicks keep the prior behavior (with unsaved confirmation when switching away). Duplicate paths or tags collapse to a single tab.
+- **Tipsboard: Close active tab** command (`tipsboard-vscode.closeEditorTab`), **`Ctrl+Alt+Shift+W` / `Cmd+Alt+Shift+W`** when the Tipsboard panel is focused (`package.json`), and host `close-editor-tab` postMessage (same policy as new-note: ignored while focus is in a native input).
+- **`webview/src/lib/editorTabs.ts`** helpers and **`webview/src/lib/editorTabs.test.ts`** (Vitest).
+
+### Changed
+
+- **NavMemory** (back stack) now stores **`openTabs`**, **`activeTabId`**, **`query`**, and **`showSearchResults`** so **Back** restores the tab strip and search bar state.
+- **`handleSaveNote`**: renames update tab paths via `renameNotePathInTabs`; snapshot refresh and note delete prune or refocus tabs safely.
+- **Tab bar UI**: Compact layout; colors aligned with existing **accent-link** / **`bg-bg-hover`** patterns (`NoteTabBar.tsx`).
+
+### Notes
+
+- The **last tab** cannot be closed (close control disabled; shortcut no-op). Folder change and JSON import clear tabs.
+
 ## [0.2.2] - 2026-05-17
 
 ### Added

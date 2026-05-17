@@ -4,7 +4,11 @@ import { trimAutolinkUrl } from "@/domain/autolink";
 import { parseIconSyntax } from "@/domain/links/iconSyntax";
 import { isCustomSyntaxIgnoredPosition } from "./tipsboard-markdown-ranges";
 
-export type LinkClickHandler = (title: string, type: "internal" | "external" | "tag") => void;
+export type LinkClickHandler = (
+  title: string,
+  type: "internal" | "external" | "tag",
+  options?: { openInNewTab?: boolean },
+) => void;
 
 type LinkTarget =
   | { type: "external"; href: string }
@@ -163,7 +167,8 @@ export function createLinkClickHandler(onLinkClick: LinkClickHandler) {
       if (target.type === "external") {
         void openExternalInHost(target.href);
       } else {
-        onLinkClick(target.title, target.type);
+        const openInNewTab = event.metaKey || event.ctrlKey;
+        onLinkClick(target.title, target.type, openInNewTab ? { openInNewTab: true } : undefined);
       }
       return true;
     },
