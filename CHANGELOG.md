@@ -4,7 +4,28 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.2.3] - 2026-05-18
+## [0.2.4] - 2026-05-17
+
+### Added
+
+- **NavMemory forward stack** (`navForwardRef`) symmetric to back: **`Alt+→`**, **`Ctrl/Cmd+]`**, mouse **button 4** (typically “forward”), and **`BrowserForward` / `XF86Forward`** where the WebView delivers them.
+
+### Changed
+
+- **NavMemory back**: before restoring a popped state, the **current UI snapshot is pushed onto the forward stack**. **`pushNavHistory`** clears forward (branch-cut) alongside pushing back.
+- **Navigation input guard**: **`INPUT` / `TEXTAREA` / `SELECT`** and **confirmation dialog open** suppress history back / forward (keyboard + mouse helpers only; card/list shortcuts unchanged).
+- **Note editor startup**: CodeMirror is mounted in `useLayoutEffect` so the editor is ready before the note view paints, reducing the brief post-open input freeze.
+- **WebView scrollbar**: Transparent track with a softer neutral thumb (WebKit `background-clip` gutter + Firefox `scrollbar-color`).
+- **Editor tab strip**: Constrained with **`max-w-5xl`** so the row aligns with the note reading column.
+- **Note editor frame**: **`tb-editor-surface`** replaces stacked `tb-card` + **`tb-reading-panel`** + **`ring`** so the body pane shows a single 1px border (closer to a VS Code editor outline). **`rounded-2xl`** matches other chrome (only the stacked borders were intentionally removed—not a move to sharper corners).
+- **User Guide layout**: Matches the note reading column (**`max-w-5xl`**, **`tb-editor-surface`**) instead of **`max-w-3xl`** + **`tb-card`**. Inner inset and **`line-height`** follow CodeMirror `.cm-content` so text measure matches note pages.
+- Documentation: **`README.md`** expands tabs/NavMemory, keyboard shortcuts table, screenshot checklist for marketplace assets; **bundled user guide** (`webview/src/user-guide/bundledGuide.ts`) adds a Tabs / NavMemory section and shortcut table rows for closing tabs.
+
+### Notes
+
+- **Mouse button 3** maps to NavMemory **back**. macOS swipe-back may **not reach** the WebView in some setups; **`mod+[` / `]`** remain the reliable pair. **`Ctrl/Cmd+]`** may **conflict with VS Code** indent globally; remap in Keyboard Shortcuts if needed.
+
+## [0.2.3] - 2026-05-17
 
 ### Added
 

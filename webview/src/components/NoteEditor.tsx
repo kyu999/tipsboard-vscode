@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { findNext, findPrevious, openSearchPanel } from "@codemirror/search";
 import { createEditor } from "@/editor";
 import { setExistingLinkTitlesEffect } from "@/editor/tipsboard-decorations";
@@ -55,7 +55,7 @@ export function NoteEditor({
     });
   }, [existingNormalizedTitles]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!editorRef.current) return;
     const initialNote = noteRef.current;
     const view = createEditor({
@@ -105,7 +105,7 @@ export function NoteEditor({
   }, []);
 
   return (
-    <div className="tb-card tb-reading-panel min-h-36 overflow-hidden bg-bg-elevated ring-1 ring-white/80">
+    <div className="tb-editor-surface min-h-36 overflow-hidden">
       <div ref={editorRef} className="min-h-36 bg-bg-elevated" />
     </div>
   );

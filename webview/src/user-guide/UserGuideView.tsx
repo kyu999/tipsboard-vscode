@@ -15,11 +15,8 @@ export function UserGuideView() {
 
   return (
     <section className="tb-shell flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-4 sm:py-6">
-      <div className="mx-auto w-full max-w-3xl">
-        <article
-          className="tipsboard-user-guide tb-card px-5 py-6 sm:px-8 sm:py-8"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+      <div className="relative mx-auto w-full min-w-0 max-w-5xl">
+        <article className="tipsboard-user-guide tb-editor-surface" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     </section>
   );

@@ -11,8 +11,13 @@ export function assetPathAllowed(relativePath: string): boolean {
 }
 
 export function toAssetWebviewUri(webview: vscode.Webview, vaultRoot: vscode.Uri, relativePath: string): vscode.Uri | null {
+  const disk = toAssetDiskUri(vaultRoot, relativePath);
+  if (!disk) return null;
+  return webview.asWebviewUri(disk);
+}
+
+export function toAssetDiskUri(vaultRoot: vscode.Uri, relativePath: string): vscode.Uri | null {
   if (!assetPathAllowed(relativePath)) return null;
   const posix = relativePath.replace(/\\/g, "/").split("/");
-  const disk = vscode.Uri.joinPath(vaultRoot, ...posix);
-  return webview.asWebviewUri(disk);
+  return vscode.Uri.joinPath(vaultRoot, ...posix);
 }

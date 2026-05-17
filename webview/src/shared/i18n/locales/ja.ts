@@ -17,6 +17,7 @@ const ja = {
     shortcutCards: "Ctrl+Shift+L / ⌘⇧L",
     shortcutKanban: "Ctrl+Shift+K / ⌘⇧K",
     shortcutBack: "Alt+← · ⌘[ · Ctrl+[",
+    shortcutForward: "Alt+→ · ⌘] · Ctrl+]",
     shortcutNewNote: "Tipsboard 表示中: Ctrl+N / ⌘N",
     editorTabs: {
       tabListLabel: "開いているメモとタグ検索",
@@ -50,7 +51,7 @@ const ja = {
     list: {
       emptyTitle: "まだページがありません",
       emptyDescription:
-        "{{shortcut}}で新規、{{shortcutCards}}でカード、{{shortcutKanban}}でKANBAN、{{shortcutBack}}で直前の画面へ。下の「{{newPage}}」でも作成できます。",
+        "{{shortcut}}で新規、{{shortcutCards}}でカード、{{shortcutKanban}}でKANBAN、{{shortcutBack}}で履歴の戻る、{{shortcutForward}}で進む。下の「{{newPage}}」でも作成できます。",
       searchEmptyTitle: "該当するページはありません",
       searchEmptyDescription: "別のキーワードを試すか、検索を解除してすべてのノートを表示できます。",
       clearSearch: "検索を解除",

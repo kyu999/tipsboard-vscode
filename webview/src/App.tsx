@@ -22,6 +22,12 @@ import {
   removeTabAtId,
   renameNotePathInTabs,
 } from "@/lib/editorTabs";
+import {
+  cloneNavMemory,
+  type NavMemory,
+  navMemoryEqual,
+  pushNavStackLimited,
+} from "@/lib/navMemory";
 import { runUnlessInFlight } from "@/lib/runUnlessInFlight";
 import { resolveVaultFilesChangedAction } from "@/lib/vaultFilesChangedHandling";
 import { changeLanguage, getSupportedLanguage, supportedLanguages } from "@/shared/i18n";
@@ -40,22 +46,6 @@ interface ConfirmDialogState {
   onConfirm?: () => void | Promise<void>;
 }
 
-interface NavMemory {
-  selectedPath: string | null;
-  viewMode: "list" | "kanban";
-  kanbanFocus: {
-    boardId: string | null;
-    columnId: string | null;
-    notePath: string | null;
-  };
-  userGuideOpen: boolean;
-  listSearchFilter: string | null;
-  openTabs: EditorTab[];
-  activeTabId: string | null;
-  query: string;
-  showSearchResults: boolean;
-}
-
 function normalizeVaultNotePath(notePath: string): string {
   return notePath.replace(/\\/g, "/");
 }
@@ -66,20 +56,10 @@ function rebuildDiskCommittedTitles(snapshot: VaultSnapshot, mapRef: { current: 
   for (const note of snapshot.notes) map.set(normalizeVaultNotePath(note.path), note.title);
 }
 
-function navMemoryEqual(a: NavMemory, b: NavMemory): boolean {
-  return (
-    a.selectedPath === b.selectedPath &&
-    a.viewMode === b.viewMode &&
-    a.kanbanFocus.boardId === b.kanbanFocus.boardId &&
-    a.kanbanFocus.columnId === b.kanbanFocus.columnId &&
-    a.kanbanFocus.notePath === b.kanbanFocus.notePath &&
-    a.userGuideOpen === b.userGuideOpen &&
-    a.listSearchFilter === b.listSearchFilter &&
-    a.activeTabId === b.activeTabId &&
-    a.query === b.query &&
-    a.showSearchResults === b.showSearchResults &&
-    JSON.stringify(a.openTabs) === JSON.stringify(b.openTabs)
-  );
+function canUseTipsboardNavInput(confirmDialogOpen: boolean, focusTarget: EventTarget | null): boolean {
+  if (confirmDialogOpen) return false;
+  const tag = (focusTarget as HTMLElement | null)?.tagName ?? "";
+  return tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT";
 }
 
 export function App() {
@@ -318,6 +298,7 @@ export function App() {
   const localMenuRef = useClickOutside<HTMLDivElement>(localMenuOpen, () => setLocalMenuOpen(false));
 
   const navHistoryRef = useRef<NavMemory[]>([]);
+  const navForwardRef = useRef<NavMemory[]>([]);
   const applyingNavHistoryRef = useRef(false);
   const navStateRef = useRef<NavMemory>({
     selectedPath: null,
@@ -347,23 +328,12 @@ export function App() {
 
   function pushNavHistory() {
     if (applyingNavHistoryRef.current) return;
-    const s = navStateRef.current;
-    const entry: NavMemory = {
-      selectedPath: s.selectedPath,
-      viewMode: s.viewMode,
-      kanbanFocus: { ...s.kanbanFocus },
-      userGuideOpen: s.userGuideOpen,
-      listSearchFilter: s.listSearchFilter,
-      openTabs: s.openTabs.map((t) => ({ ...t })),
-      activeTabId: s.activeTabId,
-      query: s.query,
-      showSearchResults: s.showSearchResults,
-    };
+    navForwardRef.current = [];
+    const entry = cloneNavMemory(navStateRef.current);
     const stack = navHistoryRef.current;
     const last = stack[stack.length - 1];
     if (last && navMemoryEqual(last, entry)) return;
-    stack.push(entry);
-    if (stack.length > 50) stack.shift();
+    pushNavStackLimited(stack, entry);
   }
 
   const requestConfirm = useCallback((dialog: ConfirmDialogState) => {
@@ -523,6 +493,7 @@ export function App() {
       setListSearchFilter(null);
       setShowSearchResults(false);
       navHistoryRef.current = [];
+      navForwardRef.current = [];
     } catch (caught) {
       setError(messageForError(caught));
     }
@@ -860,6 +831,7 @@ export function App() {
       setListSearchFilter(null);
       setShowSearchResults(false);
       navHistoryRef.current = [];
+      navForwardRef.current = [];
     } catch (caught) {
       setError(messageForError(caught));
     }
@@ -909,6 +881,34 @@ export function App() {
     setShowSearchResults(false);
   }, [confirmDiscardChanges, userGuideOpen]);
 
+  const applyNavMemoryEntry = useCallback(
+    (entry: NavMemory) => {
+      let path = entry.selectedPath;
+      if (path && !snapshot.notes.some((note) => note.path === path)) {
+        path = null;
+      }
+      applyingNavHistoryRef.current = true;
+      try {
+        setOpenTabs(entry.openTabs.map((t) => ({ ...t })));
+        setActiveTabId(entry.activeTabId);
+        setQuery(entry.query);
+        setShowSearchResults(entry.showSearchResults);
+        setSelectedPath(path);
+        setViewMode(entry.viewMode);
+        setKanbanFocus({ ...entry.kanbanFocus });
+        setUserGuideOpen(entry.userGuideOpen);
+        setListSearchFilter(entry.listSearchFilter);
+        setSaveState("idle");
+        setVaultMenuOpen(false);
+        setLocalMenuOpen(false);
+        if (path) setEditorSessionId((current) => current + 1);
+      } finally {
+        applyingNavHistoryRef.current = false;
+      }
+    },
+    [snapshot.notes],
+  );
+
   const handleNavigateBack = useCallback(async () => {
     const stack = navHistoryRef.current;
     const prev = stack.pop();
@@ -917,31 +917,25 @@ export function App() {
       stack.push(prev);
       return;
     }
-    let path = prev.selectedPath;
-    if (path && !snapshot.notes.some((note) => note.path === path)) {
-      path = null;
+    pushNavStackLimited(navForwardRef.current, cloneNavMemory(navStateRef.current));
+    applyNavMemoryEntry(prev);
+  }, [applyNavMemoryEntry, confirmDiscardChanges]);
+
+  const handleNavigateForward = useCallback(async () => {
+    const forward = navForwardRef.current;
+    const next = forward.pop();
+    if (!next) return;
+    if (!(await confirmDiscardChanges())) {
+      forward.push(next);
+      return;
     }
-    applyingNavHistoryRef.current = true;
-    try {
-      setOpenTabs(prev.openTabs.map((t) => ({ ...t })));
-      setActiveTabId(prev.activeTabId);
-      setQuery(prev.query);
-      setShowSearchResults(prev.showSearchResults);
-      setSelectedPath(path);
-      setViewMode(prev.viewMode);
-      setKanbanFocus({ ...prev.kanbanFocus });
-      setUserGuideOpen(prev.userGuideOpen);
-      setListSearchFilter(prev.listSearchFilter);
-      setSaveState("idle");
-      setVaultMenuOpen(false);
-      setLocalMenuOpen(false);
-      if (path) setEditorSessionId((current) => current + 1);
-    } finally {
-      applyingNavHistoryRef.current = false;
-    }
-  }, [confirmDiscardChanges, snapshot.notes]);
+    pushNavStackLimited(navHistoryRef.current, cloneNavMemory(navStateRef.current));
+    applyNavMemoryEntry(next);
+  }, [applyNavMemoryEntry, confirmDiscardChanges]);
 
   useEffect(() => {
+    const dialogOpen = confirmDialog != null;
+
     function onDocumentKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       const tag = target?.tagName ?? "";
@@ -962,28 +956,83 @@ export function App() {
         return;
       }
 
+      const navAllowed = canUseTipsboardNavInput(dialogOpen, event.target);
+
       if (
+        navAllowed &&
         event.altKey &&
         !event.ctrlKey &&
         !event.metaKey &&
         event.key === "ArrowLeft"
       ) {
-        if (inNativeField) return;
         event.preventDefault();
         void handleNavigateBack();
         return;
       }
 
-      if (mod && !event.shiftKey && !event.altKey && event.code === "BracketLeft") {
-        if (inNativeField) return;
+      if (navAllowed && mod && !event.shiftKey && !event.altKey && event.code === "BracketLeft") {
         event.preventDefault();
         void handleNavigateBack();
         return;
       }
+
+      if (
+        navAllowed &&
+        event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        event.key === "ArrowRight"
+      ) {
+        event.preventDefault();
+        void handleNavigateForward();
+        return;
+      }
+
+      if (navAllowed && mod && !event.shiftKey && !event.altKey && event.code === "BracketRight") {
+        event.preventDefault();
+        void handleNavigateForward();
+        return;
+      }
+
+      if (navAllowed) {
+        const k = event.key;
+        if (k === "BrowserBack" || k === "XF86Back") {
+          event.preventDefault();
+          void handleNavigateBack();
+          return;
+        }
+        if (k === "BrowserForward" || k === "XF86Forward") {
+          event.preventDefault();
+          void handleNavigateForward();
+          return;
+        }
+      }
     }
     document.addEventListener("keydown", onDocumentKeyDown);
     return () => document.removeEventListener("keydown", onDocumentKeyDown);
-  }, [handleNavigateBack, handleOpenCardView, handleOpenKanban]);
+  }, [
+    confirmDialog,
+    handleNavigateBack,
+    handleNavigateForward,
+    handleOpenCardView,
+    handleOpenKanban,
+  ]);
+
+  useEffect(() => {
+    const dialogOpen = confirmDialog != null;
+
+    function onPointerDown(event: PointerEvent) {
+      if (event.pointerType !== "mouse") return;
+      if (event.button !== 3 && event.button !== 4) return;
+      if (!canUseTipsboardNavInput(dialogOpen, event.target)) return;
+      event.preventDefault();
+      if (event.button === 3) void handleNavigateBack();
+      else void handleNavigateForward();
+    }
+
+    document.addEventListener("pointerdown", onPointerDown, { capture: true });
+    return () => document.removeEventListener("pointerdown", onPointerDown, { capture: true });
+  }, [confirmDialog, handleNavigateBack, handleNavigateForward]);
 
   const handleLanguageChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     void changeLanguage(getSupportedLanguage(event.target.value));
@@ -1322,20 +1371,22 @@ export function App() {
 
         {openTabs.length > 0 && viewMode === "list" && !userGuideOpen && (
           <div className="tb-shell shrink-0 pt-1">
-            <NoteTabBar
-              tabs={openTabs}
-              activeTabId={activeTabId}
-              notesByPath={notesByPath}
-              canClose={openTabs.length > 1}
-              tabListAriaLabel={t("layout.editorTabs.tabListLabel")}
-              onActivate={(id) => {
-                void handleActivateTab(id);
-              }}
-              onClose={(id) => {
-                void handleCloseTab(id);
-              }}
-              lastTabCloseTitle={t("layout.editorTabs.lastTabCannotClose")}
-            />
+            <div className="mx-auto w-full min-w-0 max-w-5xl">
+              <NoteTabBar
+                tabs={openTabs}
+                activeTabId={activeTabId}
+                notesByPath={notesByPath}
+                canClose={openTabs.length > 1}
+                tabListAriaLabel={t("layout.editorTabs.tabListLabel")}
+                onActivate={(id) => {
+                  void handleActivateTab(id);
+                }}
+                onClose={(id) => {
+                  void handleCloseTab(id);
+                }}
+                lastTabCloseTitle={t("layout.editorTabs.lastTabCannotClose")}
+              />
+            </div>
           </div>
         )}
 
@@ -1478,6 +1529,7 @@ export function App() {
                       shortcutCards: t("layout.shortcutCards"),
                       shortcutKanban: t("layout.shortcutKanban"),
                       shortcutBack: t("layout.shortcutBack"),
+                      shortcutForward: t("layout.shortcutForward"),
                     })}
                   </p>
                   <button type="button" className="tb-btn-primary mt-5" onClick={() => void handleCreateNote()}>

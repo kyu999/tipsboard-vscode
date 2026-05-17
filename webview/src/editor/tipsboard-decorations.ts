@@ -116,22 +116,33 @@ class MarkdownImageWidget extends WidgetType {
     wrapper.className = "cm-image-widget";
 
     const img = document.createElement("img");
-    img.src = resolveMarkdownImageSrc(this.src);
-    if (this.src.startsWith("assets/images/")) {
-      void ensureVaultImageUrl(this.src).then((url) => {
-        if (url) img.src = url;
-      });
-    }
-    img.alt = this.alt;
-    img.className = "inline-block max-w-full max-h-64 rounded my-1";
-    img.loading = "lazy";
-    img.onerror = () => {
+    let placeholderShown = false;
+    const showPlaceholder = () => {
+      if (placeholderShown) return;
+      placeholderShown = true;
       img.style.display = "none";
       const placeholder = document.createElement("span");
       placeholder.className = "text-accent-error text-xs";
       placeholder.textContent = this.alt || this.src;
       wrapper.appendChild(placeholder);
     };
+    if (this.src.startsWith("assets/images/")) {
+      const resolved = resolveMarkdownImageSrc(this.src);
+      if (resolved) img.src = resolved;
+      void ensureVaultImageUrl(this.src).then((url) => {
+        if (url) {
+          img.src = url;
+        } else {
+          showPlaceholder();
+        }
+      });
+    } else {
+      img.src = this.src;
+    }
+    img.alt = this.alt;
+    img.className = "inline-block max-w-full max-h-64 rounded my-1";
+    img.loading = "lazy";
+    img.onerror = showPlaceholder;
     attachEmbeddedImageLightbox(img);
     wrapper.appendChild(img);
 

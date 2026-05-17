@@ -24,15 +24,27 @@
   }
 
   ::-webkit-scrollbar {
-    width: 8px;
+    width: 10px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-bg-primary;
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-accent-link/35;
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    background-color: rgba(120, 113, 106, 0.38);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(120, 113, 106, 0.52);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 113, 106, 0.42) transparent;
   }
 }
 
@@ -51,10 +63,10 @@
     background: radial-gradient(ellipse 110% 62% at 50% 0%, rgba(255, 255, 255, 0.7), transparent 56%);
   }
 
-  /** エディタ／ガイド記事カード */
-  .tb-reading-panel {
-    @apply border border-stone-200/80;
-    box-shadow: 0 14px 40px rgba(28, 25, 23, 0.06);
+  /** ノート編集の外周（単一ボーダー）。角丸は `.tb-card` と揃える */
+  .tb-editor-surface {
+    @apply rounded-2xl bg-bg-elevated;
+    border: 1px solid rgba(28, 25, 23, 0.12);
   }
 
   .tb-btn {
@@ -85,9 +97,14 @@
     @apply h-8 w-full rounded-xl border border-accent-link/15 bg-bg-card py-0 pl-3 pr-3 text-xs text-text-primary placeholder:text-text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] focus:border-accent-link/35 focus:outline-none focus:ring-accent-link/15;
   }
 
-  /* アプリ同梱ユーザーガイド（markdown-it 出力） */
+  /* アプリ同梱ユーザーガイド（markdown-it 出力）——ノート本文（CodeMirror .cm-content）と同じ 15px / 行間 1.85 */
   .tipsboard-user-guide {
-    @apply text-[15px] leading-relaxed text-text-primary;
+    @apply font-sans text-[15px] leading-[1.85] text-text-primary;
+  }
+
+  /** ユーザーガイドのスクロール枠：`NoteEditor` の `.cm-content` と同じ内側余白 */
+  .tipsboard-user-guide.tb-editor-surface {
+    padding: 28px 32px 24px;
   }
 
   .tipsboard-user-guide h1 {

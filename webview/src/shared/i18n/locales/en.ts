@@ -17,6 +17,7 @@ const en = {
     shortcutCards: "Ctrl+Shift+L / ⌘⇧L",
     shortcutKanban: "Ctrl+Shift+K / ⌘⇧K",
     shortcutBack: "Alt+← · ⌘[ · Ctrl+[",
+    shortcutForward: "Alt+→ · ⌘] · Ctrl+]",
     shortcutNewNote: "Ctrl+N / ⌘N (Tipsboard panel focused)",
     editorTabs: {
       tabListLabel: "Open notes and tag searches",
@@ -50,7 +51,7 @@ const en = {
     list: {
       emptyTitle: "No pages yet",
       emptyDescription:
-        "{{shortcut}}: new note. {{shortcutCards}}: cards. {{shortcutKanban}}: KANBAN. {{shortcutBack}}: go back. Or tap {{newPage}} below.",
+        "{{shortcut}}: new note. {{shortcutCards}}: cards. {{shortcutKanban}}: KANBAN. {{shortcutBack}}: history back; {{shortcutForward}}: forward. Or tap {{newPage}} below.",
       searchEmptyTitle: "No matching pages",
       searchEmptyDescription: "Try different keywords or clear the search to see all notes.",
       clearSearch: "Clear search",

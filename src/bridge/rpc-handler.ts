@@ -24,7 +24,7 @@ import {
   reorderKanbanColumns,
 } from "../host/kanban.js";
 import { resolveVaultFsPath, pickVaultFolder } from "../host/vaultRoot.js";
-import { toAssetWebviewUri } from "../host/assetUri.js";
+import { toAssetDiskUri, toAssetWebviewUri } from "../host/assetUri.js";
 import type { TipsboardPanel } from "../panel/TipsboardPanel.js";
 
 export async function handleRpcInbound(
@@ -238,7 +238,19 @@ export async function handleRpcInbound(
       case "resolveAssetUri": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
         const rel = String(raw.payload ?? "");
-        const u = toAssetWebviewUri(webview, vscode.Uri.file(vaultPath), rel);
+        const vu = vscode.Uri.file(vaultPath);
+        const disk = toAssetDiskUri(vu, rel);
+        if (!disk) {
+          reply({ ok: true, result: "" });
+          return;
+        }
+        try {
+          await vscode.workspace.fs.stat(disk);
+        } catch {
+          reply({ ok: true, result: "" });
+          return;
+        }
+        const u = toAssetWebviewUri(webview, vu, rel);
         reply({ ok: true, result: u?.toString() ?? "" });
         return;
       }
@@ -249,6 +261,13 @@ export async function handleRpcInbound(
         const vu = vscode.Uri.file(vaultPath);
         const rec: Record<string, string> = {};
         for (const p of paths) {
+          const disk = toAssetDiskUri(vu, p);
+          if (!disk) continue;
+          try {
+            await vscode.workspace.fs.stat(disk);
+          } catch {
+            continue;
+          }
           const u = toAssetWebviewUri(webview, vu, p);
           if (u) rec[p] = u.toString();
         }

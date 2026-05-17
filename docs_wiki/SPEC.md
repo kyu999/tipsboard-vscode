@@ -356,9 +356,10 @@ vault/
 
 ### 9.4 ナビゲーション履歴（NavMemory）
 
-- スタック最大 **50**。`pushNavHistory` は「戻る」のために **選択ノート・viewMode・KANBAN フォーカス・ガイド開閉・一覧フィルタ・`openTabs` / `activeTabId`・検索バー `query` / `showSearchResults`** をまとめて保存。
-- **戻る**（`Alt+←` または `Ctrl/Cmd+[`）は未保存時に確認ダイアログを挟んだのち、スタックを pop して状態を復元。
-- 新規ノート作成・別ノート選択・フォルダ変更などで適宜 push。
+- **バック**用 **`navHistoryRef`** と **進む**用 **`navForwardRef`**。**各リスト最大 50**。超過時は末尾を push し、先頭を `shift()`。共有ロジックは **`webview/src/lib/navMemory.ts`**（`cloneNavMemory` / `pushNavStackLimited` / `navMemoryEqual`）。
+- `pushNavHistory` は遷移前の状態として **選択ノート・viewMode・KANBAN フォーカス・ガイド開閉・一覧フィルタ・`openTabs` / `activeTabId`・検索バー `query` / `showSearchResults`** をバック側に保存し、このとき **進む側を空にクリアする**（新しい遷移で「進む」を無効化するため）。
+- **戻る**はバック側を popし、復元実行前に **現在状態を進む側に push**。**進む**は進む側を popし、復元実行前に **現在状態をバック側に push**。いずれも未保存時は **`confirmDiscardChanges`** で確認ダイアログを挟んだのち状態を復元。
+- **`pushNavHistory` を呼ぶ**操作（別ノートへ、カード一覧・KANBAN・ガイド等）で適宜バック側へ積む。フォルダ変更・JSON import などで **両スタックを空にする**。
 
 ### 9.5 未保存扱い
 
@@ -392,15 +393,17 @@ vault/
 | 新規ノート | `mod+N` | `package.json` の `keybindings`（`when: activeWebviewPanelId == 'tipsboard-vscode.main'`）。Host から `create-note` イベントで WebView の `handleCreateNote` を起動。 |
 | アクティブタブを閉じる | `ctrl+alt+shift+w` / mac: `cmd+alt+shift+w` | コマンド `tipsboard-vscode.closeEditorTab`。Host から `close-editor-tab` イベント。タブが 1 枚だけのときは no-op。ネイティブ入力フォーカス中は WebView 側で無視。 |
 
-**WebView 内 `document` のキーダウン（`App.tsx`）**
+**WebView 内 `document` のキーダウンとポインタイベント（`App.tsx`）**
 
-`INPUT` / `TEXTAREA` / `SELECT` にフォーカスがあるときは **処理しない**（フォームと競合させない）。`create-note` イベント受信時も同じくネイティブ入力フォーカス中は無視する。
+`INPUT` / `TEXTAREA` / `SELECT` にフォーカスがあるとき、または **確認ダイアログ表示中**は、§9.4 の **戻る / 進む**（キー・親指ボタン・一部環境の `BrowserBack` / `XF86Back` / `BrowserForward` / `XF86Forward`）は **処理しない**。`create-note` イベント受信時も同じくネイティブ入力フォーカス中は無視する。カード一覧・KANBAN（`mod+Shift+L` / `mod+Shift+K`）も従来どおりネイティブ入力のみ抑止。**`mod+]`** は VS Code 側のインデント等と競合する可能性があるが、Tipsboard の WebView フォーカス中は **`keydown` で `preventDefault`** により NavMemory 「進む」に割り当てる。競合時はユーザーがキーマップを上書きしてよい。
 
 | 操作 | キー（Windows/Linux では Ctrl、macOS では Cmd を mod とする） |
 | --- | --- |
 | カード一覧を開く | `mod+Shift+L` |
 | KANBAN を開く | `mod+Shift+K` |
-| 戻る | `Alt+ArrowLeft` または `mod+[` |
+| 戻る（NavMemory） | `Alt+ArrowLeft` または `mod+[` （ほか環境により `BrowserBack` / `XF86Back`） |
+| 進む（NavMemory） | `Alt+ArrowRight` または `mod+]` （ほか環境により `BrowserForward` / `XF86Forward`） |
+| 戻る / 進む（マウス） | **`pointerdown` の `pointerType === "mouse"` かつ `button === 3` / `button === 4`**（キャプチャ段）でそれぞれ NavMemory と同じ処理。**macOS でのトラックパッド既定スワイプ**は環境により WebView に届かない場合がある |
 
 内部リンク・タグ・関連リンク UI では **`metaKey` / `ctrlKey` 付きクリック**で新規タブ（`tipsboard-links.ts` の `createLinkClickHandler`、`App.handleLinkClick` / `handleSelectNote`）。外部リンクは従来どおり。タブ UI は **`NoteTabBar.tsx`**。KANBAN・ユーザーガイド表示中はタブバー非表示（`viewMode` / `userGuideOpen` による）。
 
@@ -493,3 +496,4 @@ vault/
 | 2026-05-16 | 拡張 **v0.1.9**: fenced code 内の `$$` を表示数式として結合しない検出修正と、数式・fenced block 近傍での `ArrowUp` / `ArrowDown` 論理行移動を追加補強。提示された fenced math examples + prose の回帰テストを Playwright に追加。 |
 | 2026-05-17 | 拡張 **v0.2.0**: 置換装飾がある文書で隣接する短い行同士の縦矢印を論理1行ずつに固定し、リスト末尾から数式領域へのカーソル飛びを防ぐ。Math Expressions 体裁の Playwright 回帰を追加。 |
 | 2026-05-17 | WebView **ノート／タグタブ**: `openTabs` / `activeTabId`、`NoteTabBar`、`editorTabs.ts`。Cmd/Ctrl+クリックで新規タブ、重複タブなし、最後の1タブは閉じ不可。コマンド `tipsboard-vscode.closeEditorTab`（既定 `ctrl+alt+shift+w` / mac `cmd+alt+shift+w`）、`NavMemory` にタブと検索バー状態を含む。§9.2・9.4・9.7 追記。 |
+| 2026-05-19 | **NavMemory 進む**（`navForwardRef`）、戻り・進むのキー・アプリコマンド風キー・マウス 3 / 4 ボタン。確認ダイアログまたはネイティブ入力フォーカス中は無効。`webview/src/lib/navMemory.ts`。§9.4・9.7 追記。拡張リリース **v0.2.4**。 |

@@ -114,6 +114,16 @@ While the Tipsboard panel is open, changes made **outside** Tipsboard (another e
 
 ---
 
+### Editor Tabs and Navigation
+
+![Editor Nav Memory](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/editor-tabs-nav-memory.png)
+
+In **list** view, a tab strip under the header holds open **notes** and **tag searches** (`#tag`). **Cmd/Ctrl-click** links, tags, or list/search hits opens another tab without the unsaved-changes prompt; normal clicks still confirm when needed. Duplicate note paths or tags share one tab; the last tab cannot be closed.
+
+**NavMemory** (Tipsboard-only back/forward—not VS Code editor history) restores tabs, view mode, and search state. See **[Keyboard Shortcuts](#keyboard-shortcuts)** and **Commands** for keys, mouse thumb buttons, and **Tipsboard: Close active tab**.
+
+---
+
 ### Kanban Boards
 
 ![Kanban Board](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/kanban-board.png)
@@ -147,7 +157,7 @@ After you edit the **opening title** and save, Tipsboard **may ask** whether to 
 Tipsboard includes an in-app user guide covering:
 
 - syntax
-- shortcuts
+- shortcuts (including tabs, NavMemory navigation, closing tabs)
 - onboarding
 - editor behavior
 - vault structure
@@ -219,7 +229,12 @@ assets/images/*
 | `Ctrl+Shift+L` | Open note grid |
 | `Ctrl+Shift+K` | Open Kanban |
 | `Ctrl+N` | Create note (while the Tipsboard panel is focused; otherwise VS Code keeps this for New File) |
-| `Alt+←` / `Ctrl+[` | Navigate back |
+| `Alt+←` / `Ctrl+[` (**mac:** `⌥←` / `⌘[` ) | Navigate **back** in Tipsboard (**NavMemory**; skips native inputs and discard dialogs). |
+| `Alt+→` / `Ctrl+]` (**mac:** `⌥→` / `⌘]` ) | Navigate **forward** in Tipsboard when available; **may conflict** with IDE indent elsewhere—override in Keyboard Shortcuts if needed. |
+| Mouse button 3 / 4 (typ.) | Thumb **Back** / **Forward** mapped to Tipsboard NavMemory when the panel receives browser events |
+| `Ctrl+Alt+Shift+W` (**mac:** `⌘⌥⇧W` ) | **Close active tab** (Tipsboard panel focused; skipped in native `<input>`) |
+
+Commands such as **Tipsboard: New Note** remain available regardless of conflicting global keys.
 
 ---
 
@@ -230,6 +245,7 @@ assets/images/*
 | `Tipsboard: Open` | Open or focus the Tipsboard panel |
 | `Tipsboard: Select Vault Folder...` | Choose a vault directory |
 | `Tipsboard: New Note` | Create a note (also bound to Ctrl/Cmd+N while the Tipsboard panel is focused) |
+| `Tipsboard: Close active tab` | Close the active Tipsboard tab (**Ctrl/Cmd+N** symmetry; blocked when only one tab remains) |
 
 ---
 

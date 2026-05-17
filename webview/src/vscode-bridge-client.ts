@@ -7,6 +7,7 @@ type Pending = {
 
 const pending = new Map<string, Pending>();
 const assetUrlCache = new Map<string, string>();
+const missingAssetCache = new Set<string>();
 
 let vscodeApi: ReturnType<typeof acquireVsCodeApi>;
 
@@ -111,9 +112,14 @@ function wireDesktop(): typeof window.tipsboardDesktop {
     resolveAssetUrl: (relativePath: string) => assetUrlCache.get(relativePath) ?? "",
 
     prefetchAssets: async (paths: string[]) => {
-      const rec = (await rpc("resolveAssetUris", { paths })) as Record<string, string>;
+      const unresolved = paths.filter((p) => !assetUrlCache.has(p) && !missingAssetCache.has(p));
+      if (unresolved.length === 0) return;
+      const rec = (await rpc("resolveAssetUris", { paths: unresolved })) as Record<string, string>;
       for (const [k, v] of Object.entries(rec)) {
         if (v) assetUrlCache.set(k, v);
+      }
+      for (const p of unresolved) {
+        if (!rec[p]) missingAssetCache.add(p);
       }
     },
 
@@ -124,10 +130,12 @@ function wireDesktop(): typeof window.tipsboardDesktop {
 }
 
 export async function ensureVaultImageUrl(relativeAssetPath: string): Promise<string | undefined> {
+  if (missingAssetCache.has(relativeAssetPath)) return undefined;
   const cached = assetUrlCache.get(relativeAssetPath) ?? "";
   if (cached) return cached;
   const u = (await rpc("resolveAssetUri", relativeAssetPath)) as string;
   if (u) assetUrlCache.set(relativeAssetPath, u);
+  else missingAssetCache.add(relativeAssetPath);
   return u || undefined;
 }
 
@@ -138,6 +146,7 @@ export function openExternalInHost(uri: string): void {
 /** Drop resolved webview URLs when the vault root changes (paths may collide across vaults). */
 export function clearTipsboardResolvedAssetCache(): void {
   assetUrlCache.clear();
+  missingAssetCache.clear();
 }
 
 window.tipsboardDesktop = wireDesktop();
