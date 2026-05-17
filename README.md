@@ -228,7 +228,7 @@ assets/images/*
 |---|---|
 | `Ctrl+Shift+L` | Open note grid |
 | `Ctrl+Shift+K` | Open Kanban |
-| `Ctrl+N` | Create note (while the Tipsboard panel is focused; otherwise VS Code keeps this for New File) |
+| `Ctrl+N` (**mac:** `Cmd+N`) | Create note (while the Tipsboard panel is focused; otherwise VS Code keeps this for New File). The sidebar **+** button does the same. |
 | `Alt+←` / `Ctrl+[` (**mac:** `⌥←` / `⌘[` ) | Navigate **back** in Tipsboard (**NavMemory**; skips native inputs and discard dialogs). |
 | `Alt+→` / `Ctrl+]` (**mac:** `⌥→` / `⌘]` ) | Navigate **forward** in Tipsboard when available; **may conflict** with IDE indent elsewhere—override in Keyboard Shortcuts if needed. |
 | Mouse button 3 / 4 (typ.) | Thumb **Back** / **Forward** mapped to Tipsboard NavMemory when the panel receives browser events |
@@ -245,7 +245,7 @@ Commands such as **Tipsboard: New Note** remain available regardless of conflict
 | `Tipsboard: Open` | Open or focus the Tipsboard panel |
 | `Tipsboard: Select Vault Folder...` | Choose a vault directory |
 | `Tipsboard: New Note` | Create a note (also bound to Ctrl/Cmd+N while the Tipsboard panel is focused) |
-| `Tipsboard: Close active tab` | Close the active Tipsboard tab (**Ctrl/Cmd+N** symmetry; blocked when only one tab remains) |
+| `Tipsboard: Close active tab` | Close the active Tipsboard tab (also bound to `Ctrl+Alt+Shift+W` / macOS `Cmd+Alt+Shift+W`; blocked when only one tab remains) |
 
 ---
 

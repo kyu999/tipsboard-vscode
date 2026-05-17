@@ -4,6 +4,14 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.5] - 2026-05-17
+
+### Changed
+
+- **Bundled User Guide** (JA/EN): Restructured flow (intro → UI → writing → linking → Links panel → images → title rename → shortcuts). Removed in-guide screenshots and obsolete **page icon** copy (`[Title.icon]`, card preview icons, **`Ctrl+I`** shortcut row). The images section documents **Shift+drag** import only.
+- **README.md**: Fixed **Close active tab** to **`Ctrl+Alt+Shift+W` / `Cmd+Alt+Shift+W`** (was incorrectly tied to New Note). Documents sidebar **+** for new notes and clarifies macOS shortcut labels in the shortcuts table.
+- **SPEC.md** (§9.2, §9.7, §9.8): Search **Enter** applies `listSearchFilter` on the card grid (does not open the first dropdown hit); sidebar **+** invokes `handleCreateNote`; image drop requires **Shift** (MIME/size limits noted).
+
 ## [0.2.4] - 2026-05-17
 
 ### Added

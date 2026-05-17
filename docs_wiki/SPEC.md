@@ -343,14 +343,14 @@ vault/
 | `kanbanFocus` | ボード / 列 / カードのフォーカス情報 |
 | `editorSessionId` | ノート切り替え時にインクリメントし **`NoteEditor` をリマウント**させるトリガ |
 | `saveState` | `"idle" \| "unsaved" \| "saving" \| "saved" \| "error"`（CodeMirror 保存プラグインから供給） |
-| `query` / `listSearchFilter` | グローバル検索バー vs 一覧フィルタ |
+| `query` / `listSearchFilter` | ヘッダー検索入力とカード一覧フィルタ。Enter で `query.trim()` を `listSearchFilter` に反映して一覧へ戻り、候補ドロップダウンのクリックは直接ノートを開く。 |
 | `userGuideOpen` | 同梱ガイドの表示 |
-| メニュー open フラグ | vault / local / actions のドロップダウン |
+| メニュー open フラグ | vault / local のドロップダウン |
 
 ### 9.3 衍生データ（`useMemo`）
 
 - **`buildNoteIndex(snapshot.notes)`**: 各ノートの **外向きリンク・バックリンク・2-hop・newLinks・タグ**、および補完用 `suggestions`。
-- **`searchResults`**: 検索バー用。
+- **`searchResults`**: ヘッダー検索候補用。Enter は先頭候補を開かず、`listSearchFilter` に検索語を入れてカード一覧を絞り込む。
 - **`listDisplayNotes`**: 一覧はオプションで `listSearchFilter` により部分集合化し、**`sortNotesWithPinOrder`** でピン優先表示。
 - **`selectedKanbanStatuses`**: 選択ノートがどのボードのどの列にあるか（エディタまわりの表示用）。
 
@@ -390,7 +390,7 @@ vault/
 
 | 操作 | キー | 備考 |
 | --- | --- | --- |
-| 新規ノート | `mod+N` | `package.json` の `keybindings`（`when: activeWebviewPanelId == 'tipsboard-vscode.main'`）。Host から `create-note` イベントで WebView の `handleCreateNote` を起動。 |
+| 新規ノート | `mod+N` | `package.json` の `keybindings`（`when: activeWebviewPanelId == 'tipsboard-vscode.main'`）。Host から `create-note` イベントで WebView の `handleCreateNote` を起動。WebView 左サイドバーの **+** ボタンも `handleCreateNote` を直接呼ぶ。 |
 | アクティブタブを閉じる | `ctrl+alt+shift+w` / mac: `cmd+alt+shift+w` | コマンド `tipsboard-vscode.closeEditorTab`。Host から `close-editor-tab` イベント。タブが 1 枚だけのときは no-op。ネイティブ入力フォーカス中は WebView 側で無視。 |
 
 **WebView 内 `document` のキーダウンとポインタイベント（`App.tsx`）**
@@ -409,7 +409,7 @@ vault/
 
 ### 9.8 画像
 
-- **ドロップ**: `createLocalImageDropExtension` → `importImageBuffers` で Host に送り、返った Markdown を挿入。
+- **ドロップ**: ユーザー操作は **Shift+画像ドロップ**。`createLocalImageDropExtension` → `importImageBuffers` で Host に送り、返った Markdown を挿入。対応 MIME は PNG / JPEG / GIF / WebP、1 ファイル最大 10MB。
 - **表示**: 本文中の `assets/images/...` は **`ensureVaultImageUrl` / `prefetchAssets`** で WebView URI に変換してから `<img>` に載せる。
 
 ### 9.9 エクスポート（HTML）
@@ -497,3 +497,4 @@ vault/
 | 2026-05-17 | 拡張 **v0.2.0**: 置換装飾がある文書で隣接する短い行同士の縦矢印を論理1行ずつに固定し、リスト末尾から数式領域へのカーソル飛びを防ぐ。Math Expressions 体裁の Playwright 回帰を追加。 |
 | 2026-05-17 | WebView **ノート／タグタブ**: `openTabs` / `activeTabId`、`NoteTabBar`、`editorTabs.ts`。Cmd/Ctrl+クリックで新規タブ、重複タブなし、最後の1タブは閉じ不可。コマンド `tipsboard-vscode.closeEditorTab`（既定 `ctrl+alt+shift+w` / mac `cmd+alt+shift+w`）、`NavMemory` にタブと検索バー状態を含む。§9.2・9.4・9.7 追記。 |
 | 2026-05-19 | **NavMemory 進む**（`navForwardRef`）、戻り・進むのキー・アプリコマンド風キー・マウス 3 / 4 ボタン。確認ダイアログまたはネイティブ入力フォーカス中は無効。`webview/src/lib/navMemory.ts`。§9.4・9.7 追記。拡張リリース **v0.2.4**。 |
+| 2026-05-17 | 拡張 **v0.2.5**: 同梱ユーザーガイド再構成（ページアイコン記法の削除、Shift+画像ドロップの明記）。README のタブ閉じるショートカット修正・サイドバー **+**。§9.2・9.7・9.8 を実装に合わせて更新。 |
