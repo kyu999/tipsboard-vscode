@@ -295,4 +295,25 @@ $$
     expectNoClassAtText(deco, doc, "not bold", "cm-tipsboard-bold");
     expectClassAtText(deco, doc, "bold** outside", "cm-tipsboard-bold");
   });
+
+  it("decorates vault attachment links when the caret is on another line", async () => {
+    const doc = "Title\n[PDF_example](assets/files/file_2eb0a2fc-8df6-4bb2-bd00-e1a32ff33e35.pdf)\n";
+    const view = makeView(doc, [], 0);
+    opened.push(view);
+    await flushLayout(view);
+    const deco = buildTipsboardDecorationSetForTesting(view);
+
+    expectClassAtText(deco, doc, "PDF_example", "cm-tipsboard-vault-attachment-link");
+  });
+
+  it("shows raw vault attachment markdown on the active line", async () => {
+    const doc = "Title\n[PDF_example](assets/files/file_2eb0a2fc-8df6-4bb2-bd00-e1a32ff33e35.pdf)\n";
+    const attachLineStart = doc.indexOf("[PDF_example]");
+    const view = makeView(doc, [], attachLineStart + 2);
+    opened.push(view);
+    await flushLayout(view);
+    const deco = buildTipsboardDecorationSetForTesting(view);
+
+    expectNoClassAtText(deco, doc, "PDF_example", "cm-tipsboard-vault-attachment-link");
+  });
 });

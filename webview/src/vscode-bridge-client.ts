@@ -94,9 +94,9 @@ function wireDesktop(): typeof window.tipsboardDesktop {
 
     importImages: (paths: string[]) => rpc("importImages", paths) as Promise<ImportedImage[]>,
 
-    importImageBuffers: (entries: Array<{ name: string; data: Uint8Array | number[] | ArrayBuffer }>) =>
+    importAttachmentBuffers: (entries: Array<{ name: string; data: Uint8Array | number[] | ArrayBuffer }>) =>
       rpc(
-        "importImageBuffers",
+        "importAttachmentBuffers",
         entries.map((e) => {
           const raw = e.data;
           let arr: number[];
@@ -141,6 +141,10 @@ export async function ensureVaultImageUrl(relativeAssetPath: string): Promise<st
 
 export function openExternalInHost(uri: string): void {
   void rpc("openExternal", { uri });
+}
+
+export function openVaultAttachmentInHost(relativePath: string): void {
+  void rpc("openVaultAsset", relativePath);
 }
 
 /** Drop resolved webview URLs when the vault root changes (paths may collide across vaults). */

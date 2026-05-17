@@ -66,7 +66,7 @@ Supported features include:
 - KaTeX-style math rendering
 - internal link autocomplete
 - tags
-- image embeds
+- image embeds and file attachments (`assets/files/`)
 
 ---
 
@@ -97,6 +97,7 @@ Tipsboard stores notes as ordinary Markdown files on disk.
 ```txt
 pages/*.md
 assets/images/*
+assets/files/*
 .tipsboard/kanban.json
 ```
 
@@ -166,16 +167,24 @@ Use the book icon in the panel to open it anytime.
 
 ---
 
-### Image Drag-and-Drop, Preview, and Zoom
+### Attachments (Shift+drag), preview, and zoom
 
 ![Insert Image with Shift Drag and Drop](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/insert_image.png)
 
-Hold `Shift` while dropping an image file into the editor to insert it into the note.
-This is easy to miss: a normal drop is ignored so that accidental file drops do not modify your Markdown.
+Hold **`Shift`** while dropping files into the editor to copy them into the vault and insert Markdown.
 
-Click embedded images to open a large preview overlay.
+- **Images** (PNG, JPEG, GIF, WebP) go to **`assets/images/`** as `![alt](assets/images/...)`.
+- **Other files** go to **`assets/files/`** as `[label](assets/files/...)`. Executable/installer-like extensions are skipped.
 
-Supports:
+This is easy to miss: a normal drop is ignored so accidental file drops do not modify your Markdown.
+
+Maximum size per dropped file is **`tipsboard-vscode.maxAttachmentBytes`** (default 10 MiB).
+
+Click **`assets/files/...`** links in the editor to open the file with your **operating system's default application**.
+
+On lines you are not editing, attachment links show a **clip icon and label**; move the caret onto that line (or select inside the link) to see and edit the raw `[label](assets/files/...)` Markdown, same as other Tipsboard decorations.
+
+Embedded images open a large preview overlay. Supports:
 
 - mouse wheel zoom
 - trackpad pinch
@@ -211,6 +220,7 @@ Tipsboard: Select Vault Folder...
 ```txt
 pages/*.md
 assets/images/*
+assets/files/*
 .tipsboard/kanban.json
 ```
 
@@ -218,6 +228,7 @@ assets/images/*
 |---|---|
 | `pages/*.md` | Markdown notes |
 | `assets/images/*` | Embedded images |
+| `assets/files/*` | Attached files (linked from Markdown) |
 | `.tipsboard/kanban.json` | Kanban board state |
 
 ---
@@ -255,10 +266,9 @@ Commands such as **Tipsboard: New Note** remain available regardless of conflict
 |---|---|
 | `tipsboard-vscode.vaultFolder` | Vault folder for multi-root workspaces |
 | `tipsboard-vscode.manualVaultPath` | Explicit vault path override |
+| `tipsboard-vscode.maxAttachmentBytes` | Maximum size in bytes per Shift+drag attachment (images and other files); default 10485760 (10 MiB) |
 
 ---
-
-## Which Folder Is the Vault?
 
 | Situation | Vault Root |
 |---|---|

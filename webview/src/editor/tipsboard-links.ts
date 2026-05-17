@@ -1,5 +1,5 @@
 import { EditorView } from "@codemirror/view";
-import { openExternalInHost } from "@/vscode-bridge-client";
+import { openExternalInHost, openVaultAttachmentInHost } from "@/vscode-bridge-client";
 import { trimAutolinkUrl } from "@/domain/autolink";
 import { parseIconSyntax } from "@/domain/links/iconSyntax";
 import { isCustomSyntaxIgnoredPosition } from "./tipsboard-markdown-ranges";
@@ -12,7 +12,8 @@ export type LinkClickHandler = (
 
 type LinkTarget =
   | { type: "external"; href: string }
-  | { type: "internal" | "tag"; title: string };
+  | { type: "internal" | "tag"; title: string }
+  | { type: "vaultAttachment"; relativePath: string };
 
 const LINK_PATTERNS = [
   {
@@ -43,11 +44,28 @@ const LINK_PATTERNS = [
   },
 ];
 
+function findVaultAttachmentLinkAtPosition(lineText: string, offsetInLine: number): LinkTarget | null {
+  const re = /(?<!\\)(?<!\!)\[([^\]\n]*)\]\((assets\/files\/[^)\s]+)\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(lineText)) !== null) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (offsetInLine >= start && offsetInLine < end) {
+      return { type: "vaultAttachment", relativePath: match[2]!.replace(/\\/g, "/") };
+    }
+  }
+  return null;
+}
+
 function findLinkAtPosition(view: EditorView, pos: number): LinkTarget | null {
-  if (isCustomSyntaxIgnoredPosition(view.state, pos)) return null;
   const line = view.state.doc.lineAt(pos);
   const lineText = line.text;
   const offsetInLine = pos - line.from;
+
+  const vaultAttach = findVaultAttachmentLinkAtPosition(lineText, offsetInLine);
+  if (vaultAttach) return vaultAttach;
+
+  if (isCustomSyntaxIgnoredPosition(view.state, pos)) return null;
 
   for (const pattern of LINK_PATTERNS) {
     const re = new RegExp(pattern.re.source, "g");
@@ -64,14 +82,15 @@ function findLinkAtPosition(view: EditorView, pos: number): LinkTarget | null {
       if (pattern.type === "external") {
         const href = match[2] ?? match[1];
         const url = "bareUrlTrim" in pattern && pattern.bareUrlTrim ? trimAutolinkUrl(match[0]) : href;
-        return url ? { type: "external", href: url } : null;
+        if (!url) continue;
+        return { type: "external", href: url };
       }
 
       const raw = match[1]?.trim() ?? "";
-      if (!raw || raw.startsWith("image:")) return null;
+      if (!raw || raw.startsWith("image:")) continue;
       const parts = raw.split(/\s+/);
       const last = parts[parts.length - 1]!;
-      if (last.startsWith("http://") || last.startsWith("https://")) return null;
+      if (last.startsWith("http://") || last.startsWith("https://")) continue;
       const title = parseIconSyntax(raw)?.title ?? raw;
       return { type: pattern.type, title };
     }
@@ -99,6 +118,9 @@ function findTableLinkTarget(eventTarget: EventTarget | null): LinkTarget | null
   }
   if (type === "external") {
     return { type, href: target };
+  }
+  if (type === "vaultAttachment") {
+    return { type: "vaultAttachment", relativePath: target.replace(/\\/g, "/") };
   }
   if (type === "internal" || type === "tag") {
     return { type, title: target };
@@ -164,7 +186,9 @@ export function createLinkClickHandler(onLinkClick: LinkClickHandler) {
       if (!target) return false;
 
       event.preventDefault();
-      if (target.type === "external") {
+      if (target.type === "vaultAttachment") {
+        void openVaultAttachmentInHost(target.relativePath);
+      } else if (target.type === "external") {
         void openExternalInHost(target.href);
       } else {
         const openInNewTab = event.metaKey || event.ctrlKey;

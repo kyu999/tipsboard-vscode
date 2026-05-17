@@ -7,7 +7,16 @@ export function assetPathAllowed(relativePath: string): boolean {
   if (path.isAbsolute(relativePath)) return false;
   const normalized = path.normalize(relativePath).replace(/\\/g, "/");
   if (normalized === ".." || normalized.startsWith("../")) return false;
-  return normalized.startsWith("assets/images/");
+  if (normalized.includes("/../")) return false;
+  return normalized.startsWith("assets/images/") || normalized.startsWith("assets/files/");
+}
+
+/** Paths allowed for OS-open via RPC (`assets/files/` only). */
+export function vaultFileAttachmentOpenAllowed(relativePath: string): boolean {
+  if (!relativePath || path.isAbsolute(relativePath)) return false;
+  const normalized = path.normalize(relativePath).replace(/\\/g, "/");
+  if (normalized === ".." || normalized.startsWith("../") || normalized.includes("/../")) return false;
+  return normalized.startsWith("assets/files/");
 }
 
 export function toAssetWebviewUri(webview: vscode.Webview, vaultRoot: vscode.Uri, relativePath: string): vscode.Uri | null {

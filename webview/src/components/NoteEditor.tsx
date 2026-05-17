@@ -3,6 +3,7 @@ import { findNext, findPrevious, openSearchPanel } from "@codemirror/search";
 import { createEditor } from "@/editor";
 import { setExistingLinkTitlesEffect } from "@/editor/tipsboard-decorations";
 import type { LinkSuggestion, NoteSummary, SaveState } from "@/types";
+import { DEFAULT_ATTACHMENT_MAX_BYTES } from "@/shared/attachmentConstants";
 
 interface NoteEditorProps {
   note: NoteSummary;
@@ -14,6 +15,7 @@ interface NoteEditorProps {
   onLinkClick: (title: string, type: "internal" | "external" | "tag", options?: { openInNewTab?: boolean }) => void;
   onContentChange?: (path: string, body: string) => void;
   onImageDropError?: (message: string) => void;
+  attachmentMaxBytes?: number;
 }
 
 export function NoteEditor({
@@ -26,6 +28,7 @@ export function NoteEditor({
   onLinkClick,
   onContentChange,
   onImageDropError,
+  attachmentMaxBytes,
 }: NoteEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<ReturnType<typeof createEditor> | null>(null);
@@ -38,6 +41,7 @@ export function NoteEditor({
   const onImageDropErrorRef = useRef(onImageDropError);
   const suggestionsRef = useRef(suggestions);
   const existingNormalizedTitlesRef = useRef(existingNormalizedTitles);
+  const attachmentMaxBytesRef = useRef(attachmentMaxBytes ?? DEFAULT_ATTACHMENT_MAX_BYTES);
 
   noteRef.current = note;
   onSaveRef.current = onSave;
@@ -48,6 +52,7 @@ export function NoteEditor({
   onImageDropErrorRef.current = onImageDropError;
   suggestionsRef.current = suggestions;
   existingNormalizedTitlesRef.current = existingNormalizedTitles;
+  attachmentMaxBytesRef.current = attachmentMaxBytes ?? DEFAULT_ATTACHMENT_MAX_BYTES;
 
   useEffect(() => {
     viewRef.current?.dispatch({
@@ -65,6 +70,7 @@ export function NoteEditor({
       onLinkClick: (title, type, options) => onLinkClickRef.current(title, type, options),
       getLinkSuggestions: () => suggestionsRef.current,
       existingNormalizedTitles: existingNormalizedTitlesRef.current,
+      getMaxAttachmentBytes: () => attachmentMaxBytesRef.current,
       onImageDropError: (message) => onImageDropErrorRef.current?.(message),
       onContentChange: (content) => {
         onContentChangeRef.current?.(noteRef.current.path, content);

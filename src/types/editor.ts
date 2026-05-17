@@ -19,6 +19,8 @@ export interface VaultSnapshot {
   /** Pinned paths in front-of-grid order (same as `.tipsboard/pins.json`). */
   pins: string[];
   kanban: KanbanState;
+  /** From VS Code setting `tipsboard-vscode.maxAttachmentBytes`; omitted on partial RPC payloads. */
+  attachmentMaxBytes?: number;
 }
 
 export interface KanbanColumn {

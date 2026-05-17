@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {
@@ -26,23 +26,33 @@
     "Other"
   ],
   "keywords": [
+    "tipsboard",
+    "vscode",
     "markdown",
-    "notes",
-    "notebook",
+    "markdown editor",
+    "markdown wiki",
+    "personal wiki",
+    "wiki",
+    "wikilinks",
+    "internal links",
+    "backlinks",
+    "note taking",
     "pkm",
     "knowledge base",
-    "wiki",
+    "knowledge management",
     "zettelkasten",
     "second brain",
-    "local",
+    "local-first",
     "offline",
-    "backlinks",
+    "vault",
+    "tags",
     "kanban",
     "mermaid",
     "latex",
     "katex",
-    "writing",
-    "tipsboard"
+    "math",
+    "documentation",
+    "file attachments"
   ],
   "activationEvents": [
     "onCommand:tipsboard-vscode.open",
@@ -97,6 +107,14 @@
           "default": "",
           "markdownDescription": "Absolute vault path from *Tipsboard: Select Vault Folder* or typed here. When set, overrides the workspace folder (including single-folder workspaces). Clear to use the open folder as the vault again.",
           "description": "Absolute vault path. Overrides workspace folder when non-empty. Clear to use the workspace folder."
+        },
+        "tipsboard-vscode.maxAttachmentBytes": {
+          "type": "number",
+          "default": 10485760,
+          "minimum": 1,
+          "maximum": 1073741824,
+          "markdownDescription": "Maximum size in bytes for each dropped attachment (images and other files). Default is 10 MiB.",
+          "description": "Maximum attachment size in bytes per file."
         }
       }
     }

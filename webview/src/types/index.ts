@@ -16,6 +16,7 @@ export interface VaultSnapshot {
   notes: NoteSummary[];
   pins: string[];
   kanban: KanbanState;
+  attachmentMaxBytes?: number;
 }
 
 export interface KanbanColumn {

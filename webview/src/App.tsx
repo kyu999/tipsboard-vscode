@@ -131,8 +131,14 @@ export function App() {
   }, [selectedPath]);
 
   const mergeVaultSnapshotFromHost = useCallback((next: VaultSnapshot) => {
-    rebuildDiskCommittedTitles(next, diskCommittedTitleRef);
-    setSnapshot(next);
+    setSnapshot((prev) => {
+      const merged: VaultSnapshot = {
+        ...next,
+        attachmentMaxBytes: next.attachmentMaxBytes ?? prev.attachmentMaxBytes,
+      };
+      rebuildDiskCommittedTitles(merged, diskCommittedTitleRef);
+      return merged;
+    });
   }, []);
 
   const refreshSnapshot = useCallback(async () => {
@@ -1475,6 +1481,7 @@ export function App() {
                   onLinkClick={handleLinkClick}
                   onContentChange={handleDraftNoteChange}
                   onImageDropError={setError}
+                  attachmentMaxBytes={snapshot.attachmentMaxBytes}
                 />
               </div>
 

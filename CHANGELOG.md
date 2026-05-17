@@ -4,6 +4,13 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.6] - 2026-05-17
+
+### Added
+
+- **File attachments**: Shift+drag non-image files into the editor copies them to `assets/files/` and inserts `[label](assets/files/file_<uuid><ext>)`. Executable/installer-like extensions are skipped. Maximum attachment size is **`tipsboard-vscode.maxAttachmentBytes`** (default 10 MiB; applies to images as well). Clicking an attachment link opens the file with the **OS default application** (`openVaultAsset` RPC).
+- **Vault file attachment links**: `[label](assets/files/...)` now toggles between decorated preview and raw Markdown on the **caret line**, matching external links and other Tipsboard syntax (`isSyntaxActive` when the selection is inside the link).
+
 ## [0.2.5] - 2026-05-17
 
 ### Changed

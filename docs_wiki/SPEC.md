@@ -232,8 +232,8 @@ RPC 応答リスナは `kind === "rpc-result"` のみ処理し、イベントは
 | `createNote` / `saveNote` / `deleteNote` / `setNotePinned` | 各 RPC |
 | KANBAN 一式 | 各 RPC、戻りは基本的に **更新後の `VaultSnapshot`** |
 | `exportJson` / `importJson` | ダイアログ + I/O |
-| `importImages` | パス配列（絶対 or vault 相対）からコピー |
-| `importImageBuffers` | ドラッグ＆ドロップ等。`Uint8Array` を **number 配列**に展開して RPC（構造化クローンの都合） |
+| `importImages` | パス配列（絶対 or vault 相対）からコピー（画像および許可された非画像） |
+| `importAttachmentBuffers` | ドラッグ＆ドロップ等。`Uint8Array` を **number 配列**に展開して RPC（構造化クローンの都合）。画像・非画像を順に処理 |
 | `prefetchAssets` | `resolveAssetUris` の結果を **メモリ Map にキャッシュ** |
 | `resolveAssetUrl` | **同期だがキャッシュヒット時のみ**文字列。初期は空 |
 | `getPathForFile` | **常に `""`**（Electron 専用 API のスタブ） |
@@ -247,8 +247,8 @@ vault 未選択時、**`getSnapshot` と `selectFolder` を除き**概ね `Error
 
 | method | payload 型（要旨） | result（要旨） | 備考 |
 | --- | --- | --- | --- |
-| `getSnapshot` | なし | `VaultSnapshot` | 併せて `panel.setVaultRoots(vaultPath)` |
-| `selectFolder` | なし | `VaultSnapshot` | キャンセル時は現在の `resolveVaultFsPath()` で `readVault` |
+| `getSnapshot` | なし | `VaultSnapshot` | 併せて `panel.setVaultRoots(vaultPath)`。`VaultSnapshot` に **`attachmentMaxBytes`** を載せる（`tipsboard-vscode.maxAttachmentBytes`） |
+| `selectFolder` | なし | `VaultSnapshot` | キャンセル時は現在の `resolveVaultFsPath()` で `readVault`。同上 **`attachmentMaxBytes`** |
 | `createNote` | string | `{ notePath, snapshot }` | |
 | `saveNote` | `{ path, body }` | `{ notePath, note: NoteSummary }` | タイトル stem 変化でリネーム可 |
 | `deleteNote` | string | `VaultSnapshot` | |
@@ -263,8 +263,9 @@ vault 未選択時、**`getSnapshot` と `selectFolder` を除き**概ね `Error
 | `moveKanbanNote` | `{ boardId, notePath, toColumnId, position? }` | `VaultSnapshot` | |
 | `exportJson` | なし | boolean | Save ダイアログ、キャンセルで `false` |
 | `importJson` | なし | `VaultSnapshot` | Open ダイアログ |
-| `importImages` | string[] | `ImportedImage[]` | |
-| `importImageBuffers` | `{ name, data: number[] }[]` | `ImportedImage[]` | |
+| `importImages` | string[] | `ImportedImage[]` | サイズ上限は設定 `tipsboard-vscode.maxAttachmentBytes` |
+| `importAttachmentBuffers` | `{ name, data: number[] }[]` | `ImportedImage[]` | 同上 |
+| `openVaultAsset` | string（vault 相対 **`assets/files/`** のみ） | undefined | **`vscode.env.openExternal`** で OS 既定アプリ |
 | `resolveAssetUri` | string | string | 不正パスは `""` |
 | `resolveAssetUris` | `{ paths }` | `Record<string,string>` | |
 | `openExternal` | `{ uri }` | undefined | **http/https のみ** `openExternal` |
@@ -279,6 +280,7 @@ vault 未選択時、**`getSnapshot` と `selectFolder` を除き**概ね `Error
 vault/
   pages/*.md           … ノート（フラット。サブフォルダなし）
   assets/images/       … インポート画像（WebView 表示許可パス）
+  assets/files/        … インポート添付ファイル（本文は `[label](assets/files/...)`、開く際は Host RPC）
   .tipsboard/
     kanban.json
     pins.json
@@ -303,16 +305,30 @@ vault/
 - **pins**: 存在しないパスを剪定し、JSON が変われば保存。
 - **表示順**: `pins` に登録されたパスを **`reorderNotesWithPins`** で先頭に並べ、残りはソート順。
 
-### 8.5 画像インポート
+### 8.5 添付ファイルインポート
 
-- 拡張子: **`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`** のみ。
+- **サイズ上限**: 各ファイル **`tipsboard-vscode.maxAttachmentBytes`**（既定 10MiB）。`importAttachmentBuffers` と `importImages` で共通。超過時は **`TIPSBOARD_ATTACHMENT_TOO_LARGE`**（RPC エラー）。
+- **ブロック拡張子**: `.exe`, `.msi`, `.dmg`, `.pkg`, `.app`, `.bat`, `.cmd`, `.ps1`, `.sh`, `.zsh`, `.bash`, `.com`, `.scr`, `.jar` など（`vault.ts` の **`BLOCKED_ATTACHMENT_EXTS`**）。該当エントリは **スキップ**（エラーにしない）。
+
+#### 画像
+
+- MIME / 拡張子: **`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`**。
 - 保存名: **`assets/images/img_<uuid><ext>`**。
-- `importImages`: ソースは **絶対パス**または **vault からの相対**（`..` 混入はスキップ）。実ファイルのみコピー。
-- 戻り値 `ImportedImage`: `relativePath` と、挿入用 **`![alt](relativePath)`** 形式の `markdown`。
+- 挿入 Markdown: **`![alt](relativePath)`**（`alt` は元ファイル名由来をサニタイズ）。
+
+#### 画像以外（データファイル等）
+
+- 保存名: **`assets/files/file_<uuid><ext>`**（拡張子なしの場合は `file_<uuid>`）。
+- 挿入 Markdown: **`[label](relativePath)`**（標準リンク。`tipsboard-links.ts` がクリックを **`openVaultAsset`** に転送）。
+
+- **`importImages`**: ソースは **絶対パス**または **vault からの相対**（`..` 混入はスキップ）。実ファイルのみコピー。画像は上記 images、非画像は files。
+- **`importAttachmentBuffers`**: WebView の Shift+ドロップ等。バッファを順に処理し、画像／非画像で保存先を振り分ける。
+
+- 戻り値型 **`ImportedImage`**: `relativePath` と `markdown`（画像・添付共通で再利用）。
 
 ### 8.6 アセット URI
 
-`assetPathAllowed`: 正規化後 **`assets/images/` プレフィックス**のみ。`toAssetWebviewUri` は検証失敗時 `null` → RPC は空文字またはキー省略。
+`assetPathAllowed`: 正規化後 **`assets/images/` または `assets/files/`** プレフィックスのみ（`..` や `/../` を含むパスは拒否）。`toAssetWebviewUri` は検証失敗時 `null` → RPC は空文字またはキー省略。現状プレビュー用途は主に **`assets/images/`**。
 
 ### 8.7 JSON export / import
 
@@ -330,6 +346,7 @@ vault/
 ### 9.1 状態の中心: `VaultSnapshot`
 
 - `snapshot: VaultSnapshot` が **アプリのキャッシュされた vault 全体**（全ノートの `body` を含む）。
+- **`attachmentMaxBytes`**: `getSnapshot` / `selectFolder` の応答に含まれる（設定 **`tipsboard-vscode.maxAttachmentBytes`**）。部分的な RPC が `VaultSnapshot` を返す場合、`mergeVaultSnapshotFromHost` は **欠けているとき既存値を温存**する。
 - マウント時に **`getSnapshot()`** を必ず呼ぶ。`vaultPath === null` なら **オンボーディング画面**のみ表示（フォルダ選択ボタン → `selectFolder`）。
 
 ### 9.2 主要な React state（概念）
@@ -407,10 +424,13 @@ vault/
 
 内部リンク・タグ・関連リンク UI では **`metaKey` / `ctrlKey` 付きクリック**で新規タブ（`tipsboard-links.ts` の `createLinkClickHandler`、`App.handleLinkClick` / `handleSelectNote`）。外部リンクは従来どおり。タブ UI は **`NoteTabBar.tsx`**。KANBAN・ユーザーガイド表示中はタブバー非表示（`viewMode` / `userGuideOpen` による）。
 
-### 9.8 画像
+### 9.8 添付（画像・ファイル）
 
-- **ドロップ**: ユーザー操作は **Shift+画像ドロップ**。`createLocalImageDropExtension` → `importImageBuffers` で Host に送り、返った Markdown を挿入。対応 MIME は PNG / JPEG / GIF / WebP、1 ファイル最大 10MB。
-- **表示**: 本文中の `assets/images/...` は **`ensureVaultImageUrl` / `prefetchAssets`** で WebView URI に変換してから `<img>` に載せる。
+- **ドロップ**: **Shift+ファイルドロップ**。`createLocalAttachmentDropExtension`（`tipsboard-image-drop.ts`）→ **`importAttachmentBuffers`** で Host に送り、返った Markdown を挿入。画像は PNG / JPEG / GIF / WebP。非画像は **`assets/files/`** へ保存され **`[label](assets/files/...)`** を挿入（実行系などブロック拡張子は Host / WebView でスキップ）。
+- **サイズ上限**: VS Code 設定 **`tipsboard-vscode.maxAttachmentBytes`**（`VaultSnapshot.attachmentMaxBytes` と整合）。Host 側でも検証し、超過時は **`TIPSBOARD_ATTACHMENT_TOO_LARGE`**。
+- **画像表示**: 本文中の `assets/images/...` は **`ensureVaultImageUrl` / `prefetchAssets`** で WebView URI に変換してから `<img>` に載せる。
+- **`assets/files/` リンク**: `tipsboard-links.ts` が **`openVaultAsset`** RPC を発行し、Host が **`vscode.env.openExternal`** で OS 既定アプリに委譲。
+- **装飾（`tipsboard-decorations.ts`）**: 非カーソル行では `[label](assets/files/...)` を **`cm-tipsboard-vault-attachment-link`** でラベル表示（クリップアイコンは CSS `::before`、テーブル内は DOM アイコン）。**カーソル行**は他記法と同様に生 Markdown。リンク範囲内にキャレット／選択があるときは **`isSyntaxActive`** により括弧・URL も表示（外部リンクと同じ切替）。
 
 ### 9.9 エクスポート（HTML）
 
@@ -444,7 +464,7 @@ vault/
 - **装飾・言語** `tipsboardLanguage`, `tipsboardDecorations`, `tipsboardTheme`, `notebookTheme`
 - **リンククリック** `createLinkClickHandler` → `tipsboard-links.ts`
 - **保存** `createManualSavePlugin`
-- **画像ドロップ** `createLocalImageDropExtension` → `tipsboard-image-drop.ts`
+- **Shift+ドロップ添付** `createLocalAttachmentDropExtension` → `tipsboard-image-drop.ts`
 - **Tipsboard 固有装飾・KaTeX・Mermaid 等**は `tipsboard-decorations.ts` ほかに分割
 
 大きな装飾・パーサ負荷があるため、**パフォーマンス調整は主にこの層**で行う。
@@ -453,11 +473,12 @@ vault/
 
 ## 11. セキュリティ（実装が守っていること）
 
-1. **パス traversal 禁止**（ノート・画像 URI とも）。
+1. **パス traversal 禁止**（ノート・アセット URI とも）。
 2. **Bridge**: 想定外 `method` は例外 → RPC エラー応答。
 3. **外部 URL**: `openExternal` は **http/https のみ**（フィッシング対策の最低限）。
-4. **CSP**: インラインスクリプトは nonce 付きのバンドルのみ。
-5. **WebView は Node を持たない**（`process-shim` はビルド互換用のスタブに留める）。
+4. **`openVaultAsset`**: **`assets/files/`** のみ許可（`vaultFileAttachmentOpenAllowed`）。検証後に **`vscode.env.openExternal`**。
+5. **CSP**: インラインスクリプトは nonce 付きのバンドルのみ。
+6. **WebView は Node を持たない**（`process-shim` はビルド互換用のスタブに留める）。
 
 ---
 
@@ -497,4 +518,5 @@ vault/
 | 2026-05-17 | 拡張 **v0.2.0**: 置換装飾がある文書で隣接する短い行同士の縦矢印を論理1行ずつに固定し、リスト末尾から数式領域へのカーソル飛びを防ぐ。Math Expressions 体裁の Playwright 回帰を追加。 |
 | 2026-05-17 | WebView **ノート／タグタブ**: `openTabs` / `activeTabId`、`NoteTabBar`、`editorTabs.ts`。Cmd/Ctrl+クリックで新規タブ、重複タブなし、最後の1タブは閉じ不可。コマンド `tipsboard-vscode.closeEditorTab`（既定 `ctrl+alt+shift+w` / mac `cmd+alt+shift+w`）、`NavMemory` にタブと検索バー状態を含む。§9.2・9.4・9.7 追記。 |
 | 2026-05-19 | **NavMemory 進む**（`navForwardRef`）、戻り・進むのキー・アプリコマンド風キー・マウス 3 / 4 ボタン。確認ダイアログまたはネイティブ入力フォーカス中は無効。`webview/src/lib/navMemory.ts`。§9.4・9.7 追記。拡張リリース **v0.2.4**。 |
-| 2026-05-17 | 拡張 **v0.2.5**: 同梱ユーザーガイド再構成（ページアイコン記法の削除、Shift+画像ドロップの明記）。README のタブ閉じるショートカット修正・サイドバー **+**。§9.2・9.7・9.8 を実装に合わせて更新。 |
+| 2026-05-17 | 拡張 **v0.2.5**: 非画像添付（`assets/files/`、`importAttachmentBuffers`、`openVaultAsset`、`maxAttachmentBytes`）。同梱ユーザーガイド・README の Shift+ドロップ（画像・ファイル）。§8.5・§9.8 ほか。 |
+| 2026-05-17 | 拡張 **v0.2.6**: `assets/files/` リンク装飾のカーソル行切替（他記法と同様）。README・§9.8 の装飾挙動を追記。 |

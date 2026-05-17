@@ -12,7 +12,8 @@ import { tipsboardKeymap } from "./tipsboard-keymap";
 import { createLinkClickHandler, type LinkClickHandler } from "./tipsboard-links";
 import { createManualSavePlugin, type EditorSaveConfig } from "./tipsboard-save";
 import { createLocalLinkCompletionSource } from "./tipsboard-link-completion";
-import { createLocalImageDropExtension } from "./tipsboard-image-drop";
+import { createLocalAttachmentDropExtension } from "./tipsboard-image-drop";
+import { DEFAULT_ATTACHMENT_MAX_BYTES } from "@/shared/attachmentConstants";
 import { palette } from "@/theme/palette";
 
 const ed = palette.editor;
@@ -152,6 +153,8 @@ export interface EditorConfig {
   getLinkSuggestions: () => LinkSuggestion[];
   existingNormalizedTitles?: Iterable<string>;
   onImageDropError?: (message: string) => void;
+  /** VS Code `tipsboard-vscode.maxAttachmentBytes`; used before RPC and for error copy. */
+  getMaxAttachmentBytes?: () => number;
   onContentChange?: (content: string) => void;
   extensions?: Extension[];
 }
@@ -197,7 +200,10 @@ export function createEditor(config: EditorConfig): EditorView {
           initialContent: config.doc,
         })
       : []),
-    createLocalImageDropExtension(config.onImageDropError),
+    createLocalAttachmentDropExtension({
+      getMaxAttachmentBytes: () => config.getMaxAttachmentBytes?.() ?? DEFAULT_ATTACHMENT_MAX_BYTES,
+      onError: config.onImageDropError,
+    }),
     EditorView.lineWrapping,
     ...(config.extensions ?? []),
   ];

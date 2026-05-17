@@ -392,7 +392,7 @@ function createTableRow(
 }
 
 const tableInlineRe =
-  /`([^`\n]+?)`|\*\*(.+?)\*\*|\*(?!\*)([^*\n]+?)\*(?!\*)|_([^_\n]+?)_|~~(.+?)~~|\[([^\[\]\n]+?)\]\((https?:\/\/[^)\s]+)\)|\[([^\[\]\n]+?)\s+(https?:\/\/\S+)\]|\[(https?:\/\/\S+)\]|\[([^\[\]\n]+?)\](?!\()|(?<!\[)(?<![\w/])(https?:\/\/\S+)|(?<!\S)(#[^\s#]+)/g;
+  /`([^`\n]+?)`|\*\*(.+?)\*\*|\*(?!\*)([^*\n]+?)\*(?!\*)|_([^_\n]+?)_|~~(.+?)~~|\[([^\[\]\n]+?)\]\((assets\/files\/[^)\s]+)\)|\[([^\[\]\n]+?)\]\((https?:\/\/[^)\s]+)\)|\[([^\[\]\n]+?)\s+(https?:\/\/\S+)\]|\[(https?:\/\/\S+)\]|\[([^\[\]\n]+?)\](?!\()|(?<!\[)(?<![\w/])(https?:\/\/\S+)|(?<!\S)(#[^\s#]+)/g;
 
 function renderTableCellContent(
   text: string,
@@ -435,24 +435,27 @@ function createTableInlineElement(
     return createInlineSpan("cm-tipsboard-strike", match[5]);
   }
   if (match[6] != null && match[7] != null) {
-    return createTableLink("external", match[6], match[7], existingLinkTitles);
+    return createTableLink("vaultAttachment", match[6], match[7], existingLinkTitles);
   }
   if (match[8] != null && match[9] != null) {
     return createTableLink("external", match[8], match[9], existingLinkTitles);
   }
-  if (match[10] != null) {
-    return createTableLink("external", match[10], match[10], existingLinkTitles);
-  }
-  if (match[11] != null) {
-    return createTableLink("internal", match[11], match[11], existingLinkTitles);
+  if (match[10] != null && match[11] != null) {
+    return createTableLink("external", match[10], match[11], existingLinkTitles);
   }
   if (match[12] != null) {
-    const href = trimAutolinkUrl(match[12]);
-    return createTableLink("external", href, href, existingLinkTitles);
+    return createTableLink("external", match[12], match[12], existingLinkTitles);
   }
   if (match[13] != null) {
-    const tag = match[13].slice(1);
-    return createTableLink("tag", match[13], tag, existingLinkTitles);
+    return createTableLink("internal", match[13], match[13], existingLinkTitles);
+  }
+  if (match[14] != null) {
+    const href = trimAutolinkUrl(match[14]);
+    return createTableLink("external", href, href, existingLinkTitles);
+  }
+  if (match[15] != null) {
+    const tag = match[15].slice(1);
+    return createTableLink("tag", match[15], tag, existingLinkTitles);
   }
 
   return document.createTextNode(match[0]);
@@ -465,12 +468,30 @@ function createInlineSpan(className: string, text: string): HTMLElement {
   return span;
 }
 
+/** Vault attachment `[label](assets/files/...)`. Icon via CSS `::before`, not FA classes on label text. */
+const VAULT_ATTACHMENT_LINK_CLASS = "cm-tipsboard-vault-attachment-link" as const;
+
+function createVaultAttachmentTableLink(label: string, target: string): HTMLElement {
+  const span = document.createElement("span");
+  span.className = `${VAULT_ATTACHMENT_LINK_CLASS} cm-tipsboard-vault-attachment-link--dom-icon`;
+  span.dataset.tipsboardTableLinkType = "vaultAttachment";
+  span.dataset.tipsboardTableLinkTarget = target;
+  const icon = document.createElement("i");
+  icon.className = "fa-solid fa-paperclip fa-xs";
+  icon.setAttribute("aria-hidden", "true");
+  span.append(icon, document.createTextNode(` ${label}`));
+  return span;
+}
+
 function createTableLink(
-  type: "external" | "internal" | "tag",
+  type: "external" | "internal" | "tag" | "vaultAttachment",
   label: string,
   target: string,
   existingLinkTitles: ReadonlySet<string>,
 ): HTMLElement {
+  if (type === "vaultAttachment") {
+    return createVaultAttachmentTableLink(label, target);
+  }
   const span = createInlineSpan(
     type === "external"
       ? "cm-tipsboard-external-link"
@@ -492,6 +513,7 @@ const inlineCodeMark = Decoration.mark({ class: "cm-tipsboard-inline-code" });
 const linkMark = Decoration.mark({ class: "cm-tipsboard-link" });
 const missingLinkMark = Decoration.mark({ class: "cm-tipsboard-missing-link" });
 const externalLinkMark = Decoration.mark({ class: "cm-tipsboard-external-link" });
+const vaultAttachmentLinkMark = Decoration.mark({ class: VAULT_ATTACHMENT_LINK_CLASS });
 const tagMark = Decoration.mark({ class: "cm-tipsboard-tag" });
 const quoteMark = Decoration.mark({ class: "cm-tipsboard-quote" });
 const codeMark = Decoration.mark({ class: "cm-tipsboard-code" });
@@ -567,6 +589,7 @@ const hideSyntax = Decoration.replace({
 
 type PendingDecoration = { from: number; to: number; deco: Decoration };
 
+const vaultAttachmentMdRe = /(?<!\\)(?<!\!)\[([^\]\n]*)\]\((assets\/files\/[^)\s]+)\)/g;
 const externalWithLabelRe = /(?<!\\)\[([^\[\]\n]+?)\s+(https?:\/\/\S+)\](?!\()/g;
 const externalRe = /(?<!\\)\[(https?:\/\/\S+)\](?!\()/g;
 const bareHttpUrlRe = bareHttpUrlInTextRe;
@@ -624,6 +647,18 @@ function addDecoration(
   if (to > from) {
     decorations.push({ from, to, deco });
   }
+}
+
+function intersectsRangesExceptExactSelf(
+  from: number,
+  to: number,
+  ranges: readonly TextRange[],
+): boolean {
+  for (const range of ranges) {
+    if (range.from === from && range.to === to) continue;
+    if (from < range.to && to > range.from) return true;
+  }
+  return false;
 }
 
 function hideDecorations(
@@ -1111,6 +1146,26 @@ function addTipsboardLinkDecorations(
           });
         }
 
+        vaultAttachmentMdRe.lastIndex = 0;
+        let vaultMdMatch: RegExpExecArray | null;
+        while ((vaultMdMatch = vaultAttachmentMdRe.exec(lineText)) !== null) {
+          const labelText = vaultMdMatch[1] ?? "";
+          const matchFrom = line.from + vaultMdMatch.index;
+          const matchTo = matchFrom + vaultMdMatch[0].length;
+          if (intersectsRangesExceptExactSelf(matchFrom, matchTo, skipRanges)) continue;
+          const labelFrom = matchFrom + 1;
+          const labelTo = labelFrom + labelText.length;
+          if (labelTo <= labelFrom) continue;
+          const isActive = isSyntaxActive(view, matchFrom, matchTo);
+          addDecoration(decorations, labelFrom, labelTo, vaultAttachmentLinkMark);
+          if (!isActive) {
+            hideDecorations(decorations, [
+              { from: matchFrom, to: matchFrom + 1 },
+              { from: labelTo, to: matchTo },
+            ]);
+          }
+        }
+
         externalWithLabelRe.lastIndex = 0;
         let externalWithLabelMatch: RegExpExecArray | null;
         while ((externalWithLabelMatch = externalWithLabelRe.exec(lineText)) !== null) {
@@ -1414,6 +1469,39 @@ export const tipsboardTheme = EditorView.baseTheme({
     textDecorationThickness: "0.08em",
     textUnderlineOffset: "0.18em",
     cursor: "pointer",
+  },
+  ".cm-tipsboard-vault-attachment-link": {
+    color: pa.external,
+    textDecoration: "underline",
+    textDecorationThickness: "0.08em",
+    textUnderlineOffset: "0.18em",
+    cursor: "pointer",
+    paddingInlineEnd: "2px",
+  },
+  ".cm-tipsboard-vault-attachment-link::before": {
+    display: "inline-block",
+    fontFamily: '"Font Awesome 7 Free"',
+    fontWeight: "900",
+    content: '"\\f0c6"',
+    marginInlineEnd: "0.35em",
+    opacity: "0.92",
+    fontSize: "0.82em",
+    lineHeight: "1",
+    verticalAlign: "0.05em",
+    textDecoration: "none",
+    WebkitFontSmoothing: "antialiased",
+  },
+  ".cm-tipsboard-vault-attachment-link--dom-icon::before": {
+    content: '""',
+    margin: "0",
+    display: "none",
+  },
+  ".cm-tipsboard-vault-attachment-link--dom-icon > .fa-paperclip": {
+    marginInlineEnd: "0.35em",
+    opacity: "0.92",
+    fontSize: "0.82em",
+    verticalAlign: "0.05em",
+    textDecoration: "none",
   },
   ".cm-tipsboard-tag": {
     color: pa.tag,

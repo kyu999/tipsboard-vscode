@@ -9,7 +9,7 @@ import {
   exportVaultJson,
   importVaultJson,
   importImages,
-  importImageBuffers,
+  importAttachmentBuffers,
   setNotePinned,
   type ImageBufferInput,
 } from "../host/vault.js";
@@ -24,8 +24,13 @@ import {
   reorderKanbanColumns,
 } from "../host/kanban.js";
 import { resolveVaultFsPath, pickVaultFolder } from "../host/vaultRoot.js";
-import { toAssetDiskUri, toAssetWebviewUri } from "../host/assetUri.js";
+import { readAttachmentMaxBytes } from "../host/attachmentSettings.js";
+import { toAssetDiskUri, toAssetWebviewUri, vaultFileAttachmentOpenAllowed } from "../host/assetUri.js";
 import type { TipsboardPanel } from "../panel/TipsboardPanel.js";
+
+async function vaultSnapshotPayload(vp: string | null): Promise<Awaited<ReturnType<typeof readVault>> & { attachmentMaxBytes: number }> {
+  return { ...(await readVault(vp)), attachmentMaxBytes: readAttachmentMaxBytes() };
+}
 
 export async function handleRpcInbound(
   webview: vscode.Webview,
@@ -50,7 +55,7 @@ export async function handleRpcInbound(
     switch (raw.method) {
       case "getSnapshot": {
         panel.setVaultRoots(vaultPath);
-        reply({ ok: true, result: await readVault(vaultPath ?? null) });
+        reply({ ok: true, result: await vaultSnapshotPayload(vaultPath ?? null) });
         return;
       }
 
@@ -58,7 +63,7 @@ export async function handleRpcInbound(
         const picked = await pickVaultFolder();
         const vp = picked ?? resolveVaultFsPath();
         panel.setVaultRoots(vp);
-        reply({ ok: true, result: await readVault(vp ?? null) });
+        reply({ ok: true, result: await vaultSnapshotPayload(vp ?? null) });
         return;
       }
 
@@ -220,18 +225,32 @@ export async function handleRpcInbound(
       case "importImages": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
         const paths = (raw.payload as string[]) ?? [];
-        reply({ ok: true, result: await importImages(vaultPath, paths) });
+        reply({ ok: true, result: await importImages(vaultPath, paths, readAttachmentMaxBytes()) });
         return;
       }
 
-      case "importImageBuffers": {
+      case "importAttachmentBuffers": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
         const entriesRaw = raw.payload as { name: string; data: number[] | Uint8Array }[];
         const entries: ImageBufferInput[] = entriesRaw.map((e) => ({
           name: e.name,
           data: new Uint8Array(e.data instanceof Uint8Array ? e.data : [...e.data]),
         }));
-        reply({ ok: true, result: await importImageBuffers(vaultPath, entries) });
+        reply({ ok: true, result: await importAttachmentBuffers(vaultPath, entries, readAttachmentMaxBytes()) });
+        return;
+      }
+
+      case "openVaultAsset": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const relRaw = String(raw.payload ?? "").trim().replace(/\\/g, "/");
+        if (!vaultFileAttachmentOpenAllowed(relRaw)) {
+          throw new Error("Invalid attachment path");
+        }
+        const vu = vscode.Uri.file(vaultPath);
+        const segments = relRaw.split("/").filter((s) => s.length > 0);
+        const target = vscode.Uri.joinPath(vu, ...segments);
+        await vscode.env.openExternal(target);
+        reply({ ok: true, result: undefined });
         return;
       }
 

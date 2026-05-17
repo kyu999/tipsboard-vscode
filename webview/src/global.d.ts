@@ -33,7 +33,7 @@ declare global {
       exportJson: () => Promise<boolean>;
       importJson: () => Promise<VaultSnapshot>;
       importImages: (paths: string[]) => Promise<ImportedImage[]>;
-      importImageBuffers: (
+      importAttachmentBuffers: (
         entries: Array<{ name: string; data: Uint8Array | number[] | ArrayBuffer }>,
       ) => Promise<ImportedImage[]>;
       prefetchAssets: (paths: string[]) => Promise<void>;

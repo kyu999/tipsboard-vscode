@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { ImportedImage, KanbanState, NoteSummary, VaultSnapshot } from "../types/editor.js";
 import { cleanupKanbanAfterNoteDelete, loadKanbanState, patchKanbanNotePaths, saveKanbanState } from "./kanban.js";
 import {
@@ -353,10 +353,99 @@ export async function deleteNote(vaultPath: string, relativePath: string): Promi
 
 const IMG_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 
-export async function importImages(vaultPath: string, sourcePaths: string[]): Promise<ImportedImage[]> {
+/**
+ * Executable / installer / shell-script extensions rejected for attachment import.
+ * Keep in sync with `webview/src/shared/attachmentImportPolicy.ts`.
+ */
+export const BLOCKED_ATTACHMENT_EXTS = new Set([
+  ".app",
+  ".bash",
+  ".bat",
+  ".cmd",
+  ".com",
+  ".dmg",
+  ".exe",
+  ".jar",
+  ".msi",
+  ".pkg",
+  ".ps1",
+  ".scr",
+  ".sh",
+  ".zsh",
+]);
+
+/** Stable code; WebView maps to i18n on import errors. */
+export const ATTACHMENT_TOO_LARGE_ERROR = "TIPSBOARD_ATTACHMENT_TOO_LARGE";
+
+function assertAttachmentWithinMaxBytes(data: Uint8Array, maxBytes: number): void {
+  if (data.byteLength > maxBytes) {
+    throw new Error(ATTACHMENT_TOO_LARGE_ERROR);
+  }
+}
+
+function assertFileWithinMaxBytes(size: number, maxBytes: number): void {
+  if (size > maxBytes) {
+    throw new Error(ATTACHMENT_TOO_LARGE_ERROR);
+  }
+}
+
+function sanitizeAttachmentLinkLabel(originalBasenameWithoutExt: string): string {
+  const s = originalBasenameWithoutExt
+    .replace(/[\[\]()]/g, " ")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return s.length > 0 ? s : "file";
+}
+
+function contentSha256(data: Uint8Array): string {
+  return createHash("sha256").update(data).digest("hex");
+}
+
+async function findExistingFileAttachmentByContent(
+  filesDir: string,
+  data: Uint8Array,
+): Promise<string | null> {
+  const entries = await fs.readdir(filesDir, { withFileTypes: true }).catch(() => []);
+  const incomingHash = contentSha256(data);
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const abs = path.join(filesDir, entry.name);
+    const st = await fs.stat(abs).catch(() => null);
+    if (!st?.isFile() || st.size !== data.byteLength) continue;
+    const existing = await fs.readFile(abs).catch(() => null);
+    if (!existing) continue;
+    if (contentSha256(existing) === incomingHash) {
+      return `assets/files/${entry.name}`.replace(/\\/g, "/");
+    }
+  }
+  return null;
+}
+
+async function importFileAttachmentData(
+  vaultPath: string,
+  filesDir: string,
+  originalName: string,
+  data: Uint8Array,
+): Promise<ImportedImage> {
+  const ext = path.extname(originalName).toLowerCase();
+  const existingRel = await findExistingFileAttachmentByContent(filesDir, data);
+  const rel = existingRel ?? `assets/files/${ext ? `file_${randomUUID()}${ext}` : `file_${randomUUID()}`}`;
+  if (!existingRel) {
+    await fs.writeFile(path.join(vaultPath, rel), data);
+  }
+  const stem = sanitizeAttachmentLinkLabel(ext ? path.basename(originalName, ext) : path.basename(originalName));
+  const relPosix = rel.replace(/\\/g, "/");
+  return { relativePath: relPosix, markdown: `[${stem}](${relPosix})` };
+}
+
+export async function importImages(vaultPath: string, sourcePaths: string[], maxBytes: number): Promise<ImportedImage[]> {
+  const imagesDir = path.join(vaultPath, "assets", "images");
+  const filesDir = path.join(vaultPath, "assets", "files");
+  await fs.mkdir(imagesDir, { recursive: true });
+  await fs.mkdir(filesDir, { recursive: true });
+
   const out: ImportedImage[] = [];
-  const destDir = path.join(vaultPath, "assets", "images");
-  await fs.mkdir(destDir, { recursive: true });
 
   for (const src of sourcePaths) {
     if (!src) continue;
@@ -365,15 +454,25 @@ export async function importImages(vaultPath: string, sourcePaths: string[]): Pr
     const absSrc = path.isAbsolute(src) ? src : path.join(vaultPath, src);
     const st = await fs.stat(absSrc).catch(() => null);
     if (!st?.isFile()) continue;
+    assertFileWithinMaxBytes(st.size, maxBytes);
     const ext = path.extname(absSrc).toLowerCase();
-    if (!IMG_EXT.has(ext)) continue;
     const id = randomUUID();
-    const base = `img_${id}${ext}`;
-    const rel = `assets/images/${base}`;
-    const absDest = path.join(vaultPath, rel);
-    await fs.copyFile(absSrc, absDest);
-    const stem = path.basename(absSrc, ext).replace(/[-_]+/g, " ");
-    out.push({ relativePath: rel.replace(/\\/g, "/"), markdown: `![${stem}](${rel.replace(/\\/g, "/")})` });
+
+    if (IMG_EXT.has(ext)) {
+      const base = `img_${id}${ext}`;
+      const rel = `assets/images/${base}`;
+      const absDest = path.join(vaultPath, rel);
+      await fs.copyFile(absSrc, absDest);
+      const stem = sanitizeAttachmentLinkLabel(path.basename(absSrc, ext));
+      const relPosix = rel.replace(/\\/g, "/");
+      out.push({ relativePath: relPosix, markdown: `![${stem}](${relPosix})` });
+      continue;
+    }
+
+    if (BLOCKED_ATTACHMENT_EXTS.has(ext)) continue;
+
+    const data = await fs.readFile(absSrc);
+    out.push(await importFileAttachmentData(vaultPath, filesDir, path.basename(absSrc), data));
   }
   return out;
 }
@@ -383,23 +482,49 @@ export interface ImageBufferInput {
   data: Uint8Array;
 }
 
-export async function importImageBuffers(vaultPath: string, entries: ImageBufferInput[]): Promise<ImportedImage[]> {
+/** Imports dropped buffers in order: images → `assets/images/`, other allowed files → `assets/files/`. */
+export async function importAttachmentBuffers(
+  vaultPath: string,
+  entries: ImageBufferInput[],
+  maxBytes: number,
+): Promise<ImportedImage[]> {
+  const imagesDir = path.join(vaultPath, "assets", "images");
+  const filesDir = path.join(vaultPath, "assets", "files");
+  await fs.mkdir(imagesDir, { recursive: true });
+  await fs.mkdir(filesDir, { recursive: true });
+
   const out: ImportedImage[] = [];
-  const destDir = path.join(vaultPath, "assets", "images");
-  await fs.mkdir(destDir, { recursive: true });
 
   for (const ent of entries) {
+    assertAttachmentWithinMaxBytes(ent.data, maxBytes);
     const ext = path.extname(ent.name).toLowerCase();
-    if (!IMG_EXT.has(ext)) continue;
     const id = randomUUID();
-    const base = `img_${id}${ext}`;
-    const rel = `assets/images/${base}`;
-    const absDest = path.join(vaultPath, rel);
-    await fs.writeFile(absDest, ent.data);
-    const stem = path.basename(ent.name, ext).replace(/[-_]+/g, " ");
-    out.push({ relativePath: rel.replace(/\\/g, "/"), markdown: `![${stem}](${rel.replace(/\\/g, "/")})` });
+
+    if (IMG_EXT.has(ext)) {
+      const base = `img_${id}${ext}`;
+      const rel = `assets/images/${base}`;
+      const absDest = path.join(vaultPath, rel);
+      await fs.writeFile(absDest, ent.data);
+      const stem = sanitizeAttachmentLinkLabel(path.basename(ent.name, ext));
+      const relPosix = rel.replace(/\\/g, "/");
+      out.push({ relativePath: relPosix, markdown: `![${stem}](${relPosix})` });
+      continue;
+    }
+
+    if (BLOCKED_ATTACHMENT_EXTS.has(ext)) continue;
+
+    out.push(await importFileAttachmentData(vaultPath, filesDir, ent.name, ent.data));
   }
   return out;
+}
+
+/** @deprecated Prefer `importAttachmentBuffers` (same behavior). */
+export async function importImageBuffers(
+  vaultPath: string,
+  entries: ImageBufferInput[],
+  maxBytes: number,
+): Promise<ImportedImage[]> {
+  return importAttachmentBuffers(vaultPath, entries, maxBytes);
 }
 
 export async function exportVaultJson(vaultPath: string, targetPath: string): Promise<void> {

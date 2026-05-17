@@ -151,8 +151,10 @@ const en = {
   },
   editor: {
     clickToEnlargeImage: "Click to enlarge — scroll/pinch or +/- keys to zoom",
-    fileTooLarge: "File too large (max 10MB)",
-    importFailed: "Failed to import image",
+    fileTooLarge: "File too large (limit {{maxMiB}} MiB)",
+    importFailed: "Failed to import attachment",
+    attachmentBlocked:
+      "This file type cannot be attached (executable/installer-like extensions are blocked)",
   },
 } as const;
 

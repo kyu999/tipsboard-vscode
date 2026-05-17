@@ -10,10 +10,12 @@ media/**
 webview/**
 
 # Dev / internal documentation (not needed in the published VSIX)
+.github/**
 docs/**
 docs_wiki/**
 DEVELOPMENT.md
 DEVELOPMENT_RULE.md
+playwright.config.ts
 
 # Lockfiles (not required at runtime)
 package-lock.json
@@ -22,6 +24,8 @@ package-lock.json
 **/*.vsix
 **/*.map
 **/*.test.ts
+test-results/**
+playwright-report/**
 
 # Repo hygiene (if present)
 .gitignore

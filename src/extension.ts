@@ -22,7 +22,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
         !e.affectsConfiguration("tipsboard-vscode.manualVaultPath") &&
-        !e.affectsConfiguration("tipsboard-vscode.vaultFolder")
+        !e.affectsConfiguration("tipsboard-vscode.vaultFolder") &&
+        !e.affectsConfiguration("tipsboard-vscode.maxAttachmentBytes")
       ) {
         return;
       }

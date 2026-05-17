@@ -151,8 +151,9 @@ const ja = {
   },
   editor: {
     clickToEnlargeImage: "クリックで拡大 · ホイール・トラックパッドまたは ± キーでズーム",
-    fileTooLarge: "ファイルが大きすぎます（最大10MB）",
-    importFailed: "画像の取り込みに失敗しました",
+    fileTooLarge: "ファイルが大きすぎます（上限 {{maxMiB}} MiB）",
+    importFailed: "ファイルの取り込みに失敗しました",
+    attachmentBlocked: "この種類のファイルは添付できません（実行・インストーラ系などは除外されています）",
   },
 } as const;
 
