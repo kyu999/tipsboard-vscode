@@ -2,6 +2,14 @@
 
 End-user documentation is in [README.md](README.md).
 
+## GitHub Pages (project site)
+
+The marketing landing page lives in [`docs/`](docs/) (`index.html`, `styles.css`, `icon.png`) and is excluded from the packaged VSIX via `.vscodeignore`.
+
+To publish it: **GitHub repo → Settings → Pages → Build and deployment → Deploy from a branch**, choose **`main`** and folder **`/docs`**. The site is served at `https://kyu999.github.io/tipsboard-vscode/` (replace the owner segment if the repo moves). A `docs/.nojekyll` file disables Jekyll so static files are served as-is.
+
+`docs/icon.png` is a 128px export of the repo root `icon.png` (favicon and header/footer logo). If you change the marketplace icon, re-export with e.g. `sips -Z 128 icon.png --out docs/icon.png`.
+
 ## Prerequisites
 
 - **Node.js 22+** recommended

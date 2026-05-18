@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tipsboard — Markdown wiki for VS Code</title>
+    <meta
+      name="description"
+      content="A Markdown wiki and PKM workspace for VS Code. Same vault layout as the desktop Tipsboard editor — wikilinks, backlinks, Kanban, pins, plain files on disk."
+    />
+    <meta property="og:title" content="Tipsboard — Markdown wiki for VS Code" />
+    <meta
+      property="og:description"
+      content="Connected notes, backlinks, Kanban, and rich Markdown in VS Code — same vault as the desktop Tipsboard editor. Plain files, no sign-in."
+    />
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:image"
+      content="https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/introduction.gif"
+    />
+    <link rel="icon" type="image/png" href="./icon.png" sizes="128x128" />
+    <link rel="apple-touch-icon" href="./icon.png" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body id="top">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="brand" href="#top">
+          <img
+            class="brand-logo"
+            src="./icon.png"
+            width="32"
+            height="32"
+            alt=""
+            decoding="async"
+          />
+          Tipsboard
+        </a>
+        <nav class="nav" aria-label="Primary">
+          <a href="#features">Features</a>
+          <a href="#how">How it works</a>
+          <a href="https://github.com/kyu999/tipsboard-vscode#readme">Docs</a>
+          <a href="https://github.com/kyu999/tipsboard-vscode/blob/main/docs_wiki/SPEC.md">Spec</a>
+          <a href="https://open-vsx.org/extension/tipsboard/tipsboard-vscode">Open VSX</a>
+        </nav>
+        <div class="header-actions">
+          <a
+            class="btn btn-ghost"
+            href="https://github.com/kyu999/tipsboard-vscode"
+            >GitHub</a>
+          <a
+            class="btn btn-primary"
+            href="https://marketplace.visualstudio.com/items?itemName=tipsboard.tipsboard-vscode"
+            >Install</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="wrap hero-grid">
+          <div>
+            <span class="eyebrow">VS Code extension</span>
+            <h1 id="hero-title">Your Markdown wiki, inside the editor you already use.</h1>
+            <p class="lead">
+              Tipsboard is a personal knowledge workspace: wiki-style <code style="font-family: var(--mono, monospace); font-size: 0.95em">[ … ]</code> links, backlinks, tags, Kanban, and rich Markdown — all backed by plain <code style="font-family: var(--mono, monospace); font-size: 0.95em">.md</code> files you own. Use the same vault folder as the desktop Tipsboard editor if you like. No sign-in. No proprietary database.
+            </p>
+            <div class="hero-ctas">
+              <a
+                class="btn btn-primary"
+                href="https://marketplace.visualstudio.com/items?itemName=tipsboard.tipsboard-vscode"
+                >Get Tipsboard for VS Code</a>
+              <a class="btn btn-ghost" href="https://github.com/kyu999/tipsboard-vscode"
+                >View on GitHub</a>
+            </div>
+            <div class="badges-row" aria-label="Project stats">
+              <a href="https://github.com/kyu999/tipsboard-vscode"
+                ><img
+                  src="https://img.shields.io/github/stars/kyu999/tipsboard-vscode?label=GitHub%20stars&logo=github&color=1e1e1e"
+                  alt="GitHub stars"
+                  width="130"
+                  height="22"
+                  decoding="async"
+              /></a>
+              <a href="https://open-vsx.org/extension/tipsboard/tipsboard-vscode"
+                ><img
+                  src="https://img.shields.io/open-vsx/v/tipsboard/tipsboard-vscode?label=Open%20VSX%20version&logo=openvsx&logoColor=white&color=1e1e1e"
+                  alt="Published version on Open VSX"
+                  width="150"
+                  height="22"
+                  decoding="async"
+              /></a>
+              <a href="https://open-vsx.org/extension/tipsboard/tipsboard-vscode"
+                ><img
+                  src="https://img.shields.io/open-vsx/dt/tipsboard/tipsboard-vscode?label=Open%20VSX%20downloads&logo=openvsx&logoColor=white&color=1e1e1e"
+                  alt="Download count on Open VSX"
+                  width="170"
+                  height="22"
+                  decoding="async"
+              /></a>
+            </div>
+          </div>
+          <figure class="hero-shot">
+            <img
+              src="https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/introduction.gif"
+              width="960"
+              height="540"
+              alt="Screen recording of Tipsboard: opening the panel, navigating notes, and editing Markdown."
+              loading="eager"
+              decoding="async"
+            />
+          </figure>
+        </div>
+      </section>
+
+      <section class="section-alt" aria-labelledby="why-title">
+        <div class="wrap">
+          <h2 class="section-title" id="why-title">Built for focused work</h2>
+          <p class="section-desc">
+            Stay in VS Code, keep your notes as ordinary files, and let Tipsboard surface connections as your library grows.
+          </p>
+          <div class="pillars">
+            <article class="pillar">
+              <h3>Stays in VS Code</h3>
+              <p>
+                No second app and no extra tab farm. Run <strong>Tipsboard: Open</strong> from the Command Palette and work beside your code and docs.
+              </p>
+            </article>
+            <article class="pillar">
+              <h3>Plain Markdown on disk</h3>
+              <p>
+                Notes live as <code style="font-family: var(--mono, monospace); font-size: 0.9em">pages/*.md</code> (flat layout, no subfolders) with images and attachments under <code style="font-family: var(--mono, monospace); font-size: 0.9em">assets/</code>. Sync with Git, Dropbox, or whatever you trust.
+              </p>
+            </article>
+            <article class="pillar">
+              <h3>Connected by design</h3>
+              <p>
+                Outgoing links, backlinks, two-hop related notes, suggested new links, and optional pins at the top of the grid help you navigate a growing library without losing context.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" aria-labelledby="features-title">
+        <div class="wrap">
+          <h2 class="section-title" id="features-title">What you get</h2>
+          <p class="section-desc">
+            Everything runs against local files — GFM, Mermaid, math, tags, and a tabbed workspace tuned for browsing and writing. File access stays in the extension host; the panel is a focused WebView UI.
+          </p>
+          <div class="cards">
+            <article class="card">
+              <figure class="card-figure">
+                <img
+                  src="https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/related-notes.png"
+                  width="640"
+                  height="360"
+                  alt="Related notes and backlinks in Tipsboard."
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <div class="card-body">
+                <h3>Backlinks and discovery</h3>
+                <p>
+                  The note index powers backlinks, shared references, related pages, two-hop relationships, and suggested new links as you write — plus pin order when you mark notes important.
+                </p>
+              </div>
+            </article>
+            <article class="card">
+              <figure class="card-figure">
+                <img
+                  src="https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/editor-rich-markdown.png"
+                  width="640"
+                  height="360"
+                  alt="Rich Markdown editing with diagrams and math."
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <div class="card-body">
+                <h3>Rich Markdown editing</h3>
+                <p>
+                  A CodeMirror-based editor with GitHub Flavored Markdown, Mermaid diagrams, KaTeX-style math, tables, tags, and internal link autocomplete.
+                </p>
+              </div>
+            </article>
+            <article class="card">
+              <figure class="card-figure">
+                <img
+                  src="https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/kanban-board.png"
+                  width="640"
+                  height="360"
+                  alt="Kanban board view in Tipsboard."
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <div class="card-body">
+                <h3>Kanban boards</h3>
+                <p>
+                  Organize work visually. Board state and pin order live in <code style="font-family: var(--mono, monospace); font-size: 0.9em">.tipsboard/kanban.json</code> and <code style="font-family: var(--mono, monospace); font-size: 0.9em">.tipsboard/pins.json</code> without mutating note bodies.
+                </p>
+              </div>
+            </article>
+            <article class="card">
+              <figure class="card-figure">
+                <img
+                  src="https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/editor-tabs-nav-memory.png"
+                  width="640"
+                  height="360"
+                  alt="Editor tabs and navigation in Tipsboard."
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <div class="card-body">
+                <h3>Tabs and NavMemory</h3>
+                <p>
+                  List view with a tab strip for notes and tag searches. <strong>Cmd/Ctrl-click</strong> opens another tab without the usual discard prompt. NavMemory restores tabs, view mode, Kanban focus, and search when you go back and forward inside the panel.
+                </p>
+              </div>
+            </article>
+            <article class="card">
+              <figure class="card-figure">
+                <img
+                  src="https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/insert_image.png"
+                  width="640"
+                  height="360"
+                  alt="Shift-drag to insert images and attachments."
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <div class="card-body">
+                <h3>Shift+drag attachments</h3>
+                <p>
+                  Hold Shift while dropping files to copy images into <code style="font-family: var(--mono, monospace); font-size: 0.9em">assets/images/</code> and other files into <code style="font-family: var(--mono, monospace); font-size: 0.9em">assets/files/</code>, with size limits you control.
+                </p>
+              </div>
+            </article>
+            <article class="card">
+              <figure class="card-figure">
+                <img
+                  src="https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/user-guide.png"
+                  width="640"
+                  height="360"
+                  alt="Built-in user guide in Tipsboard."
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <div class="card-body">
+                <h3>Built-in user guide</h3>
+                <p>
+                  Onboarding, shortcuts, vault layout, and editor behavior — bundled in English and Japanese, from the book icon whenever you need a refresher.
+                </p>
+              </div>
+            </article>
+          </div>
+
+          <figure class="wide-figure">
+            <img
+              src="https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/vault-structure.png"
+              width="1200"
+              height="675"
+              alt="Vault layout: flat pages, assets/images, assets/files, .tipsboard/kanban.json and pins.json."
+              loading="lazy"
+              decoding="async"
+            />
+          </figure>
+        </div>
+      </section>
+
+      <section id="how" class="section-alt" aria-labelledby="how-title">
+        <div class="wrap">
+          <h2 class="section-title" id="how-title">How it works</h2>
+          <p class="section-desc">
+            Three steps from an empty folder to a working vault. Details and shortcuts are in the README on GitHub; implementation notes live in <a href="https://github.com/kyu999/tipsboard-vscode/blob/main/docs_wiki/SPEC.md">SPEC.md</a>.
+          </p>
+          <div class="steps">
+            <article class="step">
+              <h3>Install the extension</h3>
+              <p>
+                Search for <strong>Tipsboard</strong> in the VS Code Extensions view and install from the Marketplace (or use Open VSX). The extension stays idle until you run <strong>Tipsboard: Open</strong>, so startup stays light.
+              </p>
+            </article>
+            <article class="step">
+              <h3>Open your vault folder</h3>
+              <p>
+                Open a workspace folder in VS Code. That folder becomes your vault, or pick another path with <strong>Tipsboard: Select Vault Folder…</strong> when you use multi-root workspaces.
+              </p>
+            </article>
+            <article class="step">
+              <h3>Open Tipsboard</h3>
+              <p>Run from the command palette:</p>
+              <div class="code">Tipsboard: Open</div>
+              <p style="margin-top: 0.75rem">
+                Create notes under <code style="font-family: var(--mono, monospace); font-size: 0.9em">pages/*.md</code>, link with wiki-style <code style="font-family: var(--mono, monospace); font-size: 0.9em">[ … ]</code> brackets, and let Tipsboard build the graph. After you save a new title, Tipsboard can optionally offer to align other notes’ bracket labels — see the README.
+              </p>
+            </article>
+          </div>
+          <figure class="wide-figure" style="margin-top: 2.5rem">
+            <img
+              src="https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/getting-started.gif"
+              width="960"
+              height="540"
+              alt="Getting started: install, open folder, run Tipsboard Open."
+              loading="lazy"
+              decoding="async"
+            />
+          </figure>
+        </div>
+      </section>
+
+      <section class="cta-band" aria-labelledby="cta-title">
+        <div class="wrap">
+          <h2 id="cta-title">Ready to try it?</h2>
+          <p>Free and open source (Apache-2.0). Install takes under a minute.</p>
+          <div class="cta-actions">
+            <a
+              class="btn btn-primary"
+              href="https://marketplace.visualstudio.com/items?itemName=tipsboard.tipsboard-vscode"
+              >Install for VS Code</a>
+            <a class="btn btn-ghost" href="https://github.com/kyu999/tipsboard-vscode"
+              >Star on GitHub</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-grid">
+        <div class="footer-brand">
+          <img
+            class="footer-logo"
+            src="./icon.png"
+            width="24"
+            height="24"
+            alt=""
+            decoding="async"
+          />
+          <div>
+            <strong style="color: var(--text)">Tipsboard</strong>
+            <p class="footer-meta">
+              Markdown wiki and PKM workspace for VS Code ·
+              <a href="https://github.com/kyu999/tipsboard-vscode/blob/main/LICENSE">Apache-2.0</a>
+            </p>
+          </div>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/kyu999/tipsboard-vscode">Repository</a>
+          <a href="https://marketplace.visualstudio.com/items?itemName=tipsboard.tipsboard-vscode"
+            >VS Code Marketplace</a>
+          <a href="https://open-vsx.org/extension/tipsboard/tipsboard-vscode">Open VSX</a>
+          <a href="https://github.com/kyu999/tipsboard-vscode#readme">Documentation</a>
+          <a href="https://github.com/kyu999/tipsboard-vscode/blob/main/docs_wiki/SPEC.md">Technical spec</a>
+        </div>
+      </div>
+      <p class="wrap footer-meta" style="margin-top: 0.5rem">
+        &copy; 2026 Tipsboard contributors. Built in the open.
+      </p>
+    </footer>
+  </body>
+</html>
