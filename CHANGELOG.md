@@ -4,6 +4,13 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.8] - 2026-05-18
+
+### Added
+
+- **HTML export (Vault images)**: Extension Host RPC **`readAssetDataUrls`** reads `assets/images/...` from the vault and returns **`data:image/...;base64,...`** entries so exported HTML stays self-contained when opened in a normal browser.
+- **HTML export (save flow)**: RPC **`exportHtml`** (`{ html, suggestedFileName }`) uses **`vscode.window.showSaveDialog`** and **`vscode.workspace.fs.writeFile`** so the destination is chosen in the native save UI and bytes are written on the host.
+
 ## [0.2.7] - 2026-05-18
 
 ### Changed

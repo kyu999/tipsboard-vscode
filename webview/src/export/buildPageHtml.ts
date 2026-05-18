@@ -8,6 +8,7 @@ import { findMermaidBlocks } from "@/editor/tipsboard-mermaid";
 import mermaid from "mermaid";
 import {
   applyDesktopImagePreprocessors,
+  applyVaultImageExportPreprocessors,
   buildExportTitleAndTagsFragment,
   escapeHtml,
   splitLeadingTitleAndTagLines,
@@ -93,10 +94,13 @@ async function renderMermaidToHtml(code: string): Promise<string> {
 }
 
 /** Mermaid ブロックでは html:false が生 HTML を潰すため、分割結合する。 */
-async function renderBodyMarkdownWithInlinedMermaid(markdown: string): Promise<string> {
+async function renderBodyMarkdownWithInlinedMermaid(
+  markdown: string,
+  preprocessMarkdown: (md: string) => string,
+): Promise<string> {
   const blocks = [...findMermaidBlocks(markdown)].sort((a, b) => a.from - b.from);
   if (blocks.length === 0) {
-    return renderMarkdownSlice(applyDesktopImagePreprocessors(markdown));
+    return renderMarkdownSlice(preprocessMarkdown(markdown));
   }
 
   ensureExportMermaid();
@@ -106,7 +110,7 @@ async function renderBodyMarkdownWithInlinedMermaid(markdown: string): Promise<s
 
   for (const block of blocks) {
     if (block.from > cursor) {
-      const mdSlice = applyDesktopImagePreprocessors(markdown.slice(cursor, block.from));
+      const mdSlice = preprocessMarkdown(markdown.slice(cursor, block.from));
       fragments.push(renderMarkdownSlice(mdSlice));
     }
     fragments.push(await renderMermaidToHtml(block.code));
@@ -114,7 +118,7 @@ async function renderBodyMarkdownWithInlinedMermaid(markdown: string): Promise<s
   }
 
   if (cursor < markdown.length) {
-    const mdSlice = applyDesktopImagePreprocessors(markdown.slice(cursor));
+    const mdSlice = preprocessMarkdown(markdown.slice(cursor));
     fragments.push(renderMarkdownSlice(mdSlice));
   }
 
@@ -424,15 +428,24 @@ const KATEX_CDN_BASE = "https://cdn.jsdelivr.net/npm/katex@0.16.46/dist";
 export interface BuildStandalonePageHtmlOptions {
   title: string;
   bodyMarkdown: string;
+  /** 指定時は Vault 画像 `assets/images/...` の `src` をこの戻り値に差し替えてからレンダーする。 */
+  resolveVaultImageSrcSync?: (relativePath: string) => string;
 }
 
 export async function buildStandalonePageHtml(options: BuildStandalonePageHtmlOptions): Promise<string> {
-  const { title, bodyMarkdown } = options;
+  const { title, bodyMarkdown, resolveVaultImageSrcSync } = options;
+
+  const preprocessMarkdown =
+    resolveVaultImageSrcSync !== undefined
+      ? (md: string) => applyVaultImageExportPreprocessors(md, resolveVaultImageSrcSync)
+      : applyDesktopImagePreprocessors;
 
   const split = splitLeadingTitleAndTagLines(bodyMarkdown);
   const titleBlock = buildExportTitleAndTagsFragment(split);
   const bodyFragment =
-    split.remainderMarkdown.length > 0 ? await renderBodyMarkdownWithInlinedMermaid(split.remainderMarkdown) : "";
+    split.remainderMarkdown.length > 0
+      ? await renderBodyMarkdownWithInlinedMermaid(split.remainderMarkdown, preprocessMarkdown)
+      : "";
   const fragment = `${titleBlock}\n${bodyFragment}`.trim();
 
   const documentTitleRaw =

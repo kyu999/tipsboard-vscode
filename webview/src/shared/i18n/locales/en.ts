@@ -68,8 +68,9 @@ const en = {
       delete: "Delete",
       exportHtml: "Export HTML",
       exportHtmlHint:
-        "Downloads the current editor content (including unsaved changes). Images point to files inside your Vault; moving the Vault can break those links. Use the browser’s print dialog for PDF.",
+        "Exports the current editor content (including unsaved changes). Choose where to save in the VS Code save dialog. Vault images under `assets/images/` are embedded in the HTML. Use the browser’s print dialog for PDF.",
       exportHtmlError: "Failed to export HTML",
+      exportHtmlSuccess: "HTML exported successfully",
       kanbanStatus: "KANBAN board and status",
       rewriteInboundLinksTitle: "Update wiki link text?",
       rewriteInboundLinksMessage:

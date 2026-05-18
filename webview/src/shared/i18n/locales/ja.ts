@@ -68,8 +68,9 @@ const ja = {
       delete: "削除",
       exportHtml: "HTMLをエクスポート",
       exportHtmlHint:
-        "エディタ上の現在の本文を保存（未保存の変更を含む）。画像は Vault 内のファイルを参照します。Vault の場所を変えると HTML 内の画像リンクは切れる場合があります。PDF はブラウザの印刷機能で出力できます。",
+        "エディタ上の現在の本文を保存（未保存の変更を含む）。保存場所は VS Code の保存ダイアログで選びます。Vault 内の `assets/images/` 画像は HTML に埋め込みます。PDF はブラウザの印刷機能で出力できます。",
       exportHtmlError: "HTMLのエクスポートに失敗しました",
+      exportHtmlSuccess: "HTML をエクスポートしました",
       kanbanStatus: "KANBANの所属ボードと状態",
       rewriteInboundLinksTitle: "内部リンク表記を更新しますか",
       rewriteInboundLinksMessage:

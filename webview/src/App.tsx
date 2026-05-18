@@ -11,7 +11,7 @@ import { NoteTabBar } from "@/components/NoteTabBar";
 import { SaveStatus } from "@/components/SaveStatus";
 import { buildStandalonePageHtml } from "@/export/buildPageHtml";
 import { UserGuideView } from "@/user-guide/UserGuideView";
-import { sanitizeExportFilename } from "@/export/exportMarkdownPreprocess";
+import { collectVaultMarkdownImagePaths, sanitizeExportFilename } from "@/export/exportMarkdownPreprocess";
 import { buildNoteIndex, searchNotes, type TwoHopLink } from "@/lib/noteIndex";
 import { sortNotesWithPinOrder } from "@/lib/sortNotesWithPinOrder";
 import {
@@ -96,7 +96,7 @@ export function App() {
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const listContentRef = useRef<HTMLDivElement>(null);
   const confirmResolverRef = useRef<((value: boolean) => void) | null>(null);
-  const exportHtmlErrorTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const exportHtmlBannerTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const createNoteInFlightRef = useRef(false);
   const prevVaultPathRef = useRef<string | null | undefined>(undefined);
   const snapshotRef = useRef(snapshot);
@@ -105,6 +105,7 @@ export function App() {
   const activeTabIdRef = useRef(activeTabId);
   const diskCommittedTitleRef = useRef<Map<string, string>>(new Map());
   const [exportHtmlError, setExportHtmlError] = useState<string | null>(null);
+  const [exportHtmlSuccess, setExportHtmlSuccess] = useState<string | null>(null);
   const [listWidth, setListWidth] = useState(0);
   const currentLanguage = getSupportedLanguage(i18n.resolvedLanguage ?? i18n.language);
 
@@ -488,7 +489,7 @@ export function App() {
 
   useEffect(() => {
     return () => {
-      clearTimeout(exportHtmlErrorTimer.current);
+      clearTimeout(exportHtmlBannerTimer.current);
     };
   }, []);
 
@@ -707,22 +708,32 @@ export function App() {
   const handleExportHtml = useCallback(async () => {
     if (!selectedNote) return;
     try {
+      clearTimeout(exportHtmlBannerTimer.current);
+      setExportHtmlError(null);
+      setExportHtmlSuccess(null);
+
+      const imagePaths = collectVaultMarkdownImagePaths(selectedNote.body);
+      const dataUrlMap = await window.tipsboardDesktop.readAssetDataUrls(imagePaths);
+
       const html = await buildStandalonePageHtml({
         title: selectedNote.title,
         bodyMarkdown: selectedNote.body,
+        resolveVaultImageSrcSync: (p) => dataUrlMap[p] ?? "",
       });
-      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = sanitizeExportFilename(selectedNote.title);
-      anchor.click();
-      URL.revokeObjectURL(url);
-      setExportHtmlError(null);
+      const saved = await window.tipsboardDesktop.exportHtml({
+        html,
+        suggestedFileName: sanitizeExportFilename(selectedNote.title),
+      });
+      if (saved) {
+        setExportHtmlSuccess(t("page.editor.exportHtmlSuccess"));
+        clearTimeout(exportHtmlBannerTimer.current);
+        exportHtmlBannerTimer.current = setTimeout(() => setExportHtmlSuccess(null), 4000);
+      }
     } catch {
+      setExportHtmlSuccess(null);
       setExportHtmlError(t("page.editor.exportHtmlError"));
-      clearTimeout(exportHtmlErrorTimer.current);
-      exportHtmlErrorTimer.current = setTimeout(() => setExportHtmlError(null), 4500);
+      clearTimeout(exportHtmlBannerTimer.current);
+      exportHtmlBannerTimer.current = setTimeout(() => setExportHtmlError(null), 4500);
     }
   }, [selectedNote, t]);
 
@@ -1414,6 +1425,11 @@ export function App() {
               {exportHtmlError && (
                 <div className="mb-2 rounded-lg border border-accent-error/25 bg-accent-error/10 px-2 py-1 text-xs text-accent-error">
                   {exportHtmlError}
+                </div>
+              )}
+              {exportHtmlSuccess && (
+                <div className="mb-2 rounded-lg border border-accent-link/25 bg-accent-link/10 px-2 py-1 text-xs text-accent-link">
+                  {exportHtmlSuccess}
                 </div>
               )}
 

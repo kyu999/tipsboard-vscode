@@ -10,8 +10,6 @@ No sign-in. No proprietary database.
 
 ![Tipsboard Introduction](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/introduction.gif)
 
-![Tipsboard Overview](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/hero-overview.png)
-
 ---
 
 ## Why Tipsboard?
@@ -206,8 +204,6 @@ Embedded images open a large preview overlay. Supports:
 ```txt
 Tipsboard: Open
 ```
-
-![Open Tipsboard from the Command Palette](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/command-palette-open.png)
 
 The folder you have open in VS Code becomes your Tipsboard vault automatically.
 

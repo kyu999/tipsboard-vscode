@@ -93,26 +93,49 @@ export function stripInternalWikiLinksForExport(markdown: string): string {
   return out.join("\n");
 }
 
-/** Markdown 画像の `assets/images/...` を Electron の表示用絶対 URL（通常は file）に書き換える。 */
+/** Markdown 画像の `assets/images/...` を表示用 URL（file / WebView / data など）に書き換える。 */
 export function rewriteVaultMarkdownImages(
   markdown: string,
   resolveAssetUrl: (relativePath: string) => string,
 ): string {
   return markdown.replace(MARKDOWN_IMAGE_RE, (_full, alt: string, src: string) => {
     if (src.startsWith("assets/images/")) {
-      const absolute = resolveAssetUrl(src);
+      const absolute = resolveAssetUrl(src).trim();
+      if (!absolute) {
+        return _full;
+      }
       return `![${alt}](${absolute})`;
     }
     return _full;
   });
 }
 
-/** レンダラ用。Vault 環境のみ（`tipsboardDesktop` 必須）。 */
-export function applyDesktopImagePreprocessors(markdown: string): string {
+/** 本文から Vault 画像パス `assets/images/...` を重複なしで列挙する。 */
+export function collectVaultMarkdownImagePaths(markdown: string): string[] {
+  const seen = new Set<string>();
+  for (const m of markdown.matchAll(MARKDOWN_IMAGE_RE)) {
+    const src = m[2] as string;
+    if (src.startsWith("assets/images/")) {
+      seen.add(src);
+    }
+  }
+  return [...seen];
+}
+
+/** HTML エクスポート用。内部リンク正規化のあと Vault 画像 URL を `resolveVaultImageSrc` で差し替える。 */
+export function applyVaultImageExportPreprocessors(
+  markdown: string,
+  resolveVaultImageSrc: (relativePath: string) => string,
+): string {
   let md = stripInternalWikiLinksForExport(markdown);
   md = normalizeTipsboardBracketExternalLinksForExport(md);
-  md = rewriteVaultMarkdownImages(md, (path) => window.tipsboardDesktop.resolveAssetUrl(path));
+  md = rewriteVaultMarkdownImages(md, resolveVaultImageSrc);
   return md;
+}
+
+/** レンダラ用。Vault 環境のみ（`tipsboardDesktop` 必須）。 */
+export function applyDesktopImagePreprocessors(markdown: string): string {
+  return applyVaultImageExportPreprocessors(markdown, (path) => window.tipsboardDesktop.resolveAssetUrl(path));
 }
 
 /** `#tag` のみ構成の行など。コードフェンス外・先頭想定で raw に対して使う。 */

@@ -19,6 +19,18 @@ export function vaultFileAttachmentOpenAllowed(relativePath: string): boolean {
   return normalized.startsWith("assets/files/");
 }
 
+export function imageMimeFromAssetPath(relativePath: string): string {
+  const lower = relativePath.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
+  if (lower.endsWith(".bmp")) return "image/bmp";
+  if (lower.endsWith(".ico")) return "image/x-icon";
+  return "image/png";
+}
+
 export function toAssetWebviewUri(webview: vscode.Webview, vaultRoot: vscode.Uri, relativePath: string): vscode.Uri | null {
   const disk = toAssetDiskUri(vaultRoot, relativePath);
   if (!disk) return null;

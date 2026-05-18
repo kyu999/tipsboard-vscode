@@ -234,6 +234,7 @@ export class TipsboardPanel {
       `script-src ${webview.cspSource} 'nonce-${nonce}'`,
       `font-src ${webview.cspSource} data:`,
       `img-src ${webview.cspSource} https: http: data:`,
+      `connect-src ${webview.cspSource}`,
       `worker-src ${webview.cspSource} blob:`,
     ].join("; ");
 

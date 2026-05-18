@@ -31,11 +31,14 @@ declare global {
         position?: number,
       ) => Promise<VaultSnapshot>;
       exportJson: () => Promise<boolean>;
+      /** Save ダイアログで保存した場合のみ `true`（キャンセルは `false`）。 */
+      exportHtml: (payload: { html: string; suggestedFileName: string }) => Promise<boolean>;
       importJson: () => Promise<VaultSnapshot>;
       importImages: (paths: string[]) => Promise<ImportedImage[]>;
       importAttachmentBuffers: (
         entries: Array<{ name: string; data: Uint8Array | number[] | ArrayBuffer }>,
       ) => Promise<ImportedImage[]>;
+      readAssetDataUrls: (paths: string[]) => Promise<Record<string, string>>;
       prefetchAssets: (paths: string[]) => Promise<void>;
       getPathForFile: (file: File) => string;
       resolveAssetUrl: (relativePath: string) => string;

@@ -11,7 +11,7 @@ vi.mock("vscode", () => {
   return { Uri };
 });
 
-import { assetPathAllowed, toAssetDiskUri, vaultFileAttachmentOpenAllowed } from "./assetUri.js";
+import { assetPathAllowed, imageMimeFromAssetPath, toAssetDiskUri, vaultFileAttachmentOpenAllowed } from "./assetUri.js";
 
 describe("assetUri path guards", () => {
   afterEach(() => {
@@ -50,6 +50,15 @@ describe("assetUri path guards", () => {
     it("returns null when path is not allowed", () => {
       const root = { fsPath: "/vault" } as import("vscode").Uri;
       expect(toAssetDiskUri(root, "pages/x.md")).toBeNull();
+    });
+  });
+
+  describe("imageMimeFromAssetPath", () => {
+    it("detects common image MIME types", () => {
+      expect(imageMimeFromAssetPath("assets/images/a.PNG")).toBe("image/png");
+      expect(imageMimeFromAssetPath("assets/images/a.jpeg")).toBe("image/jpeg");
+      expect(imageMimeFromAssetPath("assets/images/a.svg")).toBe("image/svg+xml");
+      expect(imageMimeFromAssetPath("assets/images/a.webp")).toBe("image/webp");
     });
   });
 });

@@ -1,5 +1,6 @@
-import * as vscode from "vscode";
 import path from "node:path";
+import { Buffer } from "node:buffer";
+import * as vscode from "vscode";
 import type { RpcInbound, RpcOutbound } from "./protocol.js";
 import {
   readVault,
@@ -25,7 +26,12 @@ import {
 } from "../host/kanban.js";
 import { resolveVaultFsPath, pickVaultFolder } from "../host/vaultRoot.js";
 import { readAttachmentMaxBytes } from "../host/attachmentSettings.js";
-import { toAssetDiskUri, toAssetWebviewUri, vaultFileAttachmentOpenAllowed } from "../host/assetUri.js";
+import {
+  imageMimeFromAssetPath,
+  toAssetDiskUri,
+  toAssetWebviewUri,
+  vaultFileAttachmentOpenAllowed,
+} from "../host/assetUri.js";
 import type { TipsboardPanel } from "../panel/TipsboardPanel.js";
 
 async function vaultSnapshotPayload(vp: string | null): Promise<Awaited<ReturnType<typeof readVault>> & { attachmentMaxBytes: number }> {
@@ -207,6 +213,26 @@ export async function handleRpcInbound(
         return;
       }
 
+      case "exportHtml": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const p = raw.payload as { html?: string; suggestedFileName?: string };
+        const html = typeof p.html === "string" ? p.html : "";
+        const suggestedRaw = typeof p.suggestedFileName === "string" ? p.suggestedFileName : "untitled.html";
+        const suggested = path.basename(suggestedRaw.replace(/\\/g, "/")) || "untitled.html";
+        const fp = await vscode.window.showSaveDialog({
+          saveLabel: "Export",
+          filters: { HTML: ["html", "htm"] },
+          defaultUri: vscode.Uri.file(path.join(vaultPath, "..", suggested)),
+        });
+        if (!fp) {
+          reply({ ok: true, result: false });
+          return;
+        }
+        await vscode.workspace.fs.writeFile(fp, Buffer.from(html, "utf8"));
+        reply({ ok: true, result: true });
+        return;
+      }
+
       case "importJson": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
         const files = await vscode.window.showOpenDialog({
@@ -290,6 +316,26 @@ export async function handleRpcInbound(
           }
           const u = toAssetWebviewUri(webview, vu, p);
           if (u) rec[p] = u.toString();
+        }
+        reply({ ok: true, result: rec });
+        return;
+      }
+
+      case "readAssetDataUrls": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const paths = (raw.payload as { paths?: string[] }).paths ?? [];
+        const vu = vscode.Uri.file(vaultPath);
+        const rec: Record<string, string> = {};
+        for (const p of paths) {
+          const disk = toAssetDiskUri(vu, p);
+          if (!disk || !p.replace(/\\/g, "/").startsWith("assets/images/")) continue;
+          try {
+            const bytes = await vscode.workspace.fs.readFile(disk);
+            const mime = imageMimeFromAssetPath(p);
+            rec[p] = `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`;
+          } catch {
+            continue;
+          }
         }
         reply({ ok: true, result: rec });
         return;

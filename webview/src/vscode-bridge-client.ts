@@ -90,6 +90,8 @@ function wireDesktop(): typeof window.tipsboardDesktop {
       rpc("moveKanbanNote", { boardId, notePath, toColumnId, position: position ?? 0 }) as Promise<VaultSnapshot>,
 
     exportJson: () => rpc("exportJson") as Promise<boolean>,
+    exportHtml: (payload: { html: string; suggestedFileName: string }) =>
+      rpc("exportHtml", payload) as Promise<boolean>,
     importJson: () => rpc("importJson") as Promise<VaultSnapshot>,
 
     importImages: (paths: string[]) => rpc("importImages", paths) as Promise<ImportedImage[]>,
@@ -106,6 +108,8 @@ function wireDesktop(): typeof window.tipsboardDesktop {
           return { name: e.name, data: arr };
         }),
       ) as Promise<ImportedImage[]>,
+
+    readAssetDataUrls: (paths: string[]) => rpc("readAssetDataUrls", { paths }) as Promise<Record<string, string>>,
 
     getPathForFile: () => "",
 
