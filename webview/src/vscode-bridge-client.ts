@@ -50,7 +50,7 @@ function wireDesktop(): typeof window.tipsboardDesktop {
     selectFolder: () => rpc("selectFolder") as Promise<VaultSnapshot>,
 
     createNote: (title: string) =>
-      rpc("createNote", title) as Promise<{ notePath: string; snapshot: VaultSnapshot }>,
+      rpc("createNote", title) as Promise<{ notePath: string; note: NoteSummary }>,
 
     saveNote: (notePath: string, body: string) =>
       rpc("saveNote", { path: notePath, body }) as Promise<{ notePath: string; note: NoteSummary }>,

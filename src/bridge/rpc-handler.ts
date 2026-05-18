@@ -70,11 +70,12 @@ export async function handleRpcInbound(
       case "createNote": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
         const title = typeof raw.payload === "string" ? raw.payload : "";
-        const notePath = await createNote(vaultPath, title);
-        panel.recordSelfWrites([notePath.replace(/\\/g, "/")]);
+        const note = await createNote(vaultPath, title);
+        const notePath = note.path.replace(/\\/g, "/");
+        panel.recordSelfWrites([notePath]);
         reply({
           ok: true,
-          result: { notePath, snapshot: await readVault(vaultPath) },
+          result: { notePath, note },
         });
         return;
       }

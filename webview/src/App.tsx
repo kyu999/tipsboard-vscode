@@ -28,6 +28,7 @@ import {
   navMemoryEqual,
   pushNavStackLimited,
 } from "@/lib/navMemory";
+import { mergeCreatedNoteIntoSnapshot } from "@/lib/mergeCreatedNote";
 import { runUnlessInFlight } from "@/lib/runUnlessInFlight";
 import { resolveVaultFilesChangedAction } from "@/lib/vaultFilesChangedHandling";
 import { changeLanguage, getSupportedLanguage, supportedLanguages } from "@/shared/i18n";
@@ -136,6 +137,14 @@ export function App() {
         ...next,
         attachmentMaxBytes: next.attachmentMaxBytes ?? prev.attachmentMaxBytes,
       };
+      rebuildDiskCommittedTitles(merged, diskCommittedTitleRef);
+      return merged;
+    });
+  }, []);
+
+  const mergeNoteCreatedFromHost = useCallback((note: NoteSummary) => {
+    setSnapshot((prev) => {
+      const merged = mergeCreatedNoteIntoSnapshot(prev, note);
       rebuildDiskCommittedTitles(merged, diskCommittedTitleRef);
       return merged;
     });
@@ -521,7 +530,7 @@ export function App() {
         try {
           setError(null);
           const result = await window.tipsboardDesktop.createNote(title);
-          mergeVaultSnapshotFromHost(result.snapshot);
+          mergeNoteCreatedFromHost(result.note);
           const r = addOrFocusNoteTab(
             openTabsRef.current,
             activeTabIdRef.current,
@@ -544,7 +553,7 @@ export function App() {
       });
       return out ?? null;
     },
-    [confirmDiscardChanges, mergeVaultSnapshotFromHost, t],
+    [confirmDiscardChanges, mergeNoteCreatedFromHost, t],
   );
 
   useEffect(() => {

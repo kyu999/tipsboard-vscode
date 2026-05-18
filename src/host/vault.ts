@@ -96,18 +96,17 @@ export function assertSafeRelativePath(relativePath: string): void {
 }
 
 async function enumerateMarkdownStemSet(pagesDir: string): Promise<Set<string>> {
-  let names: string[] = [];
+  let entries: import("node:fs").Dirent[] = [];
   try {
-    names = await fs.readdir(pagesDir);
+    entries = await fs.readdir(pagesDir, { withFileTypes: true });
   } catch {
     return new Set();
   }
   const lower = new Set<string>();
-  for (const name of names) {
-    if (!name.toLowerCase().endsWith(".md")) continue;
-    const full = path.join(pagesDir, name);
-    const st = await fs.stat(full).catch(() => null);
-    if (st?.isFile()) lower.add(name.toLowerCase());
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    if (!entry.name.toLowerCase().endsWith(".md")) continue;
+    lower.add(entry.name.toLowerCase());
   }
   return lower;
 }
@@ -161,18 +160,17 @@ async function statNote(vaultPath: string, relativePath: string): Promise<NoteSu
 }
 
 async function listNotePaths(pagesDir: string): Promise<string[]> {
-  let names: string[] = [];
+  let entries: import("node:fs").Dirent[] = [];
   try {
-    names = await fs.readdir(pagesDir);
+    entries = await fs.readdir(pagesDir, { withFileTypes: true });
   } catch {
     return [];
   }
   const out: string[] = [];
-  for (const name of names) {
-    if (!name.toLowerCase().endsWith(".md")) continue;
-    const full = path.join(pagesDir, name);
-    const st = await fs.stat(full).catch(() => null);
-    if (st?.isFile()) out.push(`${PAGES_PREFIX}/${name}`);
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    if (!entry.name.toLowerCase().endsWith(".md")) continue;
+    out.push(`${PAGES_PREFIX}/${entry.name}`);
   }
   return out;
 }
@@ -278,7 +276,7 @@ export async function setNotePinned(vaultPath: string, relativePath: string, pin
   await persistPinsForNote(vaultPath, relativePath, pinned);
 }
 
-export async function createNote(vaultPath: string, titleIn: string): Promise<string> {
+export async function createNote(vaultPath: string, titleIn: string): Promise<NoteSummary> {
   const trimmed = titleIn.trim();
   const titleLine = trimmed || "Untitled";
   const pagesDir = await ensurePagesDir(vaultPath);
@@ -287,7 +285,7 @@ export async function createNote(vaultPath: string, titleIn: string): Promise<st
   const body = `${titleLine}\n`;
   const abs = path.join(vaultPath, relative);
   await fs.writeFile(abs, body, "utf8");
-  return relative.replace(/\\/g, "/");
+  return statNote(vaultPath, relative);
 }
 
 /** §8.2 — save and rename filename when title stem changes */

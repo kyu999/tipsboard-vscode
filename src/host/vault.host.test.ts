@@ -28,10 +28,10 @@ async function withVault(run: (vaultPath: string) => Promise<void>): Promise<voi
 describe("vault (VS Code host)", () => {
   it("creates and reads notes from the pages directory", async () => {
     await withVault(async (vaultPath) => {
-      const notePath = await createNote(vaultPath, "Alpha");
+      const note = await createNote(vaultPath, "Alpha");
       const snapshot = await readVault(vaultPath);
 
-      expect(notePath).toBe("pages/Alpha.md");
+      expect(note.path).toBe("pages/Alpha.md");
       await expect(fs.readFile(path.join(vaultPath, "pages", "Alpha.md"), "utf8")).resolves.toBe("Alpha\n");
       expect(snapshot.notes.map((note) => note.path)).toEqual(["pages/Alpha.md"]);
       expect(snapshot.notes[0]?.filename).toBe("Alpha.md");
@@ -40,9 +40,9 @@ describe("vault (VS Code host)", () => {
 
   it("renames saved notes within the pages directory", async () => {
     await withVault(async (vaultPath) => {
-      const notePath = await createNote(vaultPath, "Alpha");
+      const note = await createNote(vaultPath, "Alpha");
 
-      const saved = await saveNote(vaultPath, notePath, "Beta\nBody");
+      const saved = await saveNote(vaultPath, note.path, "Beta\nBody");
 
       expect(saved.path).toBe("pages/Beta.md");
       expect(saved.filename).toBe("Beta.md");
@@ -118,9 +118,9 @@ describe("vault (VS Code host)", () => {
 
   it("requires pages directory paths for deleteNote", async () => {
     await withVault(async (vaultPath) => {
-      const notePath = await createNote(vaultPath, "Alpha");
+      const note = await createNote(vaultPath, "Alpha");
       await expect(deleteNote(vaultPath, "Alpha.md")).rejects.toThrow("pages directory");
-      await deleteNote(vaultPath, notePath);
+      await deleteNote(vaultPath, note.path);
       await expect(fs.access(path.join(vaultPath, "pages", "Alpha.md"))).rejects.toThrow();
     });
   });
@@ -129,8 +129,8 @@ describe("vault (VS Code host)", () => {
     await withVault(async (vaultPath) => {
       const first = await createNote(vaultPath, "Dup");
       const second = await createNote(vaultPath, "Dup");
-      expect(first).toBe("pages/Dup.md");
-      expect(second).toBe("pages/Dup (2).md");
+      expect(first.path).toBe("pages/Dup.md");
+      expect(second.path).toBe("pages/Dup (2).md");
     });
   });
 

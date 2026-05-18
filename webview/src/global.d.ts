@@ -7,7 +7,7 @@ declare global {
     tipsboardDesktop: {
       getSnapshot: () => Promise<VaultSnapshot>;
       selectFolder: () => Promise<VaultSnapshot>;
-      createNote: (title: string) => Promise<{ notePath: string; snapshot: VaultSnapshot }>;
+      createNote: (title: string) => Promise<{ notePath: string; note: NoteSummary }>;
       saveNote: (
         path: string,
         body: string,

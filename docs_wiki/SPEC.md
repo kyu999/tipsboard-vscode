@@ -249,8 +249,8 @@ vault 未選択時、**`getSnapshot` と `selectFolder` を除き**概ね `Error
 | --- | --- | --- | --- |
 | `getSnapshot` | なし | `VaultSnapshot` | 併せて `panel.setVaultRoots(vaultPath)`。`VaultSnapshot` に **`attachmentMaxBytes`** を載せる（`tipsboard-vscode.maxAttachmentBytes`） |
 | `selectFolder` | なし | `VaultSnapshot` | キャンセル時は現在の `resolveVaultFsPath()` で `readVault`。同上 **`attachmentMaxBytes`** |
-| `createNote` | string | `{ notePath, snapshot }` | |
-| `saveNote` | `{ path, body }` | `{ notePath, note: NoteSummary }` | タイトル stem 変化でリネーム可 |
+| `createNote` | string | `{ notePath, note: NoteSummary }` | WebView は `mergeCreatedNoteIntoSnapshot` で `snapshot.notes` を更新（ホストはフル `readVault` を返さない） |
+| `saveNote` | `{ path, body }` | `{ notePath, note: NoteSummary }` | WebView は `upsertSavedNote` でマージ。タイトル stem 変化でリネーム可 |
 | `deleteNote` | string | `VaultSnapshot` | |
 | `setNotePinned` | `{ path, pinned }` | `VaultSnapshot` | |
 | `createKanbanBoard` | string | `VaultSnapshot` | |

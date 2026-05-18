@@ -8,6 +8,8 @@ Tipsboard helps developers, researchers, and technical writers build a searchabl
 
 No sign-in. No proprietary database.
 
+![Tipsboard Introduction](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/introduction.gif)
+
 ![Tipsboard Overview](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/hero-overview.png)
 
 ---
@@ -195,6 +197,8 @@ Embedded images open a large preview overlay. Supports:
 
 ## Getting Started
 
+![Getting Started with Tipsboard](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/getting-started.gif)
+
 1. In VS Code, open **Extensions** (`Cmd+Shift+X` on macOS, `Ctrl+Shift+X` on Windows/Linux), search for **Tipsboard**, then choose **Install**
 2. Open a folder in VS Code (this folder is your vault)
 3. Open the Command Palette (`Cmd+Shift+P` on macOS, `Ctrl+Shift+P` on Windows/Linux) and run:
@@ -282,7 +286,7 @@ If `manualVaultPath` is set, it overrides the workspace folder until cleared.
 
 ## Requirements
 
-- Visual Studio Code 1.85.0 or later
+- A **VS Code–compatible** editor with extension support for **Visual Studio Code 1.85.0** or later (for example **Visual Studio Code**, **Cursor**, or **VSCodium**)
 
 ---
 
@@ -327,6 +331,12 @@ See:
 ```txt
 CHANGELOG.md
 ```
+
+---
+
+## Rate and review
+
+If Tipsboard works well for you, please give it a **star rating** and a short **review** on the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=tipsboard.tipsboard-vscode) or on [Open VSX](https://open-vsx.org/extension/tipsboard/tipsboard-vscode). That helps others find the extension and informs what to improve next.
 
 ---
 

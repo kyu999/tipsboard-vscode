@@ -4,6 +4,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TextInputDialog } from "@/components/TextInputDialog";
 import { reorderColumnsWithPlacement } from "@/lib/kanbanColumnReorder";
 import { getKanbanDropPosition, type KanbanDropPlacement } from "@/lib/kanbanDropPosition";
+import { mergeCreatedNoteIntoSnapshot } from "@/lib/mergeCreatedNote";
 import { runUnlessInFlight } from "@/lib/runUnlessInFlight";
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
 import type { KanbanCardState, NoteSummary, VaultSnapshot } from "@/types";
@@ -324,7 +325,7 @@ export function KanbanBoardView({
         await runUnlessInFlight(createKanbanCardInFlightRef, async () => {
           try {
             const created = await window.tipsboardDesktop.createNote(title);
-            let next = created.snapshot;
+            let next = mergeCreatedNoteIntoSnapshot(snapshot, created.note);
             if (columnId) {
               const position = cardsByColumn.get(columnId)?.length ?? 0;
               next = await window.tipsboardDesktop.moveKanbanNote(selectedBoard.id, created.notePath, columnId, position);
@@ -337,7 +338,7 @@ export function KanbanBoardView({
         });
       },
     });
-  }, [applySnapshot, cardsByColumn, onError, selectedBoard, t]);
+  }, [applySnapshot, cardsByColumn, onError, selectedBoard, snapshot, t]);
 
   const handleReorderColumns = useCallback(
     async (dragColumnId: string, targetColumnId: string, placement: "before" | "after") => {

@@ -4,6 +4,12 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.7] - 2026-05-18
+
+### Changed
+
+- **`createNote` / `saveNote` RPC**: host returns **`{ notePath, note }`** only; the WebView merges with **`mergeCreatedNoteIntoSnapshot`** / **`upsertSavedNote`** instead of replacing state from a full **`VaultSnapshot`**. **Rationale** — new notes and saves only need the affected row; skipping an extra **`readVault`** (every `pages/*.md` read + reorder) and shrinking **`postMessage`** reduces Extension Host I/O and bridge traffic, which helps when the vault is large or the machine is under load. Operations that truly need a whole-vault view (Kanban, **`deleteNote`**, **`importJson`**, etc.) still use full snapshots.
+
 ## [0.2.6] - 2026-05-17
 
 ### Added
