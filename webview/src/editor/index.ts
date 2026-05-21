@@ -5,7 +5,7 @@ import { bracketMatching } from "@codemirror/language";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { autocompletion } from "@codemirror/autocomplete";
 
-import type { LinkSuggestion } from "@/types";
+import type { LinkSuggestion, VaultAttachmentSummary } from "@/types";
 import { tipsboardLanguage } from "./tipsboard-language";
 import { tipsboardDecorations, tipsboardTheme } from "./tipsboard-decorations";
 import { tipsboardKeymap } from "./tipsboard-keymap";
@@ -155,6 +155,8 @@ export interface EditorConfig {
   onImageDropError?: (message: string) => void;
   /** VS Code `tipsboard-vscode.maxAttachmentBytes`; used before RPC and for error copy. */
   getMaxAttachmentBytes?: () => number;
+  /** After Shift+drop file import, merge refreshed `VaultSnapshot.attachments` from Host. */
+  onAttachmentIndexUpdated?: (attachments: VaultAttachmentSummary[]) => void;
   onContentChange?: (content: string) => void;
   extensions?: Extension[];
 }
@@ -203,6 +205,7 @@ export function createEditor(config: EditorConfig): EditorView {
     createLocalAttachmentDropExtension({
       getMaxAttachmentBytes: () => config.getMaxAttachmentBytes?.() ?? DEFAULT_ATTACHMENT_MAX_BYTES,
       onError: config.onImageDropError,
+      onAttachmentIndexUpdated: config.onAttachmentIndexUpdated,
     }),
     EditorView.lineWrapping,
     ...(config.extensions ?? []),

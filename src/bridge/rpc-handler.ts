@@ -11,6 +11,7 @@ import {
   importVaultJson,
   importImages,
   importAttachmentBuffers,
+  readVaultAttachmentSummaries,
   setNotePinned,
   type ImageBufferInput,
 } from "../host/vault.js";
@@ -258,12 +259,26 @@ export async function handleRpcInbound(
 
       case "importAttachmentBuffers": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
-        const entriesRaw = raw.payload as { name: string; data: number[] | Uint8Array }[];
+        const payload = raw.payload as
+          | { entries?: { name: string; data: number[] | Uint8Array }[] }
+          | { name: string; data: number[] | Uint8Array }[];
+        const entriesRaw = Array.isArray(payload) ? payload : payload.entries ?? [];
         const entries: ImageBufferInput[] = entriesRaw.map((e) => ({
           name: e.name,
           data: new Uint8Array(e.data instanceof Uint8Array ? e.data : [...e.data]),
         }));
-        reply({ ok: true, result: await importAttachmentBuffers(vaultPath, entries, readAttachmentMaxBytes()) });
+        const imported = await importAttachmentBuffers(vaultPath, entries, readAttachmentMaxBytes());
+        const attachments = await readVaultAttachmentSummaries(vaultPath);
+        reply({
+          ok: true,
+          result: { imported, attachments },
+        });
+        return;
+      }
+
+      case "getAttachmentSummaries": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        reply({ ok: true, result: await readVaultAttachmentSummaries(vaultPath) });
         return;
       }
 

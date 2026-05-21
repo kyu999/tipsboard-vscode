@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {

@@ -23,11 +23,15 @@ function extractAttachableFiles(fileList: FileList): File[] {
   return files.filter((file) => isAttachmentImageFile(file) || !isClientBlockedAttachment(file));
 }
 
+import type { VaultAttachmentSummary } from "@/types";
+
 export function createLocalAttachmentDropExtension(options: {
   getMaxAttachmentBytes: () => number;
   onError?: (message: string) => void;
+  /** After non-image files land in `assets/files/`, Host returns a fresh index for the WebView. */
+  onAttachmentIndexUpdated?: (attachments: VaultAttachmentSummary[]) => void;
 }): Extension {
-  const { getMaxAttachmentBytes, onError } = options;
+  const { getMaxAttachmentBytes, onError, onAttachmentIndexUpdated } = options;
 
   return EditorView.domEventHandlers({
     dragover(event) {
@@ -82,13 +86,15 @@ export function createLocalAttachmentDropExtension(options: {
         }),
       )
         .then((payloads) =>
-          window.tipsboardDesktop.importAttachmentBuffers(payloads).then((inserted) => {
+          window.tipsboardDesktop.importAttachmentBuffers(payloads).then((batch) => {
+            const inserted = batch.imported;
             const text = inserted.map((row) => row.markdown).join("\n");
             if (!text) return;
             view.dispatch({
               changes: { from: insertPos, insert: text },
               selection: { anchor: insertPos + text.length },
             });
+            onAttachmentIndexUpdated?.(batch.attachments);
           }),
         )
         .catch((error: unknown) => {

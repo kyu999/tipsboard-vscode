@@ -1,4 +1,10 @@
-import type { ImportedImage, NoteSummary, VaultSnapshot } from "@/types";
+import type {
+  ImportedImage,
+  ImportAttachmentBuffersResult,
+  NoteSummary,
+  VaultAttachmentSummary,
+  VaultSnapshot,
+} from "@/types";
 
 type Pending = {
   resolve: (v: unknown) => void;
@@ -99,15 +105,19 @@ function wireDesktop(): typeof window.tipsboardDesktop {
     importAttachmentBuffers: (entries: Array<{ name: string; data: Uint8Array | number[] | ArrayBuffer }>) =>
       rpc(
         "importAttachmentBuffers",
-        entries.map((e) => {
-          const raw = e.data;
-          let arr: number[];
-          if (raw instanceof Uint8Array) arr = [...raw];
-          else if (raw instanceof ArrayBuffer) arr = [...new Uint8Array(raw)];
-          else arr = raw as number[];
-          return { name: e.name, data: arr };
-        }),
-      ) as Promise<ImportedImage[]>,
+        {
+          entries: entries.map((e) => {
+            const raw = e.data;
+            let arr: number[];
+            if (raw instanceof Uint8Array) arr = [...raw];
+            else if (raw instanceof ArrayBuffer) arr = [...new Uint8Array(raw)];
+            else arr = raw as number[];
+            return { name: e.name, data: arr };
+          }),
+        },
+      ) as Promise<ImportAttachmentBuffersResult>,
+
+    getAttachmentSummaries: () => rpc("getAttachmentSummaries") as Promise<VaultAttachmentSummary[]>,
 
     readAssetDataUrls: (paths: string[]) => rpc("readAssetDataUrls", { paths }) as Promise<Record<string, string>>,
 

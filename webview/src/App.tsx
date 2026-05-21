@@ -6,6 +6,7 @@ import { rewriteInboundWikiTitles, wouldRewriteInboundWikiTitles } from "@/domai
 import { normalizeTitle } from "@/domain/title/title";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { KanbanBoardView } from "@/components/KanbanBoardView";
+import { AttachmentLibraryView } from "@/components/AttachmentLibraryView";
 import { NoteEditor } from "@/components/NoteEditor";
 import { NoteTabBar } from "@/components/NoteTabBar";
 import { SaveStatus } from "@/components/SaveStatus";
@@ -34,7 +35,7 @@ import { resolveVaultFilesChangedAction } from "@/lib/vaultFilesChangedHandling"
 import { changeLanguage, getSupportedLanguage, supportedLanguages } from "@/shared/i18n";
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
 import { clearTipsboardResolvedAssetCache } from "@/vscode-bridge-client";
-import type { NoteSummary, SaveState, VaultSnapshot } from "@/types";
+import type { NoteSummary, SaveState, VaultAttachmentSummary, VaultSnapshot } from "@/types";
 
 const CARD_GAP = 12;
 const MAX_CARD_WIDTH = 168;
@@ -68,13 +69,14 @@ export function App() {
   const [snapshot, setSnapshot] = useState<VaultSnapshot>({
     vaultPath: null,
     notes: [],
+    attachments: [],
     pins: [],
     kanban: { version: 1, boards: [] },
   });
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [openTabs, setOpenTabs] = useState<EditorTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+  const [viewMode, setViewMode] = useState<"list" | "kanban" | "attachments">("list");
   const [kanbanFocus, setKanbanFocus] = useState<{
     boardId: string | null;
     columnId: string | null;
@@ -136,6 +138,7 @@ export function App() {
     setSnapshot((prev) => {
       const merged: VaultSnapshot = {
         ...next,
+        attachments: next.attachments ?? prev.attachments,
         attachmentMaxBytes: next.attachmentMaxBytes ?? prev.attachmentMaxBytes,
       };
       rebuildDiskCommittedTitles(merged, diskCommittedTitleRef);
@@ -149,6 +152,10 @@ export function App() {
       rebuildDiskCommittedTitles(merged, diskCommittedTitleRef);
       return merged;
     });
+  }, []);
+
+  const mergeAttachmentsFromHost = useCallback((attachments: VaultAttachmentSummary[]) => {
+    setSnapshot((prev) => ({ ...prev, attachments }));
   }, []);
 
   const refreshSnapshot = useCallback(async () => {
@@ -593,6 +600,7 @@ export function App() {
 
   const handleSaveNote = useCallback(
     async (path: string, body: string) => {
+      let inboundRewriteConfirmed = false;
       const pathNorm = normalizeVaultNotePath(path);
       const oldCommittedTitle = diskCommittedTitleRef.current.get(pathNorm);
       const result = await window.tipsboardDesktop.saveNote(path, body);
@@ -615,6 +623,16 @@ export function App() {
 
       if (resultPathNorm !== pathNorm) {
         setOpenTabs((prev) => renameNotePathInTabs(prev, path, result.note.path));
+      }
+
+      const refreshDiskAttachments = () => {
+        void window.tipsboardDesktop.getAttachmentSummaries().then((attachments) => {
+          setSnapshot((current) => ({ ...current, attachments }));
+        });
+      };
+
+      if (body.includes("assets/files/")) {
+        refreshDiskAttachments();
       }
 
       if (oldCommittedTitle === undefined) return result.notePath;
@@ -651,6 +669,8 @@ export function App() {
       });
       if (!confirmed) return result.notePath;
 
+      inboundRewriteConfirmed = true;
+
       const selfPath = result.note.path;
       const others = targets.filter((t) => t.path !== selfPath);
       const selfTarget = targets.find((t) => t.path === selfPath);
@@ -681,6 +701,10 @@ export function App() {
         } catch (caught) {
           setError(messageForError(caught));
         }
+      }
+
+      if (inboundRewriteConfirmed) {
+        refreshDiskAttachments();
       }
 
       return result.notePath;
@@ -886,6 +910,20 @@ export function App() {
     setVaultMenuOpen(false);
     setLocalMenuOpen(false);
     setUserGuideOpen(false);
+  }, [confirmDiscardChanges]);
+
+  const handleOpenAttachments = useCallback(async () => {
+    if (!(await confirmDiscardChanges())) return;
+    pushNavHistory();
+    setSelectedPath(null);
+    setViewMode("attachments");
+    setListSearchFilter(null);
+    setKanbanFocus({ boardId: null, columnId: null, notePath: null });
+    setSaveState("idle");
+    setVaultMenuOpen(false);
+    setLocalMenuOpen(false);
+    setUserGuideOpen(false);
+    setShowSearchResults(false);
   }, [confirmDiscardChanges]);
 
   const handleToggleUserGuide = useCallback(async () => {
@@ -1196,6 +1234,24 @@ export function App() {
           <button
             type="button"
             onClick={() => {
+              void handleOpenAttachments();
+              setVaultMenuOpen(false);
+              setLocalMenuOpen(false);
+            }}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
+              viewMode === "attachments"
+                ? "bg-accent-link/12 text-accent-link shadow-[inset_0_0_0_1px_rgba(8,127,54,0.18)]"
+                : "text-text-muted hover:bg-bg-hover hover:text-text-primary"
+            }`}
+            aria-pressed={viewMode === "attachments"}
+            title={t("layout.attachments")}
+            aria-label={t("layout.attachments")}
+          >
+            <i className="fa-solid fa-paperclip" aria-hidden />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
               void handleCreateNote();
               setVaultMenuOpen(false);
               setLocalMenuOpen(false);
@@ -1305,7 +1361,7 @@ export function App() {
                         const trimmed = query.trim();
                         setShowSearchResults(false);
                         const needsNavigateAway =
-                          selectedNote !== null || userGuideOpen || viewMode === "kanban";
+                          selectedNote !== null || userGuideOpen || viewMode === "kanban" || viewMode === "attachments";
                         if (needsNavigateAway) {
                           if (!(await confirmDiscardChanges())) {
                             return;
@@ -1506,6 +1562,7 @@ export function App() {
                   onLinkClick={handleLinkClick}
                   onContentChange={handleDraftNoteChange}
                   onImageDropError={setError}
+                  onAttachmentIndexUpdated={mergeAttachmentsFromHost}
                   attachmentMaxBytes={snapshot.attachmentMaxBytes}
                 />
               </div>
@@ -1529,6 +1586,14 @@ export function App() {
           </section>
         ) : userGuideOpen ? (
           <UserGuideView />
+        ) : viewMode === "attachments" ? (
+          <AttachmentLibraryView
+            vaultPath={snapshot.vaultPath}
+            attachments={snapshot.attachments}
+            onSelectNote={(path) => {
+              void handleSelectNote(path);
+            }}
+          />
         ) : viewMode === "kanban" ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <KanbanBoardView

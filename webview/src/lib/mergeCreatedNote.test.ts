@@ -19,6 +19,7 @@ describe("mergeCreatedNoteIntoSnapshot", () => {
   const emptyVault: VaultSnapshot = {
     vaultPath: "/v",
     notes: [],
+    attachments: [],
     pins: [],
     kanban: { version: 1, boards: [] },
   };

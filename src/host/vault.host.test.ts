@@ -10,6 +10,7 @@ import {
   importAttachmentBuffers,
   importImageBuffers,
   readVault,
+  readVaultAttachmentSummaries,
   saveNote,
   setNotePinned,
 } from "./vault.js";
@@ -67,14 +68,9 @@ describe("vault (VS Code host)", () => {
   it("imports non-image buffers to assets/files with markdown links", async () => {
     await withVault(async (vaultPath) => {
       const pdfBytes = new TextEncoder().encode("%PDF-1.4 example");
-      const [row] = await importAttachmentBuffers(
-        vaultPath,
-        [{ name: "PDF_example.pdf", data: pdfBytes }],
-        TEN_MB,
-      );
-      const uuidFileRe =
-        /^assets\/files\/file_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$/;
-      expect(row?.relativePath).toMatch(uuidFileRe);
+      const [row] = await importAttachmentBuffers(vaultPath, [{ name: "PDF_example.pdf", data: pdfBytes }], TEN_MB);
+      const readableFileRe = /^assets\/files\/PDF_example_[0-9a-f]{8}\.pdf$/;
+      expect(row?.relativePath).toMatch(readableFileRe);
       expect(row?.markdown).toBe(`[PDF example](${row?.relativePath})`);
       await expect(fs.readFile(path.join(vaultPath, row!.relativePath))).resolves.toEqual(Buffer.from(pdfBytes));
     });
@@ -83,21 +79,48 @@ describe("vault (VS Code host)", () => {
   it("reuses an existing assets/files entry for duplicate non-image content", async () => {
     await withVault(async (vaultPath) => {
       const pdfBytes = new TextEncoder().encode("%PDF-1.4 example");
-      const [first] = await importAttachmentBuffers(
-        vaultPath,
-        [{ name: "PDF_example.pdf", data: pdfBytes }],
-        TEN_MB,
-      );
-      const [second] = await importAttachmentBuffers(
-        vaultPath,
-        [{ name: "PDF_example.pdf", data: pdfBytes }],
-        TEN_MB,
-      );
+      const [first] = await importAttachmentBuffers(vaultPath, [{ name: "PDF_example.pdf", data: pdfBytes }], TEN_MB);
+      const [second] = await importAttachmentBuffers(vaultPath, [{ name: "PDF_example.pdf", data: pdfBytes }], TEN_MB);
       const files = await fs.readdir(path.join(vaultPath, "assets", "files"));
 
       expect(second?.relativePath).toBe(first?.relativePath);
       expect(second?.markdown).toBe(`[PDF example](${first?.relativePath})`);
       expect(files).toHaveLength(1);
+    });
+  });
+
+  it("indexes file attachments with linked notes and unreferenced files", async () => {
+    await withVault(async (vaultPath) => {
+      await createNote(vaultPath, "Doc");
+      const [linked] = await importAttachmentBuffers(
+        vaultPath,
+        [{ name: "Spec.pdf", data: new TextEncoder().encode("linked") }],
+        TEN_MB,
+      );
+      const [orphan] = await importAttachmentBuffers(
+        vaultPath,
+        [{ name: "Loose.txt", data: new TextEncoder().encode("orphan") }],
+        TEN_MB,
+      );
+
+      await saveNote(vaultPath, "pages/Doc.md", `Doc\n[Specification](${linked!.relativePath})\n`);
+
+      const snapshot = await readVault(vaultPath);
+      const linkedSummary = snapshot.attachments.find((attachment) => attachment.relativePath === linked!.relativePath);
+      const orphanSummary = snapshot.attachments.find((attachment) => attachment.relativePath === orphan!.relativePath);
+
+      expect(snapshot.attachments).toHaveLength(2);
+      expect(linkedSummary?.referenced).toBe(true);
+      expect(linkedSummary?.references).toEqual([
+        {
+          notePath: "pages/Doc.md",
+          noteTitle: "Doc",
+          noteFilename: "Doc.md",
+          label: "Specification",
+        },
+      ]);
+      expect(orphanSummary?.referenced).toBe(false);
+      expect(orphanSummary?.references).toEqual([]);
     });
   });
 
@@ -150,6 +173,17 @@ describe("vault (VS Code host)", () => {
       const cleared = await readVault(vaultPath);
       expect(cleared.notes[0]?.title).toBe("Newer");
       expect(cleared.pins).toEqual([]);
+    });
+  });
+
+  it("readVaultAttachmentSummaries matches readVault.attachments", async () => {
+    await withVault(async (vaultPath) => {
+      await createNote(vaultPath, "Doc");
+      const pdf = new TextEncoder().encode("%PDF-1.4 x");
+      await importAttachmentBuffers(vaultPath, [{ name: "a.pdf", data: pdf }], TEN_MB);
+      const full = await readVault(vaultPath);
+      const onlyAttach = await readVaultAttachmentSummaries(vaultPath);
+      expect(onlyAttach).toEqual(full.attachments);
     });
   });
 });

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { findNext, findPrevious, openSearchPanel } from "@codemirror/search";
 import { createEditor } from "@/editor";
 import { setExistingLinkTitlesEffect } from "@/editor/tipsboard-decorations";
-import type { LinkSuggestion, NoteSummary, SaveState } from "@/types";
+import type { LinkSuggestion, NoteSummary, SaveState, VaultAttachmentSummary } from "@/types";
 import { DEFAULT_ATTACHMENT_MAX_BYTES } from "@/shared/attachmentConstants";
 
 interface NoteEditorProps {
@@ -15,6 +15,8 @@ interface NoteEditorProps {
   onLinkClick: (title: string, type: "internal" | "external" | "tag", options?: { openInNewTab?: boolean }) => void;
   onContentChange?: (path: string, body: string) => void;
   onImageDropError?: (message: string) => void;
+  /** Merge Host-built `attachments` after Shift+drop imports into `assets/files/`. */
+  onAttachmentIndexUpdated?: (attachments: VaultAttachmentSummary[]) => void;
   attachmentMaxBytes?: number;
 }
 
@@ -28,6 +30,7 @@ export function NoteEditor({
   onLinkClick,
   onContentChange,
   onImageDropError,
+  onAttachmentIndexUpdated,
   attachmentMaxBytes,
 }: NoteEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -39,6 +42,7 @@ export function NoteEditor({
   const onLinkClickRef = useRef(onLinkClick);
   const onContentChangeRef = useRef(onContentChange);
   const onImageDropErrorRef = useRef(onImageDropError);
+  const onAttachmentIndexUpdatedRef = useRef(onAttachmentIndexUpdated);
   const suggestionsRef = useRef(suggestions);
   const existingNormalizedTitlesRef = useRef(existingNormalizedTitles);
   const attachmentMaxBytesRef = useRef(attachmentMaxBytes ?? DEFAULT_ATTACHMENT_MAX_BYTES);
@@ -50,6 +54,7 @@ export function NoteEditor({
   onLinkClickRef.current = onLinkClick;
   onContentChangeRef.current = onContentChange;
   onImageDropErrorRef.current = onImageDropError;
+  onAttachmentIndexUpdatedRef.current = onAttachmentIndexUpdated;
   suggestionsRef.current = suggestions;
   existingNormalizedTitlesRef.current = existingNormalizedTitles;
   attachmentMaxBytesRef.current = attachmentMaxBytes ?? DEFAULT_ATTACHMENT_MAX_BYTES;
@@ -72,6 +77,7 @@ export function NoteEditor({
       existingNormalizedTitles: existingNormalizedTitlesRef.current,
       getMaxAttachmentBytes: () => attachmentMaxBytesRef.current,
       onImageDropError: (message) => onImageDropErrorRef.current?.(message),
+      onAttachmentIndexUpdated: (attachments) => onAttachmentIndexUpdatedRef.current?.(attachments),
       onContentChange: (content) => {
         onContentChangeRef.current?.(noteRef.current.path, content);
       },

@@ -4,6 +4,17 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.9] - 2026-05-21
+
+### Added
+
+- **Attachments library** (WebView): left sidebar **paperclip** control switches `viewMode` to **`attachments`**. Table of vault files under `assets/files/` with search, per-row **open in OS default app**, **copy absolute path**, **expandable details** (relative path, size, modified time, absolute path when the vault root is known), **wiki-style links** to referencing notes, and an **unreferenced** indicator. Japanese and English strings in i18n.
+
+### Changed
+
+- **Non-image attachment filenames**: files under `assets/files/` are saved as **`{sanitizedOriginalStem}_{8hex}{ext}`** (no note title in the name). Existing **`file_<uuid>`** names remain valid on disk and in links.
+- **`importAttachmentBuffers` RPC** returns **`{ imported, attachments }`** so the attachment list updates immediately after Shift+drop; **`getAttachmentSummaries`** refreshes the index after saves that touch vault file links.
+
 ## [0.2.8] - 2026-05-18
 
 ### Added

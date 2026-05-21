@@ -1,4 +1,10 @@
-import type { ImportedImage, NoteSummary, VaultSnapshot } from "@/types";
+import type {
+  ImportedImage,
+  ImportAttachmentBuffersResult,
+  NoteSummary,
+  VaultAttachmentSummary,
+  VaultSnapshot,
+} from "@/types";
 
 export {};
 
@@ -37,7 +43,8 @@ declare global {
       importImages: (paths: string[]) => Promise<ImportedImage[]>;
       importAttachmentBuffers: (
         entries: Array<{ name: string; data: Uint8Array | number[] | ArrayBuffer }>,
-      ) => Promise<ImportedImage[]>;
+      ) => Promise<ImportAttachmentBuffersResult>;
+      getAttachmentSummaries: () => Promise<VaultAttachmentSummary[]>;
       readAssetDataUrls: (paths: string[]) => Promise<Record<string, string>>;
       prefetchAssets: (paths: string[]) => Promise<void>;
       getPathForFile: (file: File) => string;

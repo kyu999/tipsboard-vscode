@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   assertSafeRelativePath,
+  buildAttachmentFilename,
   buildPreview,
+  extractVaultFileAttachmentLinks,
   normalizeTitle,
   stemFromTitle,
 } from "./vault.js";
@@ -56,6 +58,42 @@ describe("vault pure helpers", () => {
       expect(() => assertSafeRelativePath("../pages/Evil.md")).toThrow("pages directory");
       expect(() => assertSafeRelativePath("pages/sub/Note.md")).toThrow("pages directory");
       expect(() => assertSafeRelativePath("assets/x.md")).toThrow("pages directory");
+    });
+  });
+
+  describe("buildAttachmentFilename", () => {
+    it("uses sanitized original stem plus first 8 hex chars of uuid without dashes", () => {
+      expect(buildAttachmentFilename("PDF_example.pdf", ".pdf", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")).toBe(
+        "PDF_example_aaaaaaaa.pdf",
+      );
+    });
+
+    it("truncates long stems to stay within filename budget", () => {
+      const long = "x".repeat(200) + ".pdf";
+      const name = buildAttachmentFilename(long, ".pdf", "11111111-2222-3333-4444-555555555555");
+      expect(name.endsWith(".pdf")).toBe(true);
+      expect(name).toMatch(/^x+_11111111\.pdf$/);
+      expect(name.length).toBeLessThanOrEqual(112);
+    });
+  });
+
+  describe("extractVaultFileAttachmentLinks", () => {
+    it("extracts vault file attachment markdown links", () => {
+      const body = [
+        "Title",
+        "[Spec](assets/files/Meeting_Spec_ab12cd34.pdf)",
+        "![Image](assets/images/img_1.png)",
+        "```",
+        "[Ignored](assets/files/ignored.pdf)",
+        "```",
+      ].join("\n");
+
+      expect(extractVaultFileAttachmentLinks(body)).toEqual([
+        {
+          relativePath: "assets/files/Meeting_Spec_ab12cd34.pdf",
+          label: "Spec",
+        },
+      ]);
     });
   });
 });

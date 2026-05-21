@@ -1,7 +1,14 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import type { ImportedImage, KanbanState, NoteSummary, VaultSnapshot } from "../types/editor.js";
+import type {
+  ImportedImage,
+  KanbanState,
+  NoteSummary,
+  VaultAttachmentReference,
+  VaultAttachmentSummary,
+  VaultSnapshot,
+} from "../types/editor.js";
 import { cleanupKanbanAfterNoteDelete, loadKanbanState, patchKanbanNotePaths, saveKanbanState } from "./kanban.js";
 import {
   cleanupPinsAfterNoteDelete,
@@ -175,6 +182,90 @@ async function listNotePaths(pagesDir: string): Promise<string[]> {
   return out;
 }
 
+export interface ExtractedVaultAttachmentLink {
+  relativePath: string;
+  label: string;
+}
+
+const VAULT_FILE_ATTACHMENT_LINK_RE = /!?\[([^\]\n]*)\]\(\s*(assets[/\\]files[/\\][^) \t\n\r]+)\s*(?:\"[^\"]*\")?\)/g;
+
+function normalizeVaultFileAttachmentPath(raw: string): string | null {
+  const normalized = path.normalize(raw.trim()).replace(/\\/g, "/");
+  if (!normalized || path.isAbsolute(normalized)) return null;
+  if (normalized === ".." || normalized.startsWith("../") || normalized.includes("/../")) return null;
+  return normalized.startsWith("assets/files/") ? normalized : null;
+}
+
+export function extractVaultFileAttachmentLinks(body: string): ExtractedVaultAttachmentLink[] {
+  const out: ExtractedVaultAttachmentLink[] = [];
+  let inCodeBlock = false;
+
+  for (const line of body.split("\n")) {
+    if (/^\s*```/.test(line)) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) continue;
+
+    VAULT_FILE_ATTACHMENT_LINK_RE.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = VAULT_FILE_ATTACHMENT_LINK_RE.exec(line)) !== null) {
+      const relativePath = normalizeVaultFileAttachmentPath(match[2] ?? "");
+      if (!relativePath) continue;
+      out.push({
+        relativePath,
+        label: (match[1] ?? "").trim(),
+      });
+    }
+  }
+
+  return out;
+}
+
+async function buildAttachmentSummaries(vaultPath: string, notes: NoteSummary[]): Promise<VaultAttachmentSummary[]> {
+  const filesDir = path.join(vaultPath, "assets", "files");
+  const referencesByPath = new Map<string, VaultAttachmentReference[]>();
+
+  for (const note of notes) {
+    for (const link of extractVaultFileAttachmentLinks(note.body)) {
+      const refs = referencesByPath.get(link.relativePath) ?? [];
+      refs.push({
+        notePath: note.path,
+        noteTitle: note.title,
+        noteFilename: note.filename,
+        label: link.label,
+      });
+      referencesByPath.set(link.relativePath, refs);
+    }
+  }
+
+  const entries = await fs.readdir(filesDir, { withFileTypes: true }).catch(() => []);
+  const attachments: VaultAttachmentSummary[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const abs = path.join(filesDir, entry.name);
+    const stats = await fs.stat(abs).catch(() => null);
+    if (!stats?.isFile()) continue;
+
+    const relativePath = `assets/files/${entry.name}`.replace(/\\/g, "/");
+    const extension = path.extname(entry.name).toLowerCase();
+    const references = referencesByPath.get(relativePath) ?? [];
+    attachments.push({
+      relativePath,
+      filename: entry.name,
+      basename: extension ? path.basename(entry.name, extension) : entry.name,
+      extension,
+      size: stats.size,
+      updatedAt: stats.mtimeMs,
+      references,
+      referenced: references.length > 0,
+    });
+  }
+
+  attachments.sort((a, b) => b.updatedAt - a.updatedAt || a.filename.localeCompare(b.filename));
+  return attachments;
+}
+
 function reorderNotesWithPins(notes: NoteSummary[], pins: string[]): NoteSummary[] {
   const byNorm = new Map(notes.map((n) => [n.path.replace(/\\/g, "/"), n]));
   const out: NoteSummary[] = [];
@@ -206,6 +297,7 @@ export async function readVault(vaultPath: string | null): Promise<VaultSnapshot
     return {
       vaultPath: null,
       notes: [],
+      attachments: [],
       pins: [],
       kanban: { version: 1, boards: [] },
     };
@@ -249,9 +341,33 @@ export async function readVault(vaultPath: string | null): Promise<VaultSnapshot
   return {
     vaultPath,
     notes: notesOrdered,
+    attachments: await buildAttachmentSummaries(vaultPath, notesOrdered),
     pins: pinsPruned.paths.slice(),
     kanban: kanbanClean,
   };
+}
+
+/**
+ * Rebuilds the `assets/files/` attachment index from on-disk note bodies (no kanban/pins side effects).
+ * Used to refresh the WebView attachment list after imports or saves without a full `readVault`.
+ */
+export async function readVaultAttachmentSummaries(vaultPath: string): Promise<VaultAttachmentSummary[]> {
+  await ensurePagesDir(vaultPath);
+  const relPathsRaw = await listNotePaths(path.join(vaultPath, PAGES_PREFIX));
+  const notes: NoteSummary[] = [];
+  for (const rp of relPathsRaw) {
+    try {
+      notes.push(await statNote(vaultPath, rp));
+    } catch {
+      // skip unreadable entries
+    }
+  }
+  notes.sort((a, b) => {
+    const d = b.updatedAt - a.updatedAt;
+    if (d !== 0) return d;
+    return a.title.localeCompare(b.title);
+  });
+  return buildAttachmentSummaries(vaultPath, notes);
 }
 
 /** Stub for future board/column integrity checks (sync). */
@@ -396,6 +512,47 @@ function sanitizeAttachmentLinkLabel(originalBasenameWithoutExt: string): string
   return s.length > 0 ? s : "file";
 }
 
+function sanitizeAttachmentFilenameStem(raw: string, fallback: string): string {
+  const cleaned = raw
+    .normalize("NFC")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
+    .replace(/[\[\]()]/g, " ")
+    .replace(/[-\s]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^[_.]+|[_.]+$/g, "");
+  return cleaned || fallback;
+}
+
+function truncateStem(stem: string, maxLength: number): string {
+  if (stem.length <= maxLength) return stem;
+  return stem.slice(0, maxLength).replace(/[_.]+$/g, "") || stem.slice(0, maxLength);
+}
+
+/** `assets/files/` 保存名: 元ファイル名（サニタイズ・長さ制限）+ 短い一意ID + 拡張子。 */
+export function buildAttachmentFilename(originalName: string, ext: string, id: string): string {
+  const originalBase = ext ? path.basename(originalName, ext) : path.basename(originalName);
+  const originalStem = sanitizeAttachmentFilenameStem(originalBase, "file");
+  const shortId = id.replace(/-/g, "").slice(0, 8);
+  const maxFilenameLength = 112;
+  const reservedForId = shortId.length + 1;
+  const maxStemChars = Math.max(1, maxFilenameLength - ext.length - reservedForId);
+  const stem = truncateStem(originalStem, maxStemChars);
+  return `${stem}_${shortId}${ext}`;
+}
+
+async function allocateAttachmentRelativePath(filesDir: string, originalName: string, ext: string): Promise<string> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const filename = buildAttachmentFilename(originalName, ext, randomUUID());
+    const abs = path.join(filesDir, filename);
+    try {
+      await fs.access(abs);
+    } catch {
+      return `assets/files/${filename}`;
+    }
+  }
+  throw new Error("Could not allocate a unique attachment filename");
+}
+
 function contentSha256(data: Uint8Array): string {
   return createHash("sha256").update(data).digest("hex");
 }
@@ -428,7 +585,7 @@ async function importFileAttachmentData(
 ): Promise<ImportedImage> {
   const ext = path.extname(originalName).toLowerCase();
   const existingRel = await findExistingFileAttachmentByContent(filesDir, data);
-  const rel = existingRel ?? `assets/files/${ext ? `file_${randomUUID()}${ext}` : `file_${randomUUID()}`}`;
+  const rel = existingRel ?? (await allocateAttachmentRelativePath(filesDir, originalName, ext));
   if (!existingRel) {
     await fs.writeFile(path.join(vaultPath, rel), data);
   }

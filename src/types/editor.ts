@@ -13,9 +13,28 @@ export interface NoteSummary {
   createdAt: number;
 }
 
+export interface VaultAttachmentReference {
+  notePath: string;
+  noteTitle: string;
+  noteFilename: string;
+  label: string;
+}
+
+export interface VaultAttachmentSummary {
+  relativePath: string;
+  filename: string;
+  basename: string;
+  extension: string;
+  size: number;
+  updatedAt: number;
+  references: VaultAttachmentReference[];
+  referenced: boolean;
+}
+
 export interface VaultSnapshot {
   vaultPath: string | null;
   notes: NoteSummary[];
+  attachments: VaultAttachmentSummary[];
   /** Pinned paths in front-of-grid order (same as `.tipsboard/pins.json`). */
   pins: string[];
   kanban: KanbanState;
@@ -55,6 +74,12 @@ export interface KanbanState {
 export interface ImportedImage {
   markdown: string;
   relativePath: string;
+}
+
+/** Result of `importAttachmentBuffers` RPC: inserted markdown rows plus refreshed `assets/files/` index. */
+export interface ImportAttachmentBuffersResult {
+  imported: ImportedImage[];
+  attachments: VaultAttachmentSummary[];
 }
 
 export interface ExportPage {

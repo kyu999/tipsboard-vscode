@@ -66,7 +66,7 @@ Supported features include:
 - KaTeX-style math rendering
 - internal link autocomplete
 - tags
-- image embeds and file attachments (`assets/files/`)
+- image embeds and file attachments (`assets/files/`), plus an **Attachments** sidebar view to browse and search them
 
 ---
 
@@ -174,13 +174,15 @@ Use the book icon in the panel to open it anytime.
 Hold **`Shift`** while dropping files into the editor to copy them into the vault and insert Markdown.
 
 - **Images** (PNG, JPEG, GIF, WebP) go to **`assets/images/`** as `![alt](assets/images/...)`.
-- **Other files** go to **`assets/files/`** as `[label](assets/files/...)`. Executable/installer-like extensions are skipped.
+- **Other files** go to **`assets/files/`** as **`[label](assets/files/...)`** using a stable filename pattern **`{sanitizedOriginalStem}_{8hex}{ext}`** (legacy `file_<uuid>` names still work). Executable/installer-like extensions are skipped.
 
 This is easy to miss: a normal drop is ignored so accidental file drops do not modify your Markdown.
 
 Maximum size per dropped file is **`tipsboard-vscode.maxAttachmentBytes`** (default 10 MiB).
 
 Click **`assets/files/...`** links in the editor to open the file with your **operating system's default application**.
+
+Use the **paperclip (Attachments)** control in the Tipsboard panel sidebar to open the **Attachments library**: search files under `assets/files/`, jump to notes that reference a file, copy absolute paths, and expand a row for path, size, and modified time.
 
 On lines you are not editing, attachment links show a **clip icon and label**; move the caret onto that line (or select inside the link) to see and edit the raw `[label](assets/files/...)` Markdown, same as other Tipsboard decorations.
 

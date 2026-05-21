@@ -97,6 +97,11 @@
     @apply h-8 w-full rounded-xl border border-accent-link/15 bg-bg-card py-0 pl-3 pr-3 text-xs text-text-primary placeholder:text-text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] focus:border-accent-link/35 focus:outline-none focus:ring-accent-link/15;
   }
 
+  /** ノート本文の Wiki / 内部リンクと同じ見た目（`tipsboard-user-guide a` と揃える） */
+  .tb-internal-link {
+    @apply font-medium text-accent-link underline decoration-accent-link/30 underline-offset-2 transition-colors hover:decoration-accent-link;
+  }
+
   /* アプリ同梱ユーザーガイド（markdown-it 出力）——ノート本文（CodeMirror .cm-content）と同じ 15px / 行間 1.85 */
   .tipsboard-user-guide {
     @apply font-sans text-[15px] leading-[1.85] text-text-primary;
