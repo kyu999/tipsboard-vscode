@@ -126,11 +126,30 @@ async function installSemanticRuntimeZip(zipPath: string, options: SemanticRunti
     const zip = new AdmZip(zipPath);
     validateZipEntries(zip);
     zip.extractAllTo(tmpDir, true);
-    await validateSemanticRuntime(tmpDir, target);
+
+    const runtimeRoot = await findSemanticRuntimeRoot(tmpDir);
+    if (!runtimeRoot) {
+      const nestedZip = await findSingleNestedZip(tmpDir);
+      if (nestedZip) {
+        const nestedCopy = path.join(os.tmpdir(), `${path.basename(nestedZip)}.${process.pid}-${Date.now()}.tmp`);
+        await fs.copyFile(nestedZip, nestedCopy);
+        await fs.rm(tmpDir, { recursive: true, force: true });
+        try {
+          return await installSemanticRuntimeZip(nestedCopy, options);
+        } finally {
+          await fs.rm(nestedCopy, { force: true });
+        }
+      }
+      throw new Error("Selected zip does not contain a Tipsboard semantic runtime manifest.");
+    }
+    await validateSemanticRuntime(runtimeRoot, target);
 
     await fs.rm(destination, { recursive: true, force: true });
     await fs.mkdir(path.dirname(destination), { recursive: true });
-    await fs.rename(tmpDir, destination);
+    await fs.rename(runtimeRoot, destination);
+    if (runtimeRoot !== tmpDir) {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
   } catch (error) {
     await fs.rm(tmpDir, { recursive: true, force: true });
     throw error;
@@ -170,6 +189,39 @@ async function validateSemanticRuntime(runtimePath: string, target: string): Pro
 async function readManifest(manifestPath: string): Promise<SemanticRuntimeManifest> {
   const raw = await fs.readFile(manifestPath, "utf8");
   return JSON.parse(raw) as SemanticRuntimeManifest;
+}
+
+async function findSemanticRuntimeRoot(root: string, depth: number = 3): Promise<string | undefined> {
+  if (await fileExists(path.join(root, "manifest.json"))) {
+    return root;
+  }
+  if (depth <= 0) return undefined;
+
+  const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name === "node_modules" || entry.name === "__MACOSX") continue;
+    const found = await findSemanticRuntimeRoot(path.join(root, entry.name), depth - 1);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+async function findSingleNestedZip(root: string): Promise<string | undefined> {
+  const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
+  const zipFiles = entries
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".zip"))
+    .map((entry) => path.join(root, entry.name));
+  return zipFiles.length === 1 ? zipFiles[0] : undefined;
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function validateZipEntries(zip: AdmZip): void {
