@@ -16,7 +16,11 @@ esbuild.buildSync({
   platform: "node",
   format: "cjs",
   target: "node18",
-  external: ["vscode"],
+  external: ["vscode", "@huggingface/transformers"],
   legalComments: "none",
   logLevel: "info",
 });
+
+if (process.env.TIPSBOARD_SKIP_SEMANTIC_COPY !== "1") {
+  require("./copy-extension-deps.cjs");
+}

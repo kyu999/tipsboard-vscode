@@ -36,6 +36,19 @@ const ja = {
     placeholder: "ページを検索…",
     noResults: "検索結果はありません",
   },
+  semanticSearch: {
+    open: "セマンティック検索",
+    title: "セマンティック検索",
+    description: "キーワード一致ではなく、意味が近いメモの該当箇所を探します。初回はモデルの準備に時間がかかることがあります。",
+    placeholder: "例: 古いAPIレスポンスを防ぐ",
+    search: "検索",
+    searching: "検索中…",
+    preparing: "インデックスを準備しています。初回は少し時間がかかります。",
+    close: "閉じる",
+    empty: "自然文で探したい内容を入力してください。",
+    noResults: "意味が近いメモは見つかりませんでした。",
+    indexedChunks: "{{count}}個のチャンクを検索対象にしました",
+  },
   settings: {
     sections: {
       language: "言語",

@@ -2,6 +2,7 @@ import type {
   ImportedImage,
   ImportAttachmentBuffersResult,
   NoteSummary,
+  SemanticSearchResponse,
   VaultAttachmentSummary,
   VaultSnapshot,
 } from "@/types";
@@ -45,6 +46,8 @@ declare global {
         entries: Array<{ name: string; data: Uint8Array | number[] | ArrayBuffer }>,
       ) => Promise<ImportAttachmentBuffersResult>;
       getAttachmentSummaries: () => Promise<VaultAttachmentSummary[]>;
+      semanticSearch: (query: string, limit?: number) => Promise<SemanticSearchResponse>;
+      rebuildSemanticIndex: () => Promise<unknown>;
       readAssetDataUrls: (paths: string[]) => Promise<Record<string, string>>;
       prefetchAssets: (paths: string[]) => Promise<void>;
       getPathForFile: (file: File) => string;

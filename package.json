@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.2.9",
+  "version": "0.3.0",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {
@@ -52,7 +52,8 @@
     "katex",
     "math",
     "documentation",
-    "file attachments"
+    "file attachments",
+    "semantic search"
   ],
   "activationEvents": [
     "onCommand:tipsboard-vscode.open",
@@ -115,6 +116,25 @@
           "maximum": 1073741824,
           "markdownDescription": "Maximum size in bytes for each dropped attachment (images and other files). Default is 10 MiB.",
           "description": "Maximum attachment size in bytes per file."
+        },
+        "tipsboard-vscode.semanticSearch.provider": {
+          "type": "string",
+          "enum": ["off", "bundled"],
+          "default": "bundled",
+          "markdownDescription": "Semantic search (meaning-based search from the wand button in the Tipsboard panel).\n\n- **bundled** (default): local Transformers.js runtime (shipped with the extension under `dist/extension/node_modules`).\n- **off**: disables semantic search.\n\nOptional `importedPath` overrides where `@huggingface/transformers` is resolved from.",
+          "description": "Semantic search on/off."
+        },
+        "tipsboard-vscode.semanticSearch.modelId": {
+          "type": "string",
+          "default": "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+          "markdownDescription": "Hugging Face model id for local semantic search (Transformers.js). Usually leave the default.",
+          "description": "Semantic search model id."
+        },
+        "tipsboard-vscode.semanticSearch.importedPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional absolute path to a prepared semantic runtime folder (e.g. output of `npm run prepare:semantic-pack`). When set, it is used instead of the extension-bundled `node_modules`. Must contain `manifest.json` and `node_modules/@huggingface/transformers`.",
+          "description": "Local semantic search engine folder."
         }
       }
     }
@@ -123,6 +143,8 @@
     "vscode:prepublish": "npm run compile && npm run build:extension && npm run build:webview",
     "compile": "tsc --noEmit -p ./tsconfig.extension.json",
     "build:extension": "node scripts/build-extension.cjs",
+    "build:extension:fast": "TIPSBOARD_SKIP_SEMANTIC_COPY=1 node scripts/build-extension.cjs",
+    "prepare:semantic-pack": "node scripts/prepare-semantic-pack.cjs",
     "watch": "tsc -watch -p ./tsconfig.extension.json",
     "watch:webview": "npm run watch --prefix webview",
     "build:webview": "npm install --prefix webview && npm run build --prefix webview",
@@ -143,5 +165,8 @@
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"
   },
-  "private": true
+  "private": true,
+  "optionalDependencies": {
+    "@huggingface/transformers": "^4.2.0"
+  }
 }

@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import { TipsboardPanel } from "./panel/TipsboardPanel.js";
+import { clearSemanticProviderCache } from "./host/semanticProviderFactory.js";
+import { semanticConfigurationPrefix } from "./host/semanticSettings.js";
 import { pickVaultFolder, resolveVaultFsPath } from "./host/vaultRoot.js";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -20,6 +22,10 @@ export function activate(context: vscode.ExtensionContext): void {
       TipsboardPanel.notifyCloseEditorTab();
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration(semanticConfigurationPrefix())) {
+        clearSemanticProviderCache();
+        return;
+      }
       if (
         !e.affectsConfiguration("tipsboard-vscode.manualVaultPath") &&
         !e.affectsConfiguration("tipsboard-vscode.vaultFolder") &&

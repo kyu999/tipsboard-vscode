@@ -2,6 +2,7 @@ import type {
   ImportedImage,
   ImportAttachmentBuffersResult,
   NoteSummary,
+  SemanticSearchResponse,
   VaultAttachmentSummary,
   VaultSnapshot,
 } from "@/types";
@@ -118,6 +119,11 @@ function wireDesktop(): typeof window.tipsboardDesktop {
       ) as Promise<ImportAttachmentBuffersResult>,
 
     getAttachmentSummaries: () => rpc("getAttachmentSummaries") as Promise<VaultAttachmentSummary[]>,
+
+    semanticSearch: (query: string, limit?: number) =>
+      rpc("semanticSearch", { query, limit }) as Promise<SemanticSearchResponse>,
+
+    rebuildSemanticIndex: () => rpc("rebuildSemanticIndex"),
 
     readAssetDataUrls: (paths: string[]) => rpc("readAssetDataUrls", { paths }) as Promise<Record<string, string>>,
 

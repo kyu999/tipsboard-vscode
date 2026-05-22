@@ -78,6 +78,22 @@ export interface ImportAttachmentBuffersResult {
   attachments: VaultAttachmentSummary[];
 }
 
+export interface SemanticSearchResult {
+  path: string;
+  title: string;
+  heading: string;
+  snippet: string;
+  score: number;
+  startLine: number;
+  endLine: number;
+}
+
+export interface SemanticSearchResponse {
+  results: SemanticSearchResult[];
+  indexedChunkCount: number;
+  modelId: string;
+}
+
 export interface LinkSuggestion {
   title: string;
   filename: string;

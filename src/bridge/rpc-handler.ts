@@ -33,7 +33,19 @@ import {
   toAssetWebviewUri,
   vaultFileAttachmentOpenAllowed,
 } from "../host/assetUri.js";
+import {
+  rebuildSemanticIndex,
+  semanticSearch,
+} from "../host/semantic.js";
+import { createSemanticProviderForExtension } from "../host/semanticProviderFactory.js";
 import type { TipsboardPanel } from "../panel/TipsboardPanel.js";
+
+function semanticProviderFor(panel: TipsboardPanel) {
+  return createSemanticProviderForExtension({
+    cacheDir: panel.semanticModelCacheDir(),
+    extensionPath: panel.extensionPath(),
+  });
+}
 
 async function vaultSnapshotPayload(vp: string | null): Promise<Awaited<ReturnType<typeof readVault>> & { attachmentMaxBytes: number }> {
   return { ...(await readVault(vp)), attachmentMaxBytes: readAttachmentMaxBytes() };
@@ -279,6 +291,26 @@ export async function handleRpcInbound(
       case "getAttachmentSummaries": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
         reply({ ok: true, result: await readVaultAttachmentSummaries(vaultPath) });
+        return;
+      }
+
+      case "semanticSearch": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const payload = raw.payload as { query?: string; limit?: number };
+        const result = await semanticSearch(
+          vaultPath,
+          String(payload?.query ?? ""),
+          await semanticProviderFor(panel),
+          { limit: payload?.limit },
+        );
+        reply({ ok: true, result });
+        return;
+      }
+
+      case "rebuildSemanticIndex": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const result = await rebuildSemanticIndex(vaultPath, await semanticProviderFor(panel));
+        reply({ ok: true, result });
         return;
       }
 

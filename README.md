@@ -25,6 +25,7 @@ Tipsboard combines:
 - rich Markdown editing
 - Kanban organization
 - image embedding and preview
+- **semantic search** (meaning-based note search; turn off with `tipsboard-vscode.semanticSearch.provider` = `off` if needed)
 - English and Japanese UI
 
 Everything stays compatible with your existing Markdown workflow and works naturally with Git and external backups.
@@ -88,6 +89,16 @@ The experience is inspired by connected-note and personal knowledge management w
 
 ---
 
+### Semantic search
+
+![Semantic search](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/semantic-search.png)
+
+Use the **wand** button next to the header search field to open **semantic search**: natural-language queries match note **sections** by meaning, not only exact keywords. Pick a result to open the note.
+
+By default (**Tipsboard: Semantic Search Provider** = `bundled`), search runs locally via Transformers.js. Index data is written under **`.tipsboard/semantic/`** in your vault (generated files; add to `.gitignore` if you do not want them in Git). The first search may download embedding model weights into VS Code **global storage** (not your note files). Set the provider to **`off`** in settings to disable semantic search entirely.
+
+---
+
 ### Local Markdown Files
 
 ![Vault Structure](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/vault-structure.png)
@@ -99,6 +110,8 @@ pages/*.md
 assets/images/*
 assets/files/*
 .tipsboard/kanban.json
+.tipsboard/pins.json
+.tipsboard/semantic/   (generated; semantic search index)
 ```
 
 Works naturally with:
@@ -224,6 +237,8 @@ pages/*.md
 assets/images/*
 assets/files/*
 .tipsboard/kanban.json
+.tipsboard/pins.json
+.tipsboard/semantic/   (generated; semantic search index)
 ```
 
 | Path | Purpose |
@@ -232,6 +247,8 @@ assets/files/*
 | `assets/images/*` | Embedded images |
 | `assets/files/*` | Attached files (linked from Markdown) |
 | `.tipsboard/kanban.json` | Kanban board state |
+| `.tipsboard/pins.json` | Pinned note order for the card grid |
+| `.tipsboard/semantic/` | Local semantic search index (created when you use semantic search) |
 
 ---
 
@@ -269,6 +286,9 @@ Commands such as **Tipsboard: New Note** remain available regardless of conflict
 | `tipsboard-vscode.vaultFolder` | Vault folder for multi-root workspaces |
 | `tipsboard-vscode.manualVaultPath` | Explicit vault path override |
 | `tipsboard-vscode.maxAttachmentBytes` | Maximum size in bytes per Shift+drag attachment (images and other files); default 10485760 (10 MiB) |
+| `tipsboard-vscode.semanticSearch.provider` | `bundled` (default) enables local semantic search; `off` disables it |
+| `tipsboard-vscode.semanticSearch.modelId` | Hugging Face model id for embeddings (default suits Japanese and English) |
+| `tipsboard-vscode.semanticSearch.importedPath` | Optional absolute path to a custom semantic runtime folder instead of the bundled one |
 
 ---
 

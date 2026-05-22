@@ -4,6 +4,12 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] - 2026-05-22
+
+### Added
+
+- **Semantic search**: meaning-based search over vault notes from a wand button in the Tipsboard panel (modal, chunk-level results). Host builds a local index under `.tipsboard/semantic/` (`manifest.json`, `chunks.json`, `vectors.f32`). Uses Transformers.js (`@huggingface/transformers`) with a configurable Hugging Face model id; first query may download model weights into VS Code global storage. **Provider defaults to `bundled`** (set to `off` in settings to disable).
+
 ## [0.2.9] - 2026-05-21
 
 ### Added

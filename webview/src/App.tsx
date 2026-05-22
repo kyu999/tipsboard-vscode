@@ -35,7 +35,7 @@ import { resolveVaultFilesChangedAction } from "@/lib/vaultFilesChangedHandling"
 import { changeLanguage, getSupportedLanguage, supportedLanguages } from "@/shared/i18n";
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
 import { clearTipsboardResolvedAssetCache } from "@/vscode-bridge-client";
-import type { NoteSummary, SaveState, VaultAttachmentSummary, VaultSnapshot } from "@/types";
+import type { NoteSummary, SaveState, SemanticSearchResult, VaultAttachmentSummary, VaultSnapshot } from "@/types";
 
 const CARD_GAP = 12;
 const MAX_CARD_WIDTH = 168;
@@ -86,6 +86,12 @@ export function App() {
   const [query, setQuery] = useState("");
   const [listSearchFilter, setListSearchFilter] = useState<string | null>(null);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [semanticSearchOpen, setSemanticSearchOpen] = useState(false);
+  const [semanticQuery, setSemanticQuery] = useState("");
+  const [semanticResults, setSemanticResults] = useState<SemanticSearchResult[]>([]);
+  const [semanticSearchBusy, setSemanticSearchBusy] = useState(false);
+  const [semanticSearchError, setSemanticSearchError] = useState<string | null>(null);
+  const [semanticIndexedChunkCount, setSemanticIndexedChunkCount] = useState<number | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const hasUnsavedChanges = saveState === "unsaved" || saveState === "error";
   const [error, setError] = useState<string | null>(null);
@@ -423,6 +429,27 @@ export function App() {
     },
     [confirmDiscardChanges, selectedPath],
   );
+
+  const runSemanticSearch = useCallback(async () => {
+    const trimmed = semanticQuery.trim();
+    if (!trimmed) {
+      setSemanticResults([]);
+      setSemanticSearchError(null);
+      return;
+    }
+    setSemanticSearchBusy(true);
+    setSemanticSearchError(null);
+    try {
+      const response = await window.tipsboardDesktop.semanticSearch(trimmed, 20);
+      setSemanticResults(response.results);
+      setSemanticIndexedChunkCount(response.indexedChunkCount);
+    } catch (caught) {
+      setSemanticSearchError(messageForError(caught));
+      setSemanticResults([]);
+    } finally {
+      setSemanticSearchBusy(false);
+    }
+  }, [semanticQuery]);
 
   const handleActivateTab = useCallback(
     async (tabId: string) => {
@@ -1420,6 +1447,19 @@ export function App() {
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => {
+                    setSemanticSearchOpen(true);
+                    setSemanticSearchError(null);
+                  }}
+                  disabled={!snapshot.vaultPath}
+                  aria-label={t("semanticSearch.open")}
+                  title={t("semanticSearch.open")}
+                >
+                  <i className="fa-solid fa-wand-magic-sparkles text-sm" aria-hidden />
+                </button>
                 <SaveStatus state={saveState} />
               </div>
             </div>
@@ -1687,6 +1727,23 @@ export function App() {
           </div>
       </main>
       </div>
+      {semanticSearchOpen && (
+        <SemanticSearchModal
+          query={semanticQuery}
+          results={semanticResults}
+          busy={semanticSearchBusy}
+          error={semanticSearchError}
+          indexedChunkCount={semanticIndexedChunkCount}
+          onQueryChange={setSemanticQuery}
+          onSearch={() => void runSemanticSearch()}
+          onClose={() => setSemanticSearchOpen(false)}
+          onSelect={(result, event) => {
+            void handleSelectNote(result.path, { openInNewTab: event.metaKey || event.ctrlKey }).then((selected) => {
+              if (selected) setSemanticSearchOpen(false);
+            });
+          }}
+        />
+      )}
       {confirmDialog && (
         <ConfirmDialog
           title={confirmDialog.title}
@@ -1700,6 +1757,128 @@ export function App() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function SemanticSearchModal({
+  query,
+  results,
+  busy,
+  error,
+  indexedChunkCount,
+  onQueryChange,
+  onSearch,
+  onClose,
+  onSelect,
+}: {
+  query: string;
+  results: SemanticSearchResult[];
+  busy: boolean;
+  error: string | null;
+  indexedChunkCount: number | null;
+  onQueryChange: (query: string) => void;
+  onSearch: () => void;
+  onClose: () => void;
+  onSelect: (result: SemanticSearchResult, event: ReactMouseEvent<HTMLButtonElement>) => void;
+}) {
+  const { t } = useTranslation();
+  const hasQuery = query.trim().length > 0;
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-start justify-center bg-black/40 px-4 py-12 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-2xl border border-accent-link/10 bg-bg-card shadow-dropdown">
+        <div className="flex items-start justify-between gap-4 border-b border-accent-link/10 px-5 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-text-primary">{t("semanticSearch.title")}</h2>
+            <p className="mt-1 text-xs leading-5 text-text-muted">{t("semanticSearch.description")}</p>
+          </div>
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25"
+            onClick={onClose}
+            aria-label={t("semanticSearch.close")}
+            title={t("semanticSearch.close")}
+          >
+            <i className="fa-solid fa-xmark text-sm" aria-hidden />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-4">
+          <form
+            className="flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSearch();
+            }}
+          >
+            <input
+              type="text"
+              className="tb-input"
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder={t("semanticSearch.placeholder")}
+              autoFocus
+              disabled={busy}
+            />
+            <button type="submit" className="tb-btn-primary shrink-0" disabled={busy || !hasQuery}>
+              {busy ? t("semanticSearch.searching") : t("semanticSearch.search")}
+            </button>
+          </form>
+
+          {indexedChunkCount !== null && (
+            <p className="text-xs text-text-muted">
+              {t("semanticSearch.indexedChunks", { count: indexedChunkCount })}
+            </p>
+          )}
+
+          {error && (
+            <div className="rounded-xl border border-accent-error/25 bg-accent-error/10 px-3.5 py-3 text-sm text-accent-error">
+              {error}
+            </div>
+          )}
+
+          <div className="max-h-[55vh] overflow-auto rounded-xl border border-accent-link/10">
+            {busy ? (
+              <div className="px-4 py-8 text-center text-sm text-text-muted">
+                {t("semanticSearch.preparing")}
+              </div>
+            ) : results.length > 0 ? (
+              <div className="divide-y divide-accent-link/10">
+                {results.map((result) => (
+                  <button
+                    key={`${result.path}:${result.startLine}:${result.endLine}`}
+                    type="button"
+                    className="block w-full px-4 py-3 text-left transition-colors hover:bg-bg-hover focus:outline-none focus-visible:bg-bg-hover"
+                    onClick={(event) => onSelect(result, event)}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-text-primary">{result.title}</div>
+                        {result.heading && result.heading !== result.title && (
+                          <div className="mt-0.5 truncate text-xs text-accent-link">{result.heading}</div>
+                        )}
+                      </div>
+                      <span className="shrink-0 rounded-full bg-accent-link/10 px-2 py-0.5 text-2xs font-semibold text-accent-link">
+                        {Math.round(result.score * 100)}
+                      </span>
+                    </div>
+                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-text-muted">{result.snippet}</p>
+                  </button>
+                ))}
+              </div>
+            ) : hasQuery ? (
+              <div className="px-4 py-8 text-center text-sm text-text-muted">
+                {t("semanticSearch.noResults")}
+              </div>
+            ) : (
+              <div className="px-4 py-8 text-center text-sm text-text-muted">
+                {t("semanticSearch.empty")}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

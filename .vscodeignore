@@ -26,10 +26,13 @@ package-lock.json
 **/*.test.ts
 test-results/**
 playwright-report/**
+.npm-cache-vsce/**
+dist/semantic-pack*/
 
 # Repo hygiene (if present)
 .gitignore
 
 tsconfig.extension.json
 vitest.config.mts
-**/node_modules/**
+node_modules/**
+!dist/extension/node_modules/**

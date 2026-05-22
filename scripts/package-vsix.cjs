@@ -32,7 +32,9 @@ function run(cmd, args) {
 const vsceExtra = process.argv.slice(2);
 
 try {
-  run("npm", ["run", "vscode:prepublish"]);
+  run("npm", ["run", "vscode:prepublish"], {
+    env: { ...process.env, TIPSBOARD_SKIP_SEMANTIC_COPY: "1" },
+  });
   const pkg = JSON.parse(original);
   delete pkg.scripts;
   delete pkg.devDependencies;

@@ -84,6 +84,14 @@ export class TipsboardPanel {
     this.selfWriteBulkUntil = Date.now() + durationMs;
   }
 
+  semanticModelCacheDir(): string {
+    return vscode.Uri.joinPath(this.context.globalStorageUri, "semantic-models").fsPath;
+  }
+
+  extensionPath(): string {
+    return this.context.extensionPath;
+  }
+
   private configureVaultWatchers(vaultFsPath: string | undefined): void {
     if (this.watchedVaultFsPath === vaultFsPath) return;
 

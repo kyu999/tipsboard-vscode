@@ -36,6 +36,19 @@ const en = {
     placeholder: "Search pages…",
     noResults: "No results found",
   },
+  semanticSearch: {
+    open: "Semantic search",
+    title: "Semantic search",
+    description: "Find note sections by meaning instead of exact keyword matches. The first run may take time while the local model is prepared.",
+    placeholder: "Example: prevent stale API responses",
+    search: "Search",
+    searching: "Searching…",
+    preparing: "Preparing the local index. The first run may take a little while.",
+    close: "Close",
+    empty: "Enter what you want to find in natural language.",
+    noResults: "No semantically similar notes found.",
+    indexedChunks: "{{count}} chunk(s) indexed",
+  },
   settings: {
     sections: {
       language: "Language",
