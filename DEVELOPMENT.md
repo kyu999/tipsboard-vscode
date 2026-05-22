@@ -40,6 +40,14 @@ npm run package
 
 `npm run package` runs `vscode:prepublish`, then writes a trimmed `package.json` (no `scripts` / `devDependencies` / `private`) only for `vsce package`, so the `.vsix` does not advertise the toolchain. The working copy is restored afterward.
 
+CI packages platform-specific x64 VSIX artifacts on the matching GitHub-hosted runners:
+
+```bash
+npm run package -- --target win32-x64 --out tipsboard-vscode-<version>-win32-x64.vsix
+npm run package -- --target darwin-x64 --out tipsboard-vscode-<version>-darwin-x64.vsix
+npm run package -- --target linux-x64 --out tipsboard-vscode-<version>-linux-x64.vsix
+```
+
 `.vscodeignore` excludes `webview/`, `src/`, `out/`, `media/`, `docs/`, `docs_wiki/`, dev markdown, lockfiles, and test maps from the packaged VSIX.
 
 ## Spec

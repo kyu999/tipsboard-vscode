@@ -11,10 +11,23 @@ concurrency:
 
 jobs:
   build:
-    name: Test, build, and package VSIX
-    runs-on: ubuntu-latest
+    name: Test, build, and package VSIX (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win32-x64
+          - os: macos-13
+            target: darwin-x64
+          - os: ubuntu-latest
+            target: linux-x64
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout
@@ -37,18 +50,19 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Package VSIX
-        run: npm run package
-
       - name: Read extension version
         id: version
         run: |
           echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
+      - name: Package VSIX
+        run: |
+          npm run package -- --target ${{ matrix.target }} --out tipsboard-vscode-${{ steps.version.outputs.version }}-${{ matrix.target }}.vsix
+
       - name: Upload VSIX
         uses: actions/upload-artifact@v4
         with:
-          name: tipsboard-vscode-${{ steps.version.outputs.version }}
-          path: tipsboard-vscode-*.vsix
+          name: tipsboard-vscode-${{ steps.version.outputs.version }}-${{ matrix.target }}
+          path: tipsboard-vscode-${{ steps.version.outputs.version }}-${{ matrix.target }}.vsix
           if-no-files-found: error
           retention-days: 90
