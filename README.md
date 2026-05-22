@@ -95,7 +95,7 @@ The experience is inspired by connected-note and personal knowledge management w
 
 Use the **wand** button next to the header search field to open **semantic search**: natural-language queries match note **sections** by meaning, not only exact keywords. Pick a result to open the note.
 
-By default (**Tipsboard: Semantic Search Provider** = `bundled`), search runs locally via Transformers.js. If the local semantic runtime is not installed yet, Tipsboard can download the matching runtime pack automatically or install a zip you downloaded in a browser. Index data is written under **`.tipsboard/semantic/`** in your vault (generated files; add to `.gitignore` if you do not want them in Git). The first search may also download embedding model weights into VS Code **global storage** (not your note files). Set the provider to **`off`** in settings to disable semantic search entirely.
+By default (**Tipsboard: Semantic Search Provider** = `bundled`), search runs locally via Transformers.js. If the local semantic runtime is not installed yet, Tipsboard can download the matching runtime pack automatically or install a zip you downloaded in a browser. Reload VS Code after installing the runtime, then run semantic search. Index data is written under **`.tipsboard/semantic/`** in your vault (generated files; add to `.gitignore` if you do not want them in Git). The first search may also download embedding model weights into VS Code **global storage** (not your note files). Set the provider to **`off`** in settings to disable semantic search entirely.
 
 ---
 

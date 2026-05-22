@@ -82,16 +82,27 @@ export async function downloadAndInstallSemanticRuntime(options: SemanticRuntime
   const url = `${baseUrl}/${assetName}`;
   const tmpZip = path.join(os.tmpdir(), `${assetName}.${Date.now()}.tmp`);
 
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: "Downloading Tipsboard semantic runtime",
-      cancellable: false,
-    },
-    async () => {
-      await downloadFile(url, tmpZip);
-    },
-  );
+  try {
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: "Downloading Tipsboard semantic runtime",
+        cancellable: false,
+      },
+      async () => {
+        await downloadFile(url, tmpZip);
+      },
+    );
+  } catch (error) {
+    const action = await vscode.window.showErrorMessage(
+      `Could not download the semantic runtime pack from ${url}. ${messageForError(error)} You can install a downloaded runtime zip instead.`,
+      "Install from file",
+    );
+    if (action === "Install from file") {
+      return installSemanticRuntimeFromFile(options);
+    }
+    throw error;
+  }
 
   try {
     return await installSemanticRuntimeZip(tmpZip, options);
@@ -157,7 +168,13 @@ async function installSemanticRuntimeZip(zipPath: string, options: SemanticRunti
 
   const manifestPath = path.join(destination, "manifest.json");
   const digest = await sha256File(zipPath);
-  await vscode.window.showInformationMessage(`Semantic runtime installed for ${target} (${digest.slice(0, 12)}...).`);
+  const action = await vscode.window.showInformationMessage(
+    `Semantic runtime installed for ${target} (${digest.slice(0, 12)}...). Reload the window before searching.`,
+    "Reload Window",
+  );
+  if (action === "Reload Window") {
+    await vscode.commands.executeCommand("workbench.action.reloadWindow");
+  }
   return manifestPath;
 }
 
@@ -268,4 +285,8 @@ async function downloadFile(url: string, destination: string, redirects = 0): Pr
 async function sha256File(filePath: string): Promise<string> {
   const data = await fs.readFile(filePath);
   return createHash("sha256").update(data).digest("hex");
+}
+
+function messageForError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

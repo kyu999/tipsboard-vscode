@@ -51,6 +51,8 @@ npm run prepare:semantic-pack -- --target linux-x64 --out tipsboard-semantic-run
 
 When semantic search is first used, Tipsboard can download the matching runtime pack from GitHub Releases or install a browser-downloaded zip via **Tipsboard: Install Semantic Runtime from File...**. Runtime packs are published for Windows x64, Linux x64, and Apple Silicon macOS. Set `ONNXRUNTIME_NODE_INSTALL=skip` in CI so Linux runtime packs do not include CUDA provider binaries.
 
+The regular CI workflow uploads runtime packs as GitHub Actions artifacts for testing. The automatic in-extension download uses GitHub Release assets, so publish a release or run **Release Assets** for an existing tag before expecting `releases/latest/download/tipsboard-semantic-runtime-<target>.zip` to work.
+
 `.vscodeignore` excludes `webview/`, `src/`, `out/`, `media/`, `docs/`, `docs_wiki/`, dev markdown, lockfiles, and test maps from the packaged VSIX.
 
 ## Spec
