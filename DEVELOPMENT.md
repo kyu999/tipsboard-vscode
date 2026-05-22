@@ -45,12 +45,11 @@ Semantic search uses separate runtime packs. CI uploads a small common VSIX plus
 ```bash
 npm run package -- --out tipsboard-vscode-<version>.vsix
 npm run prepare:semantic-pack -- --target win32-x64 --out tipsboard-semantic-runtime-win32-x64.zip
-npm run prepare:semantic-pack -- --target darwin-x64 --out tipsboard-semantic-runtime-darwin-x64.zip
 npm run prepare:semantic-pack -- --target darwin-arm64 --out tipsboard-semantic-runtime-darwin-arm64.zip
 npm run prepare:semantic-pack -- --target linux-x64 --out tipsboard-semantic-runtime-linux-x64.zip
 ```
 
-When semantic search is first used, Tipsboard can download the matching runtime pack from GitHub Releases or install a browser-downloaded zip via **Tipsboard: Install Semantic Runtime from File...**. Set `ONNXRUNTIME_NODE_INSTALL=skip` in CI so Linux runtime packs do not include CUDA provider binaries.
+When semantic search is first used, Tipsboard can download the matching runtime pack from GitHub Releases or install a browser-downloaded zip via **Tipsboard: Install Semantic Runtime from File...**. Runtime packs are published for Windows x64, Linux x64, and Apple Silicon macOS. Set `ONNXRUNTIME_NODE_INSTALL=skip` in CI so Linux runtime packs do not include CUDA provider binaries.
 
 `.vscodeignore` excludes `webview/`, `src/`, `out/`, `media/`, `docs/`, `docs_wiki/`, dev markdown, lockfiles, and test maps from the packaged VSIX.
 
