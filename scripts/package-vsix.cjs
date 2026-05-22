@@ -15,11 +15,12 @@ const root = path.resolve(__dirname, "..");
 const packageJsonPath = path.join(root, "package.json");
 const original = readFileSync(packageJsonPath, "utf8");
 
-function run(cmd, args) {
+function run(cmd, args, options = {}) {
   const result = spawnSync(cmd, args, {
     cwd: root,
     stdio: "inherit",
     shell: process.platform === "win32",
+    ...options,
   });
   if (result.error) {
     throw result.error;
@@ -30,10 +31,20 @@ function run(cmd, args) {
 }
 
 const vsceExtra = process.argv.slice(2);
+const targetFlagIndex = vsceExtra.indexOf("--target");
+const targetFromEquals = vsceExtra
+  .find((arg) => arg.startsWith("--target="))
+  ?.slice("--target=".length);
+const packageTarget =
+  process.env.TIPSBOARD_EXTENSION_TARGET ??
+  targetFromEquals ??
+  (targetFlagIndex >= 0 ? vsceExtra[targetFlagIndex + 1] : undefined);
 
 try {
   run("npm", ["run", "vscode:prepublish"], {
-    env: { ...process.env, TIPSBOARD_SKIP_SEMANTIC_COPY: "1" },
+    env: packageTarget
+      ? { ...process.env, TIPSBOARD_EXTENSION_TARGET: packageTarget }
+      : process.env,
   });
   const pkg = JSON.parse(original);
   delete pkg.scripts;
