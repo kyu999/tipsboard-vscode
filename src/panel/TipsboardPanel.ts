@@ -88,6 +88,15 @@ export class TipsboardPanel {
     return vscode.Uri.joinPath(this.context.globalStorageUri, "semantic-models").fsPath;
   }
 
+  semanticRuntimeStorageDir(): string {
+    return this.context.globalStorageUri.fsPath;
+  }
+
+  extensionVersion(): string {
+    const packageJson = this.context.extension.packageJSON as { version?: string };
+    return packageJson.version ?? "dev";
+  }
+
   extensionPath(): string {
     return this.context.extensionPath;
   }

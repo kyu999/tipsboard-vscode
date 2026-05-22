@@ -43,8 +43,8 @@ const packageTarget =
 try {
   run("npm", ["run", "vscode:prepublish"], {
     env: packageTarget
-      ? { ...process.env, TIPSBOARD_EXTENSION_TARGET: packageTarget }
-      : process.env,
+      ? { ...process.env, TIPSBOARD_EXTENSION_TARGET: packageTarget, TIPSBOARD_SKIP_SEMANTIC_COPY: "1" }
+      : { ...process.env, TIPSBOARD_SKIP_SEMANTIC_COPY: "1" },
   });
   const pkg = JSON.parse(original);
   delete pkg.scripts;

@@ -58,7 +58,9 @@
   "activationEvents": [
     "onCommand:tipsboard-vscode.open",
     "onCommand:tipsboard-vscode.newNote",
-    "onCommand:tipsboard-vscode.closeEditorTab"
+    "onCommand:tipsboard-vscode.closeEditorTab",
+    "onCommand:tipsboard-vscode.downloadSemanticRuntime",
+    "onCommand:tipsboard-vscode.installSemanticRuntime"
   ],
   "main": "./dist/extension/extension.js",
   "contributes": {
@@ -78,6 +80,14 @@
       {
         "command": "tipsboard-vscode.closeEditorTab",
         "title": "Tipsboard: Close active tab"
+      },
+      {
+        "command": "tipsboard-vscode.downloadSemanticRuntime",
+        "title": "Tipsboard: Download Semantic Runtime"
+      },
+      {
+        "command": "tipsboard-vscode.installSemanticRuntime",
+        "title": "Tipsboard: Install Semantic Runtime from File..."
       }
     ],
     "keybindings": [
@@ -119,9 +129,12 @@
         },
         "tipsboard-vscode.semanticSearch.provider": {
           "type": "string",
-          "enum": ["off", "bundled"],
+          "enum": [
+            "off",
+            "bundled"
+          ],
           "default": "bundled",
-          "markdownDescription": "Semantic search (meaning-based search from the wand button in the Tipsboard panel).\n\n- **bundled** (default): local Transformers.js runtime (shipped with the extension under `dist/extension/node_modules`).\n- **off**: disables semantic search.\n\nOptional `importedPath` overrides where `@huggingface/transformers` is resolved from.",
+          "markdownDescription": "Semantic search (meaning-based search from the wand button in the Tipsboard panel).\n\n- **bundled** (default): local Transformers.js runtime prepared in VS Code global storage. If missing, Tipsboard can download or install a runtime pack.\n- **off**: disables semantic search.\n\nOptional `importedPath` overrides where `@huggingface/transformers` is resolved from.",
           "description": "Semantic search on/off."
         },
         "tipsboard-vscode.semanticSearch.modelId": {
@@ -133,8 +146,14 @@
         "tipsboard-vscode.semanticSearch.importedPath": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Optional absolute path to a prepared semantic runtime folder (e.g. output of `npm run prepare:semantic-pack`). When set, it is used instead of the extension-bundled `node_modules`. Must contain `manifest.json` and `node_modules/@huggingface/transformers`.",
+          "markdownDescription": "Optional absolute path to a prepared semantic runtime folder (e.g. unzipped output of `npm run prepare:semantic-pack`). When set, it is used instead of the managed runtime in global storage. Must contain `manifest.json` and `node_modules/@huggingface/transformers`.",
           "description": "Local semantic search engine folder."
+        },
+        "tipsboard-vscode.semanticSearch.runtimeDownloadBaseUrl": {
+          "type": "string",
+          "default": "https://github.com/kyu999/tipsboard-vscode/releases/latest/download",
+          "markdownDescription": "Base URL used to download Tipsboard semantic runtime packs. The extension appends `tipsboard-semantic-runtime-<platform>-<arch>.zip`.",
+          "description": "Semantic runtime pack download base URL."
         }
       }
     }
@@ -156,6 +175,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
+    "@types/adm-zip": "^0.5.8",
     "@types/jsdom": "^21.1.7",
     "@types/node": "^20.17.14",
     "@types/vscode": "^1.85.0",
@@ -168,5 +188,8 @@
   "private": true,
   "optionalDependencies": {
     "@huggingface/transformers": "^4.2.0"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.17"
   }
 }

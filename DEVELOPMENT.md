@@ -38,15 +38,19 @@ Open this folder in VS Code and use **Run Tipsboard Extension** (F5), or run **T
 npm run package
 ```
 
-`npm run package` runs `vscode:prepublish`, then writes a trimmed `package.json` (no `scripts` / `devDependencies` / `private`) only for `vsce package`, so the `.vsix` does not advertise the toolchain. The working copy is restored afterward.
+`npm run package` runs `vscode:prepublish` without bundling the semantic runtime, then writes a trimmed `package.json` (no `scripts` / `devDependencies` / `private`) only for `vsce package`, so the `.vsix` does not advertise the toolchain. The working copy is restored afterward.
 
-CI packages platform-specific x64 VSIX artifacts on the matching GitHub-hosted runners:
+Semantic search uses separate runtime packs. CI uploads a small common VSIX plus platform-specific runtime zip artifacts:
 
 ```bash
-npm run package -- --target win32-x64 --out tipsboard-vscode-<version>-win32-x64.vsix
-npm run package -- --target darwin-x64 --out tipsboard-vscode-<version>-darwin-x64.vsix
-npm run package -- --target linux-x64 --out tipsboard-vscode-<version>-linux-x64.vsix
+npm run package -- --out tipsboard-vscode-<version>.vsix
+npm run prepare:semantic-pack -- --target win32-x64 --out tipsboard-semantic-runtime-win32-x64.zip
+npm run prepare:semantic-pack -- --target darwin-x64 --out tipsboard-semantic-runtime-darwin-x64.zip
+npm run prepare:semantic-pack -- --target darwin-arm64 --out tipsboard-semantic-runtime-darwin-arm64.zip
+npm run prepare:semantic-pack -- --target linux-x64 --out tipsboard-semantic-runtime-linux-x64.zip
 ```
+
+When semantic search is first used, Tipsboard can download the matching runtime pack from GitHub Releases or install a browser-downloaded zip via **Tipsboard: Install Semantic Runtime from File...**. Set `ONNXRUNTIME_NODE_INSTALL=skip` in CI so Linux runtime packs do not include CUDA provider binaries.
 
 `.vscodeignore` excludes `webview/`, `src/`, `out/`, `media/`, `docs/`, `docs_wiki/`, dev markdown, lockfiles, and test maps from the packaged VSIX.
 

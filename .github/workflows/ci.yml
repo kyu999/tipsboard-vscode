@@ -10,8 +10,57 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Test, build, and package VSIX (${{ matrix.target }})
+  package-vsix:
+    name: Test, build, and package VSIX
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            webview/package-lock.json
+
+      - name: Install dependencies
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
+        run: |
+          npm ci
+          npm ci --prefix webview
+
+      - name: Test
+        run: npm test
+
+      - name: Read extension version
+        id: version
+        run: |
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Package VSIX
+        run: |
+          npm run package -- --out tipsboard-vscode-${{ steps.version.outputs.version }}.vsix
+
+      - name: Upload VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: tipsboard-vscode-${{ steps.version.outputs.version }}
+          path: tipsboard-vscode-${{ steps.version.outputs.version }}.vsix
+          if-no-files-found: error
+          retention-days: 90
+
+  semantic-runtime:
+    name: Build semantic runtime (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -23,6 +72,8 @@ jobs:
             target: win32-x64
           - os: macos-13
             target: darwin-x64
+          - os: macos-14
+            target: darwin-arm64
           - os: ubuntu-latest
             target: linux-x64
     defaults:
@@ -43,26 +94,18 @@ jobs:
             webview/package-lock.json
 
       - name: Install dependencies
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
+        run: npm ci
+
+      - name: Build semantic runtime pack
         run: |
-          npm ci
-          npm ci --prefix webview
+          npm run prepare:semantic-pack -- --target ${{ matrix.target }} --out tipsboard-semantic-runtime-${{ matrix.target }}.zip
 
-      - name: Test
-        run: npm test
-
-      - name: Read extension version
-        id: version
-        run: |
-          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
-
-      - name: Package VSIX
-        run: |
-          npm run package -- --target ${{ matrix.target }} --out tipsboard-vscode-${{ steps.version.outputs.version }}-${{ matrix.target }}.vsix
-
-      - name: Upload VSIX
+      - name: Upload semantic runtime
         uses: actions/upload-artifact@v4
         with:
-          name: tipsboard-vscode-${{ steps.version.outputs.version }}-${{ matrix.target }}
-          path: tipsboard-vscode-${{ steps.version.outputs.version }}-${{ matrix.target }}.vsix
+          name: tipsboard-semantic-runtime-${{ matrix.target }}
+          path: tipsboard-semantic-runtime-${{ matrix.target }}.zip
           if-no-files-found: error
           retention-days: 90

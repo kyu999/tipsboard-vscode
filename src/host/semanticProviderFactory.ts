@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { createTransformersEmbeddingProvider, type EmbeddingProvider } from "./semantic.js";
+import { ensureSemanticRuntime } from "./semanticRuntime.js";
 import { readSemanticSettings } from "./semanticSettings.js";
 
 const providerCache = new Map<string, EmbeddingProvider>();
@@ -13,6 +14,8 @@ export function clearSemanticProviderCache(): void {
 export async function createSemanticProviderForExtension(options: {
   cacheDir: string;
   extensionPath: string;
+  extensionVersion: string;
+  globalStoragePath: string;
 }): Promise<EmbeddingProvider> {
   const settings = readSemanticSettings();
   if (settings.provider === "off") {
@@ -21,7 +24,7 @@ export async function createSemanticProviderForExtension(options: {
 
   const resolverBasePath = settings.importedPath
     ? await semanticPackResolverBasePath(settings.importedPath)
-    : await bundledResolverBasePath(options.extensionPath);
+    : await semanticRuntimeResolverBasePath(options, settings.runtimeDownloadBaseUrl);
 
   const cacheKey = `${resolverBasePath}\0${options.cacheDir}\0${settings.modelId}`;
   let provider = providerCache.get(cacheKey);
@@ -51,6 +54,25 @@ async function bundledResolverBasePath(extensionPath: string): Promise<string> {
     );
   }
   return entryPath;
+}
+
+async function semanticRuntimeResolverBasePath(
+  options: {
+    extensionPath: string;
+    extensionVersion: string;
+    globalStoragePath: string;
+  },
+  runtimeDownloadBaseUrl: string,
+): Promise<string> {
+  try {
+    return await bundledResolverBasePath(options.extensionPath);
+  } catch {
+    return ensureSemanticRuntime({
+      extensionVersion: options.extensionVersion,
+      globalStoragePath: options.globalStoragePath,
+      runtimeDownloadBaseUrl,
+    });
+  }
 }
 
 async function semanticPackResolverBasePath(importedPath: string): Promise<string> {

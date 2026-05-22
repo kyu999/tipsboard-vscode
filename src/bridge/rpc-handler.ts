@@ -44,6 +44,8 @@ function semanticProviderFor(panel: TipsboardPanel) {
   return createSemanticProviderForExtension({
     cacheDir: panel.semanticModelCacheDir(),
     extensionPath: panel.extensionPath(),
+    extensionVersion: panel.extensionVersion(),
+    globalStoragePath: panel.semanticRuntimeStorageDir(),
   });
 }
 

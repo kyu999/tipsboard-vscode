@@ -102,6 +102,9 @@ function pruneOnnxRuntimeNode(target) {
     throw new Error(`onnxruntime-node does not include a native binding for ${target.label}`);
   }
 
+  removeIfExists(path.join(targetPlatformDir, target.arch, "libonnxruntime_providers_cuda.so"));
+  removeIfExists(path.join(targetPlatformDir, target.arch, "libonnxruntime_providers_shared.so"));
+  removeIfExists(path.join(targetPlatformDir, target.arch, "libonnxruntime_providers_tensorrt.so"));
   removeIfExists(path.join(destModules, "onnxruntime-node", "lib"));
   removeIfExists(path.join(destModules, "onnxruntime-node", "script"));
 }
