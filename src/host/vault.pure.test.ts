@@ -48,16 +48,17 @@ describe("vault pure helpers", () => {
   });
 
   describe("assertSafeRelativePath", () => {
-    it("accepts pages markdown paths", () => {
+    it("accepts workspace-relative markdown paths", () => {
       expect(() => assertSafeRelativePath("pages/Note.md")).not.toThrow();
       expect(() => assertSafeRelativePath("pages\\Note.md")).not.toThrow();
+      expect(() => assertSafeRelativePath("docs/auth/Note.md")).not.toThrow();
     });
 
-    it("rejects traversal and non-pages paths", () => {
-      expect(() => assertSafeRelativePath("")).toThrow("pages directory");
-      expect(() => assertSafeRelativePath("../pages/Evil.md")).toThrow("pages directory");
-      expect(() => assertSafeRelativePath("pages/sub/Note.md")).toThrow("pages directory");
-      expect(() => assertSafeRelativePath("assets/x.md")).toThrow("pages directory");
+    it("rejects traversal, non-markdown, and excluded paths", () => {
+      expect(() => assertSafeRelativePath("")).toThrow("workspace-relative Markdown");
+      expect(() => assertSafeRelativePath("../pages/Evil.md")).toThrow("workspace-relative Markdown");
+      expect(() => assertSafeRelativePath("assets/x.txt")).toThrow("Markdown files");
+      expect(() => assertSafeRelativePath(".tipsboard/x.md")).toThrow("excluded workspace directories");
     });
   });
 

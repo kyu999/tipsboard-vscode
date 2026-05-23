@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {
@@ -169,8 +169,8 @@
             "dense",
             "hybrid"
           ],
-          "default": "dense",
-          "markdownDescription": "Semantic search ranking mode. `dense` uses embedding similarity only. `hybrid` combines dense similarity with a local BM25 lexical score.",
+          "default": "hybrid",
+          "markdownDescription": "Semantic search ranking mode. `hybrid` combines dense similarity with a local BM25 lexical score and lightweight reranking. `dense` uses embedding similarity only before reranking.",
           "description": "Semantic search ranking mode."
         },
         "tipsboard-vscode.semanticSearch.denseWeight": {

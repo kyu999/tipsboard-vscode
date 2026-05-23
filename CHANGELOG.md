@@ -4,6 +4,21 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.2] - 2026-05-24
+
+### Added
+
+- **Semantic search reranking**: after dense / hybrid retrieval, results are re-scored with lightweight heuristics — title exact match, heading token overlap, phrase overlap, recency (`updatedAt`), and a same-note penalty so one note does not dominate the top hits with multiple chunks.
+- **`docs_wiki/WORKSPACE_KNOWLEDGE_MODEL.md`**: specification for treating the VS Code vault folder as a workspace knowledge layer while keeping the user’s existing folder hierarchy.
+
+### Changed
+
+- **Hierarchical workspace notes**: the vault is no longer limited to flat `pages/*.md`. Tipsboard recursively discovers Markdown under the vault root (for example `docs/auth/oauth.md`) and keeps that filesystem layout as the primary organization. `.tipsboard`, `.git`, `node_modules`, `dist`, `build`, and `out` are excluded from scan and watch paths.
+- **Semantic search and file watchers** use the same recursive scope; chunk embeddings include folder path context (for example `Path: docs > auth > oauth`).
+- **Link autocomplete** can match workspace-relative note paths in addition to titles and filenames.
+- **Default semantic search mode** is now `hybrid` (dense embedding similarity plus local BM25). Set `tipsboard-vscode.semanticSearch.mode` to `dense` for embedding-only retrieval before reranking.
+- **`docs_wiki/SEMANTIC_SEARCH.md`**: documents the reranking signals and hybrid default.
+
 ## [0.3.1] - 2026-05-23
 
 ### Added

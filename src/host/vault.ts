@@ -20,6 +20,9 @@ import {
 } from "./pins.js";
 
 const PAGES_PREFIX = "pages";
+const UNSORTED_PREFIX = "Unsorted";
+const TIPSBOARD_UNSORTED_PREFIX = "Tipsboard Unsorted";
+const EXCLUDED_MARKDOWN_DIRS = new Set([".tipsboard", ".git", "node_modules", "dist", "build", "out"]);
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -90,16 +93,30 @@ export function stemFromTitle(titleRaw: string): string {
   return s;
 }
 
+function normalizeSafeRelativeMarkdownPath(relativePath: string): string {
+  if (!relativePath) throw new Error("Note paths must be workspace-relative Markdown files");
+  if (path.isAbsolute(relativePath)) throw new Error("Note paths must be workspace-relative Markdown files");
+  const normalized = path.normalize(relativePath).replace(/\\/g, "/").replace(/^\.\//, "");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length === 0 || parts.some((part) => part === "." || part === "..")) {
+    throw new Error("Note paths must be workspace-relative Markdown files");
+  }
+  if (!normalized.toLowerCase().endsWith(".md")) {
+    throw new Error("Note paths must be Markdown files");
+  }
+  if (parts.some((part) => EXCLUDED_MARKDOWN_DIRS.has(part))) {
+    throw new Error("Note paths must not be inside excluded workspace directories");
+  }
+  return parts.join("/");
+}
+
 export function assertSafeRelativePath(relativePath: string): void {
-  if (!relativePath) throw new Error("Note paths must be inside pages directory");
-  if (path.isAbsolute(relativePath)) throw new Error("Note paths must be inside pages directory");
-  const normalized = path.normalize(relativePath);
-  if (normalized === ".." || normalized.startsWith(`..${path.sep}`)) {
-    throw new Error("Note paths must be inside pages directory");
-  }
-  if (!/^pages[/\\][^/\\]+\.md$/i.test(normalized.replace(/\\/g, "/"))) {
-    throw new Error("Note paths must be inside pages directory");
-  }
+  normalizeSafeRelativeMarkdownPath(relativePath);
+}
+
+export function isExcludedWorkspaceRelativePath(relativePath: string): boolean {
+  const normalized = relativePath.replace(/\\/g, "/").replace(/^\.\//, "");
+  return normalized.split("/").some((part) => EXCLUDED_MARKDOWN_DIRS.has(part));
 }
 
 async function enumerateMarkdownStemSet(pagesDir: string): Promise<Set<string>> {
@@ -148,15 +165,15 @@ export async function ensurePagesDir(vaultPath: string): Promise<string> {
 }
 
 async function statNote(vaultPath: string, relativePath: string): Promise<NoteSummary> {
-  assertSafeRelativePath(relativePath);
-  const abs = path.join(vaultPath, relativePath);
+  const safeRelativePath = normalizeSafeRelativeMarkdownPath(relativePath);
+  const abs = path.join(vaultPath, safeRelativePath);
   const raw = await fs.readFile(abs, "utf8");
   const stats = await fs.stat(abs);
   const title = extractTitle(raw);
   const normalizedTitle = normalizeTitle(title);
   return {
-    path: relativePath.replace(/\\/g, "/"),
-    filename: path.basename(relativePath),
+    path: safeRelativePath,
+    filename: path.basename(safeRelativePath),
     title,
     normalizedTitle,
     body: raw,
@@ -166,20 +183,33 @@ async function statNote(vaultPath: string, relativePath: string): Promise<NoteSu
   };
 }
 
-async function listNotePaths(pagesDir: string): Promise<string[]> {
-  let entries: import("node:fs").Dirent[] = [];
-  try {
-    entries = await fs.readdir(pagesDir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
+export async function listNotePaths(vaultPath: string): Promise<string[]> {
   const out: string[] = [];
-  for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    if (!entry.name.toLowerCase().endsWith(".md")) continue;
-    out.push(`${PAGES_PREFIX}/${entry.name}`);
+
+  async function walk(absDir: string, relDir: string): Promise<void> {
+    let entries: import("node:fs").Dirent[] = [];
+    try {
+      entries = await fs.readdir(absDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      const rel = relDir ? `${relDir}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        if (EXCLUDED_MARKDOWN_DIRS.has(entry.name)) continue;
+        await walk(path.join(absDir, entry.name), rel);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (!entry.name.toLowerCase().endsWith(".md")) continue;
+      if (isExcludedWorkspaceRelativePath(rel)) continue;
+      out.push(rel.replace(/\\/g, "/"));
+    }
   }
-  return out;
+
+  await walk(vaultPath, "");
+  return out.sort((a, b) => a.localeCompare(b));
 }
 
 export interface ExtractedVaultAttachmentLink {
@@ -303,11 +333,10 @@ export async function readVault(vaultPath: string | null): Promise<VaultSnapshot
     };
   }
 
-  await ensurePagesDir(vaultPath);
   const kanbanLoaded = await loadKanbanState(vaultPath);
   let pinsLoaded = await loadPinsState(vaultPath);
 
-  const relPathsRaw = await listNotePaths(path.join(vaultPath, PAGES_PREFIX));
+  const relPathsRaw = await listNotePaths(vaultPath);
   const notes: NoteSummary[] = [];
   for (const rp of relPathsRaw) {
     try {
@@ -352,8 +381,7 @@ export async function readVault(vaultPath: string | null): Promise<VaultSnapshot
  * Used to refresh the WebView attachment list after imports or saves without a full `readVault`.
  */
 export async function readVaultAttachmentSummaries(vaultPath: string): Promise<VaultAttachmentSummary[]> {
-  await ensurePagesDir(vaultPath);
-  const relPathsRaw = await listNotePaths(path.join(vaultPath, PAGES_PREFIX));
+  const relPathsRaw = await listNotePaths(vaultPath);
   const notes: NoteSummary[] = [];
   for (const rp of relPathsRaw) {
     try {
@@ -392,12 +420,38 @@ export async function setNotePinned(vaultPath: string, relativePath: string, pin
   await persistPinsForNote(vaultPath, relativePath, pinned);
 }
 
+async function pathExists(abs: string): Promise<boolean> {
+  return fs.access(abs).then(
+    () => true,
+    () => false,
+  );
+}
+
+async function resolveUnsortedDir(vaultPath: string): Promise<{ abs: string; rel: string }> {
+  const candidates = [UNSORTED_PREFIX, TIPSBOARD_UNSORTED_PREFIX];
+  for (let i = 2; i < 9999; i += 1) {
+    candidates.push(`${TIPSBOARD_UNSORTED_PREFIX} ${i}`);
+  }
+
+  for (const rel of candidates) {
+    const abs = path.join(vaultPath, rel);
+    const stats = await fs.stat(abs).catch(() => null);
+    if (!stats) {
+      await fs.mkdir(abs, { recursive: true });
+      return { abs, rel };
+    }
+    if (stats.isDirectory()) return { abs, rel };
+  }
+
+  throw new Error("Could not allocate an Unsorted folder");
+}
+
 export async function createNote(vaultPath: string, titleIn: string): Promise<NoteSummary> {
   const trimmed = titleIn.trim();
   const titleLine = trimmed || "Untitled";
-  const pagesDir = await ensurePagesDir(vaultPath);
-  const filename = await allocateUniqueFilename(pagesDir, titleLine);
-  const relative = `${PAGES_PREFIX}/${filename}`;
+  const unsortedDir = await resolveUnsortedDir(vaultPath);
+  const filename = await allocateUniqueFilename(unsortedDir.abs, titleLine);
+  const relative = `${unsortedDir.rel}/${filename}`;
   const body = `${titleLine}\n`;
   const abs = path.join(vaultPath, relative);
   await fs.writeFile(abs, body, "utf8");
@@ -406,10 +460,11 @@ export async function createNote(vaultPath: string, titleIn: string): Promise<No
 
 /** §8.2 — save and rename filename when title stem changes */
 export async function saveNote(vaultPath: string, relativePath: string, body: string): Promise<NoteSummary> {
-  assertSafeRelativePath(relativePath);
-  const pagesDir = await ensurePagesDir(vaultPath);
-  const currentBasename = path.basename(relativePath);
-  const currentStemOnly = path.basename(relativePath, ".md");
+  const safeRelativePath = normalizeSafeRelativeMarkdownPath(relativePath);
+  const containingDirRel = path.posix.dirname(safeRelativePath);
+  const containingDirFs = containingDirRel === "." ? vaultPath : path.join(vaultPath, containingDirRel);
+  const currentBasename = path.basename(safeRelativePath);
+  const currentStemOnly = path.basename(safeRelativePath, ".md");
 
   const desiredStem = stemFromTitle(extractTitle(body));
 
@@ -417,33 +472,32 @@ export async function saveNote(vaultPath: string, relativePath: string, body: st
     currentStemOnly.localeCompare(desiredStem, undefined, { sensitivity: "accent" }) !== 0;
 
   let targetBasename = currentBasename;
-  let finalRelative = relativePath.replace(/\\/g, "/");
+  let finalRelative = safeRelativePath;
 
   if (stemNamesDifferIgnoringCase) {
-    targetBasename = await allocateUniqueMarkdownBasename(pagesDir, desiredStem, currentBasename.toLowerCase());
-    const newRelative = `${PAGES_PREFIX}/${targetBasename}`;
+    targetBasename = await allocateUniqueMarkdownBasename(containingDirFs, desiredStem, currentBasename.toLowerCase());
+    const newRelative =
+      containingDirRel === "." ? targetBasename : path.posix.join(containingDirRel, targetBasename);
     finalRelative = newRelative.replace(/\\/g, "/");
 
-    const absOld = path.join(vaultPath, relativePath);
+    const absOld = path.join(vaultPath, safeRelativePath);
     const absNew = path.join(vaultPath, finalRelative);
 
-    const oldStillThere = await fs
-      .access(absOld)
-      .then(() => true)
-      .catch(() => false);
+    await fs.mkdir(path.dirname(absNew), { recursive: true });
+    const oldStillThere = await pathExists(absOld);
     if (oldStillThere) {
       await fs.rename(absOld, absNew);
     }
     /** §8.2: if source missing treat as recreate */
     else {
       await fs.writeFile(absNew, body, "utf8");
-      await patchKanbanNotePaths(vaultPath, relativePath.replace(/\\/g, "/"), finalRelative);
-      await patchPinsNotePaths(vaultPath, relativePath.replace(/\\/g, "/"), finalRelative);
+      await patchKanbanNotePaths(vaultPath, safeRelativePath, finalRelative);
+      await patchPinsNotePaths(vaultPath, safeRelativePath, finalRelative);
       return statNote(vaultPath, finalRelative);
     }
 
-    await patchKanbanNotePaths(vaultPath, relativePath.replace(/\\/g, "/"), finalRelative);
-    await patchPinsNotePaths(vaultPath, relativePath.replace(/\\/g, "/"), finalRelative);
+    await patchKanbanNotePaths(vaultPath, safeRelativePath, finalRelative);
+    await patchPinsNotePaths(vaultPath, safeRelativePath, finalRelative);
   }
 
   const abs = path.join(vaultPath, finalRelative);
@@ -453,16 +507,16 @@ export async function saveNote(vaultPath: string, relativePath: string, body: st
 }
 
 export async function deleteNote(vaultPath: string, relativePath: string): Promise<void> {
-  assertSafeRelativePath(relativePath);
-  const abs = path.join(vaultPath, relativePath);
+  const safeRelativePath = normalizeSafeRelativeMarkdownPath(relativePath);
+  const abs = path.join(vaultPath, safeRelativePath);
   await fs.unlink(abs).catch((e: NodeJS.ErrnoException) => {
     if (e.code !== "ENOENT") throw e;
   });
   const kanban = await loadKanbanState(vaultPath);
-  const nextKanban = cleanupKanbanAfterNoteDelete(kanban, relativePath.replace(/\\/g, "/"));
+  const nextKanban = cleanupKanbanAfterNoteDelete(kanban, safeRelativePath);
   await saveKanbanState(vaultPath, nextKanban);
   const pins = await loadPinsState(vaultPath);
-  await savePinsState(vaultPath, cleanupPinsAfterNoteDelete(pins, relativePath.replace(/\\/g, "/")));
+  await savePinsState(vaultPath, cleanupPinsAfterNoteDelete(pins, safeRelativePath));
 }
 
 const IMG_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
@@ -708,7 +762,7 @@ export async function importVaultJson(vaultPath: string, jsonPath: string): Prom
     throw new Error("Unsupported import file");
   }
 
-  const pagesDir = await ensurePagesDir(vaultPath);
+  const unsortedDir = await resolveUnsortedDir(vaultPath);
 
   for (const p of parsed.pages) {
     const page = p as {
@@ -734,8 +788,8 @@ export async function importVaultJson(vaultPath: string, jsonPath: string): Prom
     if (existing) {
       await saveNote(vaultPath, existing, body);
     } else {
-      const file = await allocateUniqueFilename(pagesDir, title);
-      const rel = `${PAGES_PREFIX}/${file}`;
+      const file = await allocateUniqueFilename(unsortedDir.abs, title);
+      const rel = `${unsortedDir.rel}/${file}`;
       await fs.writeFile(path.join(vaultPath, rel), body, "utf8");
     }
   }

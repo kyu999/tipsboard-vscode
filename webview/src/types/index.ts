@@ -117,6 +117,8 @@ export interface SemanticIndexSyncResult {
 export interface LinkSuggestion {
   title: string;
   filename: string;
+  path: string;
+  duplicateTitle: boolean;
 }
 
 export interface ExportPage {

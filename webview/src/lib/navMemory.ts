@@ -13,6 +13,7 @@ export interface NavMemory {
   openTabs: EditorTab[];
   activeTabId: string | null;
   query: string;
+  searchMode: "keyword" | "semantic";
   showSearchResults: boolean;
 }
 
@@ -29,6 +30,7 @@ export function navMemoryEqual(a: NavMemory, b: NavMemory): boolean {
     a.listSearchFilter === b.listSearchFilter &&
     a.activeTabId === b.activeTabId &&
     a.query === b.query &&
+    a.searchMode === b.searchMode &&
     a.showSearchResults === b.showSearchResults &&
     JSON.stringify(a.openTabs) === JSON.stringify(b.openTabs)
   );
@@ -44,6 +46,7 @@ export function cloneNavMemory(entry: NavMemory): NavMemory {
     openTabs: entry.openTabs.map((t) => ({ ...t })),
     activeTabId: entry.activeTabId,
     query: entry.query,
+    searchMode: entry.searchMode,
     showSearchResults: entry.showSearchResults,
   };
 }

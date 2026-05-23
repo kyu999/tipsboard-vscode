@@ -38,6 +38,8 @@ const ja = {
   },
   semanticSearch: {
     open: "セマンティック検索",
+    toggle: "セマンティック検索を切り替え",
+    toggleShort: "Semantic",
     title: "セマンティック検索",
     description: "キーワード一致ではなく、意味が近いメモの該当箇所を探します。初回はモデルの準備に時間がかかることがあります。",
     placeholder: "例: 古いAPIレスポンスを防ぐ",
@@ -56,6 +58,7 @@ const ja = {
     rebuildConfirmMessage: "vault 内の全チャンクを embedding し直します。差分更新より時間がかかります。",
     close: "閉じる",
     empty: "自然文で探したい内容を入力してください。",
+    runHint: "Enter で検索",
     noResults: "意味が近いメモは見つかりませんでした。",
     indexedChunks: "{{count}}個のチャンクを検索対象にしました",
   },
@@ -116,6 +119,8 @@ const ja = {
       rewriteInboundLinksMessage:
         "タイトルが「{{oldTitle}}」から「{{newTitle}}」に変わりました。{{count}}件のノートに、旧タイトルを指す内部リンク `[ … ]` があります。このまますべて新タイトル表記へ書き換えますか。",
       rewriteInboundLinksConfirm: "書き換える",
+      ambiguousLinkTitle: "リンク先を選択",
+      ambiguousLinkMessage: "「{{title}}」というタイトルのノートが複数あります。開くノートを選んでください。",
     },
   },
   kanban: {

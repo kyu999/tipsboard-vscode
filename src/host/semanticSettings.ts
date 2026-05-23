@@ -53,7 +53,7 @@ export function readSemanticSettings(): SemanticSettings {
   return {
     provider,
     modelId: normalizeSemanticModelId(config.get<string>("modelId", DEFAULT_SEMANTIC_MODEL_ID)),
-    mode: readSemanticSearchMode(config.get<string>("mode", "dense")),
+    mode: readSemanticSearchMode(config.get<string>("mode", "hybrid")),
     denseWeight: readWeight(config.get<number>("denseWeight", 0.75), 0.75),
     bm25Weight: readWeight(config.get<number>("bm25Weight", 0.25), 0.25),
     importedPath: normalizeOptionalAbsolutePath(config.get<string>("importedPath", "")),
@@ -70,7 +70,7 @@ export function resolveSemanticModelCacheDir(settings: SemanticSettings, default
 }
 
 function readSemanticSearchMode(raw: string): SemanticSearchMode {
-  return raw === "hybrid" ? "hybrid" : "dense";
+  return raw === "dense" ? "dense" : "hybrid";
 }
 
 function readWeight(raw: number, fallback: number): number {

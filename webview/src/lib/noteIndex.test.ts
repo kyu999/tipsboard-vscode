@@ -33,6 +33,54 @@ describe("noteIndex", () => {
       const titles = buildNoteIndex([z, a]).suggestions.map((s) => s.title);
       expect(titles).toEqual(["Amy", "Zed"]);
     });
+
+    it("keeps duplicate title candidates and links to all matching notes", () => {
+      const source = note({
+        path: "docs/source.md",
+        title: "Source",
+        body: "Source\n\n[Overview]\n",
+        normalizedTitle: "source",
+      });
+      const authOverview = note({
+        path: "docs/auth/overview.md",
+        title: "Overview",
+        body: "Overview\n",
+        normalizedTitle: "overview",
+      });
+      const apiOverview = note({
+        path: "docs/api/overview.md",
+        title: "Overview",
+        body: "Overview\n",
+        normalizedTitle: "overview",
+      });
+
+      const idx = buildNoteIndex([source, authOverview, apiOverview]);
+
+      expect(idx.byNormalizedTitle.get("overview")?.map((n) => n.path).sort()).toEqual([
+        "docs/api/overview.md",
+        "docs/auth/overview.md",
+      ]);
+      expect(idx.entries.get("docs/source.md")?.outgoing.map((n) => n.path).sort()).toEqual([
+        "docs/api/overview.md",
+        "docs/auth/overview.md",
+      ]);
+      expect(idx.entries.get("docs/auth/overview.md")?.backlinks.map((n) => n.path)).toEqual(["docs/source.md"]);
+      expect(idx.entries.get("docs/api/overview.md")?.backlinks.map((n) => n.path)).toEqual(["docs/source.md"]);
+      expect(idx.suggestions.filter((s) => s.title === "Overview")).toEqual([
+        {
+          title: "Overview",
+          filename: "x.md",
+          path: "docs/api/overview.md",
+          duplicateTitle: true,
+        },
+        {
+          title: "Overview",
+          filename: "x.md",
+          path: "docs/auth/overview.md",
+          duplicateTitle: true,
+        },
+      ]);
+    });
   });
 
   describe("searchNotes", () => {

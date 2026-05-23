@@ -3,14 +3,13 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 
-import { extractTitle } from "./vault.js";
+import { extractTitle, listNotePaths } from "./vault.js";
 import {
   applySemanticTransformersEnv,
   offlineSemanticModelHint,
   type TransformersEnvLike,
 } from "./semanticTransformersEnv.js";
 
-const PAGES_PREFIX = "pages";
 const SEMANTIC_DIR = ".tipsboard/semantic";
 const MANIFEST_FILE = "manifest.json";
 const CHUNKS_FILE = "chunks.json";
@@ -20,6 +19,14 @@ const DEFAULT_MODEL_ID = "Xenova/multilingual-e5-base";
 const TARGET_CHUNK_CHARS = 1600;
 const CHUNK_OVERLAP_CHARS = 200;
 const MAX_RESULTS = 20;
+const DEFAULT_SEARCH_MODE: SemanticSearchMode = "hybrid";
+const RERANK_BASE_WEIGHT = 0.75;
+const RERANK_FEATURE_WEIGHT = 0.25;
+const TITLE_EXACT_WEIGHT = 0.4;
+const HEADING_OVERLAP_WEIGHT = 0.25;
+const PHRASE_OVERLAP_WEIGHT = 0.25;
+const RECENCY_WEIGHT = 0.1;
+const SAME_NOTE_PENALTY = 0.08;
 /** Markdown headings treated as section boundaries (# through #####). */
 const MAX_HEADING_LEVEL = 5;
 
@@ -201,31 +208,31 @@ export async function semanticSearch(
     return { results: [], indexedChunkCount: index.chunks.length, modelId: provider.modelId };
   }
 
+  const mode = options.mode ?? DEFAULT_SEARCH_MODE;
   const queryLower = trimmed.toLocaleLowerCase();
   const denseScores = index.chunks.map((_, i) => cosineSimilarity(queryVector, index.vectors[i] ?? []));
-  const bm25Scores = options.mode === "hybrid" ? bm25ScoresForQuery(trimmed, index.chunks) : [];
+  const bm25Scores = mode === "hybrid" ? bm25ScoresForQuery(trimmed, index.chunks) : [];
   const normalizedDenseScores = normalizeScores(denseScores);
   const normalizedBm25Scores = normalizeScores(bm25Scores);
+  const recencyScores = recencyScoresForChunks(index.chunks);
   const denseWeight = clampWeight(options.denseWeight ?? 0.75);
   const bm25Weight = clampWeight(options.bm25Weight ?? 0.25);
   const scored = index.chunks.map((chunk, i) => {
     const semanticScore = denseScores[i] ?? 0;
     const denseRankScore = normalizedDenseScores[i] ?? 0;
     const bm25RankScore = normalizedBm25Scores[i] ?? 0;
-    const boost = titleHeadingBoost(chunk, queryLower);
-    const hybridScore = options.mode === "hybrid"
+    const searchScore = mode === "hybrid"
       ? denseRankScore * denseWeight + bm25RankScore * bm25Weight
       : semanticScore;
+    const rerankScore = rerankFeatureScore(chunk, trimmed, queryLower, recencyScores[i] ?? 0);
     return {
       chunk,
-      score: hybridScore * 0.85 + boost * 0.15,
+      score: searchScore * RERANK_BASE_WEIGHT + rerankScore * RERANK_FEATURE_WEIGHT,
     };
   });
 
   const limit = Math.max(1, Math.min(options.limit ?? MAX_RESULTS, 100));
-  const results = scored
-    .sort((a, b) => b.score - a.score || a.chunk.title.localeCompare(b.chunk.title))
-    .slice(0, limit)
+  const results = selectRerankedResults(scored, limit)
     .map(({ chunk, score }) => ({
       path: chunk.path,
       title: chunk.title,
@@ -382,12 +389,9 @@ export function cosineSimilarity(a: readonly number[], b: readonly number[]): nu
 }
 
 async function buildVaultChunks(vaultPath: string): Promise<SemanticChunk[]> {
-  const pagesDir = path.join(vaultPath, PAGES_PREFIX);
-  const entries = await fs.readdir(pagesDir, { withFileTypes: true }).catch(() => []);
+  const relativePaths = await listNotePaths(vaultPath);
   const notes: NoteForChunking[] = [];
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.toLocaleLowerCase().endsWith(".md")) continue;
-    const relativePath = `${PAGES_PREFIX}/${entry.name}`;
+  for (const relativePath of relativePaths) {
     const abs = path.join(vaultPath, relativePath);
     const [body, stats] = await Promise.all([
       fs.readFile(abs, "utf8"),
@@ -504,10 +508,16 @@ async function embedChunks(
 
 function textForEmbedding(chunk: SemanticChunk): string {
   return [
+    `Path: ${pathContextForEmbedding(chunk.path)}`,
     `Title: ${chunk.title}`,
     chunk.headings.length > 0 ? `Headings: ${chunk.headings.join(" > ")}` : "",
     chunk.content,
   ].filter(Boolean).join("\n\n");
+}
+
+function pathContextForEmbedding(relativePath: string): string {
+  const withoutExt = relativePath.replace(/\.md$/i, "");
+  return withoutExt.split(/[\\/]+/).filter(Boolean).join(" > ");
 }
 
 interface EmbeddingModelProfile {
@@ -602,18 +612,133 @@ function normalizeScores(scores: number[]): number[] {
   return scores.map((score) => (score - min) / (max - min));
 }
 
+function recencyScoresForChunks(chunks: SemanticChunk[]): number[] {
+  return normalizeScores(chunks.map((chunk) => chunk.updatedAt));
+}
+
 function clampWeight(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, value));
 }
 
-function titleHeadingBoost(chunk: SemanticChunk, queryLower: string): number {
+interface ScoredSemanticChunk {
+  chunk: SemanticChunk;
+  score: number;
+}
+
+function selectRerankedResults(scored: ScoredSemanticChunk[], limit: number): ScoredSemanticChunk[] {
+  const remaining = [...scored].sort(compareScoredChunks);
+  const selected: ScoredSemanticChunk[] = [];
+  const selectedCountByPath = new Map<string, number>();
+
+  while (remaining.length > 0 && selected.length < limit) {
+    let bestIndex = 0;
+    let bestAdjustedScore = adjustedScore(remaining[0]!, selectedCountByPath);
+    for (let i = 1; i < remaining.length; i += 1) {
+      const candidate = remaining[i]!;
+      const candidateAdjustedScore = adjustedScore(candidate, selectedCountByPath);
+      if (compareAdjustedCandidate(candidateAdjustedScore, candidate, bestAdjustedScore, remaining[bestIndex]!) < 0) {
+        bestIndex = i;
+        bestAdjustedScore = candidateAdjustedScore;
+      }
+    }
+
+    const [picked] = remaining.splice(bestIndex, 1);
+    if (!picked) break;
+    selected.push({ chunk: picked.chunk, score: bestAdjustedScore });
+    selectedCountByPath.set(picked.chunk.path, (selectedCountByPath.get(picked.chunk.path) ?? 0) + 1);
+  }
+
+  return selected;
+}
+
+function adjustedScore(candidate: ScoredSemanticChunk, selectedCountByPath: Map<string, number>): number {
+  return candidate.score - (selectedCountByPath.get(candidate.chunk.path) ?? 0) * SAME_NOTE_PENALTY;
+}
+
+function compareScoredChunks(a: ScoredSemanticChunk, b: ScoredSemanticChunk): number {
+  return (
+    b.score - a.score ||
+    a.chunk.title.localeCompare(b.chunk.title) ||
+    a.chunk.path.localeCompare(b.chunk.path) ||
+    a.chunk.chunkIndex - b.chunk.chunkIndex
+  );
+}
+
+function compareAdjustedCandidate(
+  aAdjustedScore: number,
+  a: ScoredSemanticChunk,
+  bAdjustedScore: number,
+  b: ScoredSemanticChunk,
+): number {
+  return (
+    bAdjustedScore - aAdjustedScore ||
+    b.score - a.score ||
+    a.chunk.title.localeCompare(b.chunk.title) ||
+    a.chunk.path.localeCompare(b.chunk.path) ||
+    a.chunk.chunkIndex - b.chunk.chunkIndex
+  );
+}
+
+function rerankFeatureScore(
+  chunk: SemanticChunk,
+  query: string,
+  queryLower: string,
+  recencyScore: number,
+): number {
   if (!queryLower) return 0;
-  const title = chunk.title.toLocaleLowerCase();
-  const heading = chunk.heading.toLocaleLowerCase();
-  if (title.includes(queryLower)) return 1;
-  if (heading.includes(queryLower)) return 0.75;
-  return 0;
+  const titleExact = normalizeForTextMatch(chunk.title) === normalizeForTextMatch(query) ? 1 : 0;
+  const headingOverlap = tokenOverlapScore(query, chunk.headings.join(" "));
+  const phraseOverlap = phraseOverlapScore(query, [chunk.title, chunk.heading, chunk.content].join("\n"));
+  return (
+    titleExact * TITLE_EXACT_WEIGHT +
+    headingOverlap * HEADING_OVERLAP_WEIGHT +
+    phraseOverlap * PHRASE_OVERLAP_WEIGHT +
+    recencyScore * RECENCY_WEIGHT
+  );
+}
+
+function tokenOverlapScore(query: string, text: string): number {
+  const queryTerms = new Set(tokenizeForBm25(query));
+  if (queryTerms.size === 0) return 0;
+  const textTerms = new Set(tokenizeForBm25(text));
+  let overlap = 0;
+  for (const term of queryTerms) {
+    if (textTerms.has(term)) overlap += 1;
+  }
+  return overlap / queryTerms.size;
+}
+
+function phraseOverlapScore(query: string, text: string): number {
+  const normalizedQuery = normalizeForTextMatch(query);
+  const normalizedText = normalizeForTextMatch(text);
+  if (!normalizedQuery || !normalizedText) return 0;
+  if (normalizedText.includes(normalizedQuery)) return 1;
+
+  const phraseUnits = phraseUnitsForOverlap(normalizedQuery);
+  if (phraseUnits.length === 0) return 0;
+  const matched = phraseUnits.filter((unit) => normalizedText.includes(unit)).length;
+  return matched / phraseUnits.length;
+}
+
+function phraseUnitsForOverlap(normalizedQuery: string): string[] {
+  const units: string[] = [];
+  const words = normalizedQuery.match(/[a-z0-9._-]+|[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]+/gu) ?? [];
+  for (let i = 0; i < words.length - 1; i += 1) {
+    units.push(`${words[i]} ${words[i + 1]}`);
+  }
+  for (const word of words) {
+    if (/^[a-z0-9._-]+$/.test(word)) continue;
+    const chars = Array.from(word);
+    for (let i = 0; i < chars.length - 1; i += 1) {
+      units.push(`${chars[i]}${chars[i + 1]}`);
+    }
+  }
+  return units;
+}
+
+function normalizeForTextMatch(text: string): string {
+  return text.toLocaleLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function buildSnippet(content: string): string {

@@ -97,7 +97,39 @@ describe("semantic host helpers", () => {
     await expect(fs.stat(path.join(vaultPath, ".tipsboard", "semantic", "vectors.f32"))).resolves.toBeTruthy();
   });
 
-  it("can blend BM25 lexical ranking with dense similarity", async () => {
+  it("recursively indexes workspace markdown and includes path context in document embeddings", async () => {
+    const embeddedDocuments: string[] = [];
+    const provider: EmbeddingProvider = {
+      modelId: "capture-embedding",
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map(() => [1, 0]);
+      },
+      async embedDocuments(texts: string[]): Promise<number[][]> {
+        embeddedDocuments.push(...texts);
+        return texts.map(() => [1, 0]);
+      },
+      async embedQuery(): Promise<number[]> {
+        return [1, 0];
+      },
+    };
+    const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), "tipsboard-semantic-path-"));
+    await fs.mkdir(path.join(vaultPath, "docs", "auth"), { recursive: true });
+    await fs.mkdir(path.join(vaultPath, ".tipsboard"), { recursive: true });
+    await fs.writeFile(
+      path.join(vaultPath, "docs", "auth", "oauth.md"),
+      ["OAuth", "", "Token exchange notes"].join("\n"),
+      "utf8",
+    );
+    await fs.writeFile(path.join(vaultPath, ".tipsboard", "ignored.md"), "Ignored\n", "utf8");
+
+    const response = await semanticSearch(vaultPath, "oauth", provider);
+
+    expect(response.results.map((result) => result.path)).toEqual(["docs/auth/oauth.md"]);
+    expect(embeddedDocuments.some((text) => text.includes("Path: docs > auth > oauth"))).toBe(true);
+    expect(embeddedDocuments.every((text) => !text.includes("Ignored"))).toBe(true);
+  });
+
+  it("uses hybrid lexical ranking by default", async () => {
     const flatProvider: EmbeddingProvider = {
       modelId: "flat-embedding",
       async embed(texts: string[]): Promise<number[][]> {
@@ -117,12 +149,89 @@ describe("semantic host helpers", () => {
       "utf8",
     );
 
-    const response = await semanticSearch(vaultPath, "OpenTelemetry", flatProvider, {
-      mode: "hybrid",
-      denseWeight: 0,
-      bm25Weight: 1,
-    });
+    const response = await semanticSearch(vaultPath, "OpenTelemetry", flatProvider);
 
     expect(response.results[0]?.path).toBe("pages/otel.md");
+  });
+
+  it("reranks exact title matches above body-only phrase matches", async () => {
+    const flatProvider: EmbeddingProvider = {
+      modelId: "flat-embedding",
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map(() => [1, 0]);
+      },
+    };
+    const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), "tipsboard-semantic-rerank-title-"));
+    await fs.mkdir(path.join(vaultPath, "pages"), { recursive: true });
+    await fs.writeFile(
+      path.join(vaultPath, "pages", "title.md"),
+      ["OpenTelemetry", "", "Short note."].join("\n"),
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(vaultPath, "pages", "body.md"),
+      ["Tracing Notes", "", "OpenTelemetry appears in this body text."].join("\n"),
+      "utf8",
+    );
+
+    const response = await semanticSearch(vaultPath, "OpenTelemetry", flatProvider, {
+      denseWeight: 0,
+      bm25Weight: 0,
+    });
+
+    expect(response.results[0]?.path).toBe("pages/title.md");
+  });
+
+  it("penalizes repeated chunks from the same note during reranking", async () => {
+    const flatProvider: EmbeddingProvider = {
+      modelId: "flat-embedding",
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map(() => [1, 0]);
+      },
+    };
+    const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), "tipsboard-semantic-rerank-note-"));
+    await fs.mkdir(path.join(vaultPath, "pages"), { recursive: true });
+    await fs.writeFile(
+      path.join(vaultPath, "pages", "alpha.md"),
+      ["Alpha", "", "## Cache One", "cache", "", "## Cache Two", "cache"].join("\n"),
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(vaultPath, "pages", "beta.md"),
+      ["Beta", "", "## Cache Alternative", "cache"].join("\n"),
+      "utf8",
+    );
+
+    const response = await semanticSearch(vaultPath, "cache", flatProvider, {
+      limit: 2,
+      denseWeight: 0,
+      bm25Weight: 0,
+    });
+
+    expect(new Set(response.results.map((result) => result.path))).toEqual(new Set(["pages/alpha.md", "pages/beta.md"]));
+  });
+
+  it("uses recency as a lightweight reranking signal", async () => {
+    const flatProvider: EmbeddingProvider = {
+      modelId: "flat-embedding",
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map(() => [1, 0]);
+      },
+    };
+    const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), "tipsboard-semantic-rerank-recency-"));
+    await fs.mkdir(path.join(vaultPath, "pages"), { recursive: true });
+    const oldPath = path.join(vaultPath, "pages", "old.md");
+    const newPath = path.join(vaultPath, "pages", "new.md");
+    await fs.writeFile(oldPath, ["Old", "", "General note."].join("\n"), "utf8");
+    await fs.writeFile(newPath, ["New", "", "General note."].join("\n"), "utf8");
+    await fs.utimes(oldPath, new Date("2024-01-01T00:00:00Z"), new Date("2024-01-01T00:00:00Z"));
+    await fs.utimes(newPath, new Date("2025-01-01T00:00:00Z"), new Date("2025-01-01T00:00:00Z"));
+
+    const response = await semanticSearch(vaultPath, "unmatched", flatProvider, {
+      denseWeight: 0,
+      bm25Weight: 0,
+    });
+
+    expect(response.results[0]?.path).toBe("pages/new.md");
   });
 });

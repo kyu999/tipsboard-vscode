@@ -36,7 +36,7 @@ Everything stays compatible with your existing Markdown workflow and works natur
 
 ### Connected Markdown Notes
 
-Create notes inside `pages/*.md` and connect them with wiki-style links.
+Use ordinary Markdown files anywhere under your vault folder and connect them with wiki-style links. Tipsboard preserves your existing folder hierarchy instead of moving everything into a single notes directory.
 
 ```md
 [Project Ideas]
@@ -105,10 +105,13 @@ Search runs locally by default. The generated index is stored under `.tipsboard/
 
 ![Vault Structure](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/vault-structure.png)
 
-Tipsboard stores notes as ordinary Markdown files on disk.
+Tipsboard stores notes as ordinary Markdown files on disk. The folder you open in VS Code is the vault root, and Markdown files under that folder are treated as notes.
 
 ```txt
-pages/*.md
+docs/auth/oauth.md
+adr/0001-record-architecture-decisions.md
+meeting-notes/weekly.md
+Unsorted/New Idea.md
 assets/images/*
 assets/files/*
 .tipsboard/kanban.json
@@ -126,7 +129,7 @@ Works naturally with:
 
 No lock-in or proprietary storage format.
 
-While the Tipsboard panel is open, changes made **outside** Tipsboard (another editor, Git, or a sync tool) to `pages/*.md`, `.tipsboard/kanban.json`, or `.tipsboard/pins.json` are picked up automatically: the panel refreshes from disk when you have **no unsaved edits** in the Tipsboard editor. If you do have unsaved edits, a notice appears with **Reload**; choosing it asks to discard unsaved changes, then reloads.
+While the Tipsboard panel is open, changes made **outside** Tipsboard (another editor, Git, or a sync tool) to Markdown files under the vault, `.tipsboard/kanban.json`, or `.tipsboard/pins.json` are picked up automatically. The panel refreshes from disk when you have **no unsaved edits** in the Tipsboard editor. If you do have unsaved edits, a notice appears with **Reload**; choosing it asks to discard unsaved changes, then reloads.
 
 ---
 
@@ -230,12 +233,15 @@ To use a different folder as your vault, run:
 Tipsboard: Select Vault Folder...
 ```
 
+Existing Markdown files can live in nested folders such as `docs/`, `adr/`, or `meeting-notes/`. New notes created from Tipsboard are saved to `Unsorted/` at the vault root first, so you can file them into the right folder later.
+
 ---
 
 ## Vault Structure
 
 ```txt
-pages/*.md
+<vault root>/**/*.md
+Unsorted/*.md
 assets/images/*
 assets/files/*
 .tipsboard/kanban.json
@@ -245,12 +251,15 @@ assets/files/*
 
 | Path | Purpose |
 |---|---|
-| `pages/*.md` | Markdown notes |
+| `<vault root>/**/*.md` | Markdown notes, including nested folders such as `docs/auth/oauth.md` |
+| `Unsorted/*.md` | Default inbox for notes created from Tipsboard |
 | `assets/images/*` | Embedded images |
 | `assets/files/*` | Attached files (linked from Markdown) |
 | `.tipsboard/kanban.json` | Kanban board state |
 | `.tipsboard/pins.json` | Pinned note order for the card grid |
 | `.tipsboard/semantic/` | Local semantic search index (created when you use semantic search) |
+
+Tipsboard ignores Markdown inside `.tipsboard/`, `.git/`, `node_modules/`, `dist/`, `build/`, and `out/`. If `Unsorted/` is not available as a directory, Tipsboard falls back to `Tipsboard Unsorted/`, then `Tipsboard Unsorted 2/`, and so on.
 
 ---
 
@@ -293,7 +302,7 @@ Commands such as **Tipsboard: New Note** remain available regardless of conflict
 | `tipsboard-vscode.maxAttachmentBytes` | Maximum size in bytes per Shift+drag attachment (images and other files); default 10485760 (10 MiB) |
 | `tipsboard-vscode.semanticSearch.provider` | `bundled` (default) enables local semantic search; `off` disables it |
 | `tipsboard-vscode.semanticSearch.modelId` | Hugging Face model id for embeddings; default is `Xenova/multilingual-e5-base` |
-| `tipsboard-vscode.semanticSearch.mode` | Ranking mode: `dense` or `hybrid` |
+| `tipsboard-vscode.semanticSearch.mode` | Ranking mode: `hybrid` (default) or `dense` |
 | `tipsboard-vscode.semanticSearch.allowRemoteModels` | Allow missing embedding model weights to download from Hugging Face Hub |
 | `tipsboard-vscode.semanticSearch.modelCachePath` | Optional Transformers.js model cache folder |
 | `tipsboard-vscode.semanticSearch.importedPath` | Optional absolute path to a custom semantic runtime folder instead of the managed runtime |
@@ -307,7 +316,7 @@ Semantic search is optional and local-first. With the default provider (`bundled
 
 For closed networks, install the semantic runtime from a prepared zip or point `tipsboard-vscode.semanticSearch.importedPath` at a prepared runtime folder. Then set `tipsboard-vscode.semanticSearch.allowRemoteModels` to `false` and set `tipsboard-vscode.semanticSearch.modelCachePath` to a prebuilt `semantic-model-cache` folder. The command **Tipsboard: Reveal Semantic Model Cache** opens the cache location currently used by the extension.
 
-Use `tipsboard-vscode.semanticSearch.provider = off` to disable semantic search entirely.
+Semantic search indexes Markdown recursively under the vault root and includes folder path context in embeddings. Results are ranked with hybrid dense/BM25 search by default, then lightly reranked using title exact match, heading overlap, phrase overlap, recency, and same-note diversity. Use `tipsboard-vscode.semanticSearch.provider = off` to disable semantic search entirely.
 
 ---
 

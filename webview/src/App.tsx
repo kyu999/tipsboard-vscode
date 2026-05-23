@@ -56,6 +56,14 @@ interface ConfirmDialogState {
   onConfirm?: () => void | Promise<void>;
 }
 
+interface AmbiguousLinkState {
+  title: string;
+  candidates: NoteSummary[];
+  openInNewTab: boolean;
+}
+
+type SearchMode = "keyword" | "semantic";
+
 function normalizeVaultNotePath(notePath: string): string {
   return notePath.replace(/\\/g, "/");
 }
@@ -92,13 +100,13 @@ export function App() {
   }>({ boardId: null, columnId: null, notePath: null });
   const [editorSessionId, setEditorSessionId] = useState(0);
   const [query, setQuery] = useState("");
+  const [searchMode, setSearchMode] = useState<SearchMode>("keyword");
   const [listSearchFilter, setListSearchFilter] = useState<string | null>(null);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [semanticSearchOpen, setSemanticSearchOpen] = useState(false);
-  const [semanticQuery, setSemanticQuery] = useState("");
   const [semanticResults, setSemanticResults] = useState<SemanticSearchResult[]>([]);
   const [semanticSearchBusy, setSemanticSearchBusy] = useState(false);
   const [semanticSearchError, setSemanticSearchError] = useState<string | null>(null);
+  const [semanticSearchSubmitted, setSemanticSearchSubmitted] = useState(false);
   const [semanticIndexedChunkCount, setSemanticIndexedChunkCount] = useState<number | null>(null);
   const [semanticIndexProgress, setSemanticIndexProgress] = useState<SemanticIndexProgress | null>(null);
   const [semanticIndexMaintBusy, setSemanticIndexMaintBusy] = useState(false);
@@ -112,6 +120,7 @@ export function App() {
   const [localMenuOpen, setLocalMenuOpen] = useState(false);
   const [userGuideOpen, setUserGuideOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const [ambiguousLink, setAmbiguousLink] = useState<AmbiguousLinkState | null>(null);
   const noteViewScrollContainerRef = useRef<HTMLElement | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const listContentRef = useRef<HTMLDivElement>(null);
@@ -225,6 +234,7 @@ export function App() {
         setShowSearchResults(false);
       } else if (at?.kind === "tag") {
         setSelectedPath(null);
+        setSearchMode("keyword");
         setQuery(`#${at.tag}`);
         setListSearchFilter(null);
         setShowSearchResults(true);
@@ -304,6 +314,14 @@ export function App() {
     [selectedPath, snapshot.notes],
   );
   const selectedEntry = selectedNote ? index.entries.get(selectedNote.path) : null;
+  const duplicateTitlePathSet = useMemo(() => {
+    const paths = new Set<string>();
+    for (const candidates of index.byNormalizedTitle.values()) {
+      if (candidates.length <= 1) continue;
+      for (const note of candidates) paths.add(note.path);
+    }
+    return paths;
+  }, [index.byNormalizedTitle]);
   const noteTagsByPath = useMemo(() => {
     return new Map([...index.entries.entries()].map(([path, entry]) => [path, entry.tags]));
   }, [index.entries]);
@@ -318,8 +336,8 @@ export function App() {
     });
   }, [selectedNote, snapshot.kanban.boards]);
   const searchResults = useMemo(
-    () => query.trim() ? searchNotes(snapshot.notes, query) : [],
-    [query, snapshot.notes],
+    () => searchMode === "keyword" && query.trim() ? searchNotes(snapshot.notes, query) : [],
+    [query, searchMode, snapshot.notes],
   );
   const listDisplayNotes = useMemo(() => {
     const subset = listSearchFilter ? searchNotes(snapshot.notes, listSearchFilter) : snapshot.notes;
@@ -365,6 +383,7 @@ export function App() {
     openTabs: [],
     activeTabId: null,
     query: "",
+    searchMode: "keyword",
     showSearchResults: false,
   });
 
@@ -378,9 +397,21 @@ export function App() {
       openTabs,
       activeTabId,
       query,
+      searchMode,
       showSearchResults,
     };
-  }, [selectedPath, viewMode, kanbanFocus, userGuideOpen, listSearchFilter, openTabs, activeTabId, query, showSearchResults]);
+  }, [
+    selectedPath,
+    viewMode,
+    kanbanFocus,
+    userGuideOpen,
+    listSearchFilter,
+    openTabs,
+    activeTabId,
+    query,
+    searchMode,
+    showSearchResults,
+  ]);
 
   function pushNavHistory() {
     if (applyingNavHistoryRef.current) return;
@@ -458,14 +489,17 @@ export function App() {
   );
 
   const runSemanticSearch = useCallback(async () => {
-    const trimmed = semanticQuery.trim();
+    const trimmed = query.trim();
     if (!trimmed) {
       setSemanticResults([]);
       setSemanticSearchError(null);
+      setSemanticSearchSubmitted(false);
       return;
     }
+    setShowSearchResults(true);
     setSemanticSearchBusy(true);
     setSemanticSearchError(null);
+    setSemanticSearchSubmitted(true);
     setSemanticIndexProgress(null);
     try {
       const response = await window.tipsboardDesktop.semanticSearch(trimmed, 20, setSemanticIndexProgress);
@@ -478,7 +512,7 @@ export function App() {
       setSemanticSearchBusy(false);
       setSemanticIndexProgress(null);
     }
-  }, [semanticQuery]);
+  }, [query]);
 
   const runSemanticIndexUpdate = useCallback(async () => {
     setSemanticIndexMaintBusy(true);
@@ -550,6 +584,7 @@ export function App() {
         setShowSearchResults(false);
       } else {
         setSelectedPath(null);
+        setSearchMode("keyword");
         setQuery(`#${target.tag}`);
         setListSearchFilter(null);
         setUserGuideOpen(false);
@@ -579,6 +614,7 @@ export function App() {
         setShowSearchResults(false);
       } else if (na?.kind === "tag") {
         setSelectedPath(null);
+        setSearchMode("keyword");
         setQuery(`#${na.tag}`);
         setListSearchFilter(null);
         setSaveState("idle");
@@ -621,6 +657,7 @@ export function App() {
       setVaultMenuOpen(false);
       setLocalMenuOpen(false);
       setUserGuideOpen(false);
+      setSearchMode("keyword");
       setQuery("");
       setListSearchFilter(null);
       setShowSearchResults(false);
@@ -907,6 +944,7 @@ export function App() {
         setShowSearchResults(false);
       } else if (na?.kind === "tag") {
         setSelectedPath(null);
+        setSearchMode("keyword");
         setQuery(`#${na.tag}`);
         setListSearchFilter(null);
         setShowSearchResults(true);
@@ -945,6 +983,7 @@ export function App() {
         const active = r.tabs.find((t) => t.id === r.activeTabId);
         if (active?.kind === "tag") {
           setSelectedPath(null);
+          setSearchMode("keyword");
           setQuery(`#${active.tag}`);
           setListSearchFilter(null);
           setUserGuideOpen(false);
@@ -955,9 +994,17 @@ export function App() {
         }
         return;
       }
-      const existing = index.byNormalizedTitle.get(normalizeTitle(title));
-      if (existing) {
-        void handleSelectNote(existing.path, { openInNewTab: wantNewTab });
+      const candidates = index.byNormalizedTitle.get(normalizeTitle(title)) ?? [];
+      if (candidates.length === 1) {
+        void handleSelectNote(candidates[0]!.path, { openInNewTab: wantNewTab });
+        return;
+      }
+      if (candidates.length > 1) {
+        setAmbiguousLink({
+          title,
+          candidates: candidates.slice().sort((a, b) => b.updatedAt - a.updatedAt || a.path.localeCompare(b.path)),
+          openInNewTab: wantNewTab,
+        });
         return;
       }
       await handleCreateNote(title, { openInNewTab: wantNewTab });
@@ -986,6 +1033,7 @@ export function App() {
       setVaultMenuOpen(false);
       setLocalMenuOpen(false);
       setUserGuideOpen(false);
+      setSearchMode("keyword");
       setQuery("");
       setListSearchFilter(null);
       setShowSearchResults(false);
@@ -1065,6 +1113,7 @@ export function App() {
         setOpenTabs(entry.openTabs.map((t) => ({ ...t })));
         setActiveTabId(entry.activeTabId);
         setQuery(entry.query);
+        setSearchMode(entry.searchMode);
         setShowSearchResults(entry.showSearchResults);
         setSelectedPath(path);
         setViewMode(entry.viewMode);
@@ -1234,6 +1283,14 @@ export function App() {
       setError(messageForError(caught));
     });
   }, []);
+
+  const semanticSearchPanelOpen = showSearchResults && searchMode === "semantic";
+  const semanticBusy = semanticSearchBusy || semanticIndexMaintBusy;
+  const semanticHasQuery = query.trim().length > 0;
+  const semanticProgressPercent =
+    semanticIndexProgress && semanticIndexProgress.total > 0
+      ? Math.min(100, Math.round((semanticIndexProgress.completed / semanticIndexProgress.total) * 100))
+      : null;
 
   if (!snapshot.vaultPath) {
     return (
@@ -1528,47 +1585,87 @@ export function App() {
                 <span className="inline-flex h-9 w-9 shrink-0" aria-hidden />
               )}
               <div ref={searchContainerRef} className="relative min-w-0 flex-1">
-                <input
-                  type="text"
-                  className="tb-input"
-                  value={query}
-                  onChange={(event) => {
-                    setQuery(event.target.value);
-                    setShowSearchResults(Boolean(event.target.value.trim()));
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void (async () => {
-                        const trimmed = query.trim();
-                        setShowSearchResults(false);
-                        const needsNavigateAway =
-                          selectedNote !== null || userGuideOpen || viewMode === "kanban" || viewMode === "attachments";
-                        if (needsNavigateAway) {
-                          if (!(await confirmDiscardChanges())) {
-                            return;
-                          }
-                          pushNavHistory();
-                          setSelectedPath(null);
-                          setViewMode("list");
-                          setUserGuideOpen(false);
-                          setKanbanFocus({ boardId: null, columnId: null, notePath: null });
-                          setSaveState("idle");
-                          setVaultMenuOpen(false);
-                          setLocalMenuOpen(false);
+                <div className="flex h-8 min-w-0 items-center rounded-xl border border-accent-link/15 bg-bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] focus-within:border-accent-link/35 focus-within:ring-accent-link/15">
+                  <input
+                    type="text"
+                    className="min-h-0 min-w-0 flex-1 border-0 bg-transparent py-0 pl-3 pr-2 text-xs text-text-primary placeholder:text-text-muted focus:outline-none"
+                    value={query}
+                    onChange={(event) => {
+                      const nextQuery = event.target.value;
+                      setQuery(nextQuery);
+                      if (searchMode === "semantic") {
+                        setShowSearchResults(true);
+                        setSemanticResults([]);
+                        setSemanticSearchError(null);
+                        setSemanticSearchSubmitted(false);
+                        setSemanticIndexStatus(null);
+                      } else {
+                        setShowSearchResults(Boolean(nextQuery.trim()));
+                      }
+                    }}
+                    onFocus={() => {
+                      if (searchMode === "semantic" || query.trim()) {
+                        setShowSearchResults(true);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        if (searchMode === "semantic") {
+                          void runSemanticSearch();
+                          return;
                         }
-                        setListSearchFilter(trimmed || null);
-                      })();
-                    }
-                    if (event.key === "Escape") {
-                      setShowSearchResults(false);
-                    }
-                  }}
-                  placeholder={t("search.placeholder")}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                {showSearchResults && searchResults.length > 0 && (
+                        void (async () => {
+                          const trimmed = query.trim();
+                          setShowSearchResults(false);
+                          const needsNavigateAway =
+                            selectedNote !== null || userGuideOpen || viewMode === "kanban" || viewMode === "attachments";
+                          if (needsNavigateAway) {
+                            if (!(await confirmDiscardChanges())) {
+                              return;
+                            }
+                            pushNavHistory();
+                            setSelectedPath(null);
+                            setViewMode("list");
+                            setUserGuideOpen(false);
+                            setKanbanFocus({ boardId: null, columnId: null, notePath: null });
+                            setSaveState("idle");
+                            setVaultMenuOpen(false);
+                            setLocalMenuOpen(false);
+                          }
+                          setListSearchFilter(trimmed || null);
+                        })();
+                      }
+                      if (event.key === "Escape") {
+                        setShowSearchResults(false);
+                      }
+                    }}
+                    placeholder={searchMode === "semantic" ? t("semanticSearch.placeholder") : t("search.placeholder")}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <div className="flex shrink-0 items-center gap-2 border-l border-accent-link/10 pl-2 pr-2.5">
+                    <SemanticSearchModeSwitch
+                      enabled={searchMode === "semantic"}
+                      label={t("semanticSearch.toggleShort")}
+                      onChange={(enabled) => {
+                        const nextMode: SearchMode = enabled ? "semantic" : "keyword";
+                        setSearchMode(nextMode);
+                        setShowSearchResults(nextMode === "semantic" || Boolean(query.trim()));
+                        if (nextMode === "semantic") {
+                          setListSearchFilter(null);
+                          setSemanticSearchError(null);
+                          setSemanticSearchSubmitted(false);
+                          setSemanticIndexStatus(null);
+                        } else {
+                          setSemanticSearchError(null);
+                          setSemanticIndexProgress(null);
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                {showSearchResults && searchMode === "keyword" && searchResults.length > 0 && (
                   <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-80 overflow-auto rounded-2xl border border-accent-link/10 bg-bg-card shadow-dropdown">
                     {searchResults.map((note) => (
                       <button
@@ -1586,6 +1683,9 @@ export function App() {
                         className="w-full border-b border-accent-link/8 px-3.5 py-2.5 text-left transition-colors last:border-b-0 hover:bg-bg-hover"
                       >
                         <div className="truncate text-sm font-medium text-text-primary">{note.title}</div>
+                        {duplicateTitlePathSet.has(note.path) && (
+                          <div className="mt-0.5 truncate text-2xs text-accent-link">{note.path}</div>
+                        )}
                         {(note.preview || note.filename) && (
                           <div className="mt-0.5 line-clamp-1 text-2xs text-text-muted">
                             {formatPreview(note.preview || note.filename)}
@@ -1595,26 +1695,128 @@ export function App() {
                     ))}
                   </div>
                 )}
-                {showSearchResults && searchResults.length === 0 && query.trim() && (
+                {showSearchResults && searchMode === "keyword" && searchResults.length === 0 && query.trim() && (
                   <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-2xl border border-accent-link/10 bg-bg-card px-3.5 py-3 text-sm text-text-muted shadow-dropdown">
                     {t("search.noResults")}
                   </div>
                 )}
+                {semanticSearchPanelOpen && (
+                  <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[70vh] overflow-auto rounded-2xl border border-accent-link/10 bg-bg-card shadow-dropdown">
+                    <div className="flex items-center justify-between gap-3 border-b border-accent-link/10 px-3.5 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-xs text-text-muted">
+                          {semanticIndexedChunkCount !== null
+                            ? t("semanticSearch.indexedChunks", { count: semanticIndexedChunkCount })
+                            : t("semanticSearch.indexStatusIdle")}
+                        </p>
+                        {!semanticSearchSubmitted && !semanticBusy && (
+                          <p className="mt-0.5 text-2xs text-text-muted/80">{t("semanticSearch.runHint")}</p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={semanticBusy}
+                          onClick={() => void runSemanticIndexUpdate()}
+                          title={t("semanticSearch.updateIndex")}
+                          aria-label={t("semanticSearch.updateIndex")}
+                        >
+                          <i className="fa-solid fa-rotate-right text-xs" aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={semanticBusy}
+                          onClick={() => void runSemanticIndexRebuild()}
+                          title={t("semanticSearch.rebuildIndex")}
+                          aria-label={t("semanticSearch.rebuildIndex")}
+                        >
+                          <i className="fa-solid fa-arrows-rotate text-xs" aria-hidden />
+                        </button>
+                      </div>
+                    </div>
+                    {semanticIndexStatus && (
+                      <div className="border-b border-accent-link/10 px-3.5 py-2.5 text-xs text-text-secondary">
+                        {semanticIndexStatus}
+                      </div>
+                    )}
+                    {semanticBusy && semanticIndexProgress && (
+                      <div className="space-y-2 border-b border-accent-link/10 px-3.5 py-3">
+                        <div className="flex items-center justify-between gap-3 text-xs text-text-muted">
+                          <span>
+                            {t("semanticSearch.indexProgress", {
+                              completed: semanticIndexProgress.completed,
+                              total: semanticIndexProgress.total,
+                            })}
+                          </span>
+                          {semanticProgressPercent !== null && <span>{semanticProgressPercent}%</span>}
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-bg-hover">
+                          <div
+                            className="h-full rounded-full bg-accent-link transition-[width] duration-300"
+                            style={{ width: `${semanticProgressPercent ?? 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {semanticSearchError && (
+                      <div className="border-b border-accent-error/20 bg-accent-error/10 px-3.5 py-3 text-sm text-accent-error">
+                        {semanticSearchError}
+                      </div>
+                    )}
+                    {semanticBusy ? (
+                      <div className="px-4 py-8 text-center text-sm text-text-muted">
+                        {semanticIndexProgress
+                          ? t("semanticSearch.preparingWithProgress", {
+                              completed: semanticIndexProgress.completed,
+                              total: semanticIndexProgress.total,
+                            })
+                          : t("semanticSearch.preparing")}
+                      </div>
+                    ) : semanticResults.length > 0 ? (
+                      <div className="divide-y divide-accent-link/10">
+                        {semanticResults.map((result) => (
+                          <button
+                            key={`${result.path}:${result.startLine}:${result.endLine}`}
+                            type="button"
+                            className="block w-full px-4 py-3 text-left transition-colors hover:bg-bg-hover focus:outline-none focus-visible:bg-bg-hover"
+                            onClick={(event) => {
+                              void handleSelectNote(result.path, {
+                                openInNewTab: event.metaKey || event.ctrlKey,
+                              }).then((selected) => {
+                                if (selected) setShowSearchResults(false);
+                              });
+                            }}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-semibold text-text-primary">{result.title}</div>
+                                {result.heading && result.heading !== result.title && (
+                                  <div className="mt-0.5 truncate text-xs text-accent-link">{result.heading}</div>
+                                )}
+                              </div>
+                              <span className="shrink-0 rounded-full bg-accent-link/10 px-2 py-0.5 text-2xs font-semibold text-accent-link">
+                                {Math.round(result.score * 100)}
+                              </span>
+                            </div>
+                            <p className="mt-2 line-clamp-2 text-xs leading-5 text-text-muted">{result.snippet}</p>
+                          </button>
+                        ))}
+                      </div>
+                    ) : semanticSearchSubmitted && semanticHasQuery && !semanticSearchError ? (
+                      <div className="px-4 py-8 text-center text-sm text-text-muted">
+                        {t("semanticSearch.noResults")}
+                      </div>
+                    ) : (
+                      <div className="px-4 py-8 text-center text-sm text-text-muted">
+                        {semanticHasQuery ? t("semanticSearch.runHint") : t("semanticSearch.empty")}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => {
-                    setSemanticSearchOpen(true);
-                    setSemanticSearchError(null);
-                  }}
-                  disabled={!snapshot.vaultPath}
-                  aria-label={t("semanticSearch.open")}
-                  title={t("semanticSearch.open")}
-                >
-                  <i className="fa-solid fa-wand-magic-sparkles text-sm" aria-hidden />
-                </button>
                 <SaveStatus state={saveState} />
               </div>
             </div>
@@ -1865,6 +2067,7 @@ export function App() {
                         key={note.path}
                         note={note}
                         showPinnedBadge={pinnedPathSet.has(note.path.replace(/\\/g, "/"))}
+                        showPath={duplicateTitlePathSet.has(note.path)}
                         className="h-[150px] w-full"
                         onClick={(event) => {
                           void handleSelectNote(note.path, {
@@ -1882,24 +2085,15 @@ export function App() {
           </div>
       </main>
       </div>
-      {semanticSearchOpen && (
-        <SemanticSearchModal
-          query={semanticQuery}
-          results={semanticResults}
-          busy={semanticSearchBusy || semanticIndexMaintBusy}
-          error={semanticSearchError}
-          indexedChunkCount={semanticIndexedChunkCount}
-          indexProgress={semanticIndexProgress}
-          indexStatus={semanticIndexStatus}
-          onQueryChange={setSemanticQuery}
-          onSearch={() => void runSemanticSearch()}
-          onUpdateIndex={() => void runSemanticIndexUpdate()}
-          onRebuildIndex={() => void runSemanticIndexRebuild()}
-          onClose={() => setSemanticSearchOpen(false)}
-          onSelect={(result, event) => {
-            void handleSelectNote(result.path, { openInNewTab: event.metaKey || event.ctrlKey }).then((selected) => {
-              if (selected) setSemanticSearchOpen(false);
-            });
+      {ambiguousLink && (
+        <AmbiguousLinkDialog
+          title={ambiguousLink.title}
+          candidates={ambiguousLink.candidates}
+          onCancel={() => setAmbiguousLink(null)}
+          onSelect={(note) => {
+            const openInNewTab = ambiguousLink.openInNewTab;
+            setAmbiguousLink(null);
+            void handleSelectNote(note.path, { openInNewTab });
           }}
         />
       )}
@@ -1920,204 +2114,59 @@ export function App() {
   );
 }
 
-function SemanticSearchModal({
-  query,
-  results,
-  busy,
-  error,
-  indexedChunkCount,
-  indexProgress,
-  indexStatus,
-  onQueryChange,
-  onSearch,
-  onUpdateIndex,
-  onRebuildIndex,
-  onClose,
-  onSelect,
+function SemanticSearchModeSwitch({
+  enabled,
+  label,
+  onChange,
 }: {
-  query: string;
-  results: SemanticSearchResult[];
-  busy: boolean;
-  error: string | null;
-  indexedChunkCount: number | null;
-  indexProgress: SemanticIndexProgress | null;
-  indexStatus: string | null;
-  onQueryChange: (query: string) => void;
-  onSearch: () => void;
-  onUpdateIndex: () => void;
-  onRebuildIndex: () => void;
-  onClose: () => void;
-  onSelect: (result: SemanticSearchResult, event: ReactMouseEvent<HTMLButtonElement>) => void;
+  enabled: boolean;
+  label: string;
+  onChange: (enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const hasQuery = query.trim().length > 0;
-  const progressPercent =
-    indexProgress && indexProgress.total > 0
-      ? Math.min(100, Math.round((indexProgress.completed / indexProgress.total) * 100))
-      : null;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-start justify-center bg-black/40 px-4 py-12 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-2xl border border-accent-link/10 bg-bg-card shadow-dropdown">
-        <div className="flex items-start justify-between gap-4 border-b border-accent-link/10 px-5 py-4">
-          <div>
-            <h2 className="text-base font-semibold text-text-primary">{t("semanticSearch.title")}</h2>
-            <p className="mt-1 text-xs leading-5 text-text-muted">{t("semanticSearch.description")}</p>
-          </div>
-          <button
-            type="button"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25"
-            onClick={onClose}
-            aria-label={t("semanticSearch.close")}
-            title={t("semanticSearch.close")}
-          >
-            <i className="fa-solid fa-xmark text-sm" aria-hidden />
-          </button>
-        </div>
-
-        <div className="space-y-4 px-5 py-4">
-          <form
-            className="flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onSearch();
-            }}
-          >
-            <input
-              type="text"
-              className="tb-input"
-              value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder={t("semanticSearch.placeholder")}
-              autoFocus
-              disabled={busy}
-            />
-            <button type="submit" className="tb-btn-primary shrink-0" disabled={busy || !hasQuery}>
-              {busy ? t("semanticSearch.searching") : t("semanticSearch.search")}
-            </button>
-          </form>
-
-          <div className="flex items-center justify-between gap-3">
-            <p className="min-w-0 text-xs text-text-muted">
-              {indexedChunkCount !== null
-                ? t("semanticSearch.indexedChunks", { count: indexedChunkCount })
-                : t("semanticSearch.indexStatusIdle")}
-            </p>
-            <div className="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={busy}
-                onClick={onUpdateIndex}
-                title={t("semanticSearch.updateIndex")}
-                aria-label={t("semanticSearch.updateIndex")}
-              >
-                <i className="fa-solid fa-rotate-right text-xs" aria-hidden />
-              </button>
-              <button
-                type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={busy}
-                onClick={onRebuildIndex}
-                title={t("semanticSearch.rebuildIndex")}
-                aria-label={t("semanticSearch.rebuildIndex")}
-              >
-                <i className="fa-solid fa-arrows-rotate text-xs" aria-hidden />
-              </button>
-            </div>
-          </div>
-
-          {indexStatus && (
-            <div className="rounded-xl border border-accent-link/10 bg-bg-card px-3.5 py-3 text-xs text-text-secondary">
-              {indexStatus}
-            </div>
-          )}
-
-          {busy && indexProgress && (
-            <div className="space-y-2 rounded-xl border border-accent-link/10 bg-bg-card px-3.5 py-3">
-              <div className="flex items-center justify-between gap-3 text-xs text-text-muted">
-                <span>
-                  {t("semanticSearch.indexProgress", {
-                    completed: indexProgress.completed,
-                    total: indexProgress.total,
-                  })}
-                </span>
-                {progressPercent !== null && <span>{progressPercent}%</span>}
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-bg-hover">
-                <div
-                  className="h-full rounded-full bg-accent-link transition-[width] duration-300"
-                  style={{ width: `${progressPercent ?? 0}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <div className="rounded-xl border border-accent-error/25 bg-accent-error/10 px-3.5 py-3 text-sm text-accent-error">
-              {error}
-            </div>
-          )}
-
-          <div className="max-h-[55vh] overflow-auto rounded-xl border border-accent-link/10">
-            {busy ? (
-              <div className="px-4 py-8 text-center text-sm text-text-muted">
-                {indexProgress
-                  ? t("semanticSearch.preparingWithProgress", {
-                      completed: indexProgress.completed,
-                      total: indexProgress.total,
-                    })
-                  : t("semanticSearch.preparing")}
-              </div>
-            ) : results.length > 0 ? (
-              <div className="divide-y divide-accent-link/10">
-                {results.map((result) => (
-                  <button
-                    key={`${result.path}:${result.startLine}:${result.endLine}`}
-                    type="button"
-                    className="block w-full px-4 py-3 text-left transition-colors hover:bg-bg-hover focus:outline-none focus-visible:bg-bg-hover"
-                    onClick={(event) => onSelect(result, event)}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-text-primary">{result.title}</div>
-                        {result.heading && result.heading !== result.title && (
-                          <div className="mt-0.5 truncate text-xs text-accent-link">{result.heading}</div>
-                        )}
-                      </div>
-                      <span className="shrink-0 rounded-full bg-accent-link/10 px-2 py-0.5 text-2xs font-semibold text-accent-link">
-                        {Math.round(result.score * 100)}
-                      </span>
-                    </div>
-                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-text-muted">{result.snippet}</p>
-                  </button>
-                ))}
-              </div>
-            ) : hasQuery ? (
-              <div className="px-4 py-8 text-center text-sm text-text-muted">
-                {t("semanticSearch.noResults")}
-              </div>
-            ) : (
-              <div className="px-4 py-8 text-center text-sm text-text-muted">
-                {t("semanticSearch.empty")}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+    <label className="flex cursor-pointer select-none items-center gap-1.5">
+      <i
+        className={`fa-solid fa-wand-magic-sparkles text-[10px] ${enabled ? "text-accent-link" : "text-text-muted"}`}
+        aria-hidden
+      />
+      <span className={`hidden text-2xs font-medium sm:inline ${enabled ? "text-accent-link" : "text-text-muted"}`}>
+        {label}
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        aria-label={t("semanticSearch.toggle")}
+        title={t("semanticSearch.toggle")}
+        onClick={() => onChange(!enabled)}
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
+          enabled ? "bg-accent-link" : "bg-stone-300/90 dark:bg-stone-600/80"
+        }`}
+      >
+        <span
+          className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+            enabled ? "translate-x-[18px]" : "translate-x-0.5"
+          }`}
+          aria-hidden
+        />
+      </button>
+    </label>
   );
 }
 
 function NoteCard({
   note,
   showPinnedBadge,
+  showPath,
   onClick,
   className = "",
 }: {
   note: NoteSummary;
   /** Shown only on pinned notes; toggle pin from the editor header. */
   showPinnedBadge?: boolean;
+  showPath?: boolean;
   onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   className?: string;
 }) {
@@ -2169,6 +2218,9 @@ function NoteCard({
         >
           {note.title}
         </h3>
+        {showPath ? (
+          <p className="mt-1 truncate text-2xs text-text-muted">{note.path}</p>
+        ) : null}
         {cardImageUrl && !previewImageFailed ? (
           <div className="mt-2.5 min-h-0 w-full flex-1 basis-0 overflow-hidden rounded-xl bg-bg-primary">
             <img
@@ -2185,6 +2237,66 @@ function NoteCard({
           </p>
         )}
       </button>
+    </div>
+  );
+}
+
+function AmbiguousLinkDialog({
+  title,
+  candidates,
+  onCancel,
+  onSelect,
+}: {
+  title: string;
+  candidates: NoteSummary[];
+  onCancel: () => void;
+  onSelect: (note: NoteSummary) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/35 p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onCancel();
+      }}
+    >
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-accent-link/20 bg-bg-card shadow-soft">
+        <div className="border-b border-accent-link/15 bg-bg-elevated px-5 py-3">
+          <p className="text-sm font-semibold text-text-primary">{t("page.editor.ambiguousLinkTitle")}</p>
+          <p className="mt-1 text-xs text-text-muted">
+            {t("page.editor.ambiguousLinkMessage", { title })}
+          </p>
+        </div>
+        <div className="max-h-[60dvh] overflow-y-auto py-1">
+          {candidates.map((note) => (
+            <button
+              key={note.path}
+              type="button"
+              className="w-full border-b border-accent-link/8 px-5 py-3 text-left transition-colors last:border-b-0 hover:bg-bg-hover"
+              onClick={() => onSelect(note)}
+            >
+              <div className="flex min-w-0 items-baseline justify-between gap-3">
+                <span className="truncate text-sm font-medium text-text-primary">{note.title}</span>
+                <span className="shrink-0 text-2xs text-text-muted">
+                  {new Date(note.updatedAt).toLocaleString()}
+                </span>
+              </div>
+              <div className="mt-1 truncate text-xs text-accent-link">{note.path}</div>
+              {(note.preview || note.filename) && (
+                <div className="mt-1 line-clamp-2 text-xs leading-5 text-text-muted">
+                  {formatPreview(note.preview || note.filename)}
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-end border-t border-accent-link/10 px-5 py-3">
+          <button type="button" className="tb-btn-secondary px-3 py-1.5 text-xs" onClick={onCancel}>
+            {t("common.cancel")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

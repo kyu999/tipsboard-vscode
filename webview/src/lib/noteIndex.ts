@@ -17,19 +17,19 @@ export interface TwoHopLink {
 }
 
 export interface NoteIndex {
-  byNormalizedTitle: Map<string, NoteSummary>;
+  byNormalizedTitle: Map<string, NoteSummary[]>;
   entries: Map<string, NoteGraphEntry>;
   tags: Map<string, NoteSummary[]>;
   suggestions: LinkSuggestion[];
 }
 
 export function buildNoteIndex(notes: NoteSummary[]): NoteIndex {
-  const byNormalizedTitle = new Map<string, NoteSummary>();
+  const byNormalizedTitle = new Map<string, NoteSummary[]>();
   const incoming = new Map<string, NoteSummary[]>();
   const tags = new Map<string, NoteSummary[]>();
 
   for (const note of notes) {
-    byNormalizedTitle.set(note.normalizedTitle, note);
+    appendMap(byNormalizedTitle, note.normalizedTitle, note);
   }
 
   const entries = new Map<string, NoteGraphEntry>();
@@ -51,11 +51,14 @@ export function buildNoteIndex(notes: NoteSummary[]): NoteIndex {
       const normalizedTitle = normalizeTitle(title);
       if (!title) continue;
 
-      const target = byNormalizedTitle.get(normalizedTitle);
-      if (target && target.path !== note.path) {
-        outgoing.push(target);
-        appendMap(incoming, target.path, note);
-      } else if (!target && !seenNewLinks.has(normalizedTitle)) {
+      const targets = byNormalizedTitle.get(normalizedTitle) ?? [];
+      if (targets.length > 0) {
+        for (const target of targets) {
+          if (target.path === note.path) continue;
+          outgoing.push(target);
+          appendMap(incoming, target.path, note);
+        }
+      } else if (!seenNewLinks.has(normalizedTitle)) {
         seenNewLinks.add(normalizedTitle);
         newLinks.push(title);
       }
@@ -98,8 +101,13 @@ export function buildNoteIndex(notes: NoteSummary[]): NoteIndex {
     entries,
     tags,
     suggestions: notes
-      .map((note) => ({ title: note.title, filename: note.filename }))
-      .sort((a, b) => a.title.localeCompare(b.title)),
+      .map((note) => ({
+        title: note.title,
+        filename: note.filename,
+        path: note.path,
+        duplicateTitle: (byNormalizedTitle.get(note.normalizedTitle)?.length ?? 0) > 1,
+      }))
+      .sort((a, b) => a.title.localeCompare(b.title) || a.path.localeCompare(b.path)),
   };
 }
 

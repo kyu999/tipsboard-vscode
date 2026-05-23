@@ -9,6 +9,9 @@ media/**
 # WebView sources / toolchain (Vite output is under dist/media/)
 webview/**
 
+# Marketplace README screenshots (README uses raw.githubusercontent.com URLs)
+assets/vscode/marketplace/**
+
 # Dev / internal documentation (not needed in the published VSIX)
 .github/**
 docs/**

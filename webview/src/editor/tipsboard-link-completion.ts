@@ -14,13 +14,14 @@ export function createLocalLinkCompletionSource(
         if (!query) return true;
         return (
           suggestion.title.toLowerCase().includes(query) ||
-          suggestion.filename.toLowerCase().includes(query)
+          suggestion.filename.toLowerCase().includes(query) ||
+          suggestion.path.toLowerCase().includes(query)
         );
       })
       .slice(0, 80)
       .map((suggestion) => ({
         label: suggestion.title,
-        detail: suggestion.filename,
+        detail: suggestion.duplicateTitle ? suggestion.path : suggestion.filename,
         type: "text",
         apply: `${suggestion.title}]`,
       }));

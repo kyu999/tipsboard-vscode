@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterExternalChangePaths,
   fsPathToVaultRelative,
+  isWatchedVaultPath,
   normalizeVaultRelativePath,
   pruneExpiredSelfWrites,
 } from "./vaultFileWatchHelpers.js";
@@ -31,17 +32,29 @@ describe("fsPathToVaultRelative", () => {
 describe("self-write mask + external paths", () => {
   it("drops pending paths covered by an active mask", () => {
     const now = 1_000_000;
-    const map = new Map<string, number>([["pages/a.md", now + 500]]);
-    const out = filterExternalChangePaths(["pages/a.md", "pages/b.md"], map, now);
-    expect(out.sort()).toEqual(["pages/b.md"]);
+    const map = new Map<string, number>([["docs/a.md", now + 500]]);
+    const out = filterExternalChangePaths(["docs/a.md", "docs/b.md"], map, now);
+    expect(out.sort()).toEqual(["docs/b.md"]);
   });
 
   it("keeps paths after mask expiry", () => {
     const now = 2_000_000;
-    const map = new Map<string, number>([["pages/a.md", now - 1]]);
-    const out = filterExternalChangePaths(["pages/a.md"], map, now);
-    expect(out).toEqual(["pages/a.md"]);
+    const map = new Map<string, number>([["docs/a.md", now - 1]]);
+    const out = filterExternalChangePaths(["docs/a.md"], map, now);
+    expect(out).toEqual(["docs/a.md"]);
     expect(map.size).toBe(0);
+  });
+
+  it("filters non-note and excluded workspace paths", () => {
+    const now = 3_000_000;
+    const out = filterExternalChangePaths([
+      "docs/a.md",
+      ".git/ignored.md",
+      ".tipsboard/hidden.md",
+      "assets/file.txt",
+      ".tipsboard/kanban.json",
+    ], new Map(), now);
+    expect(out.sort()).toEqual([".tipsboard/kanban.json", "docs/a.md"]);
   });
 
   it("pruneExpiredSelfWrites removes stale entries only", () => {
@@ -52,5 +65,15 @@ describe("self-write mask + external paths", () => {
     ]);
     pruneExpiredSelfWrites(map, now);
     expect([...map.keys()].sort()).toEqual(["b"]);
+  });
+});
+
+describe("isWatchedVaultPath", () => {
+  it("allows recursive markdown and Tipsboard metadata only", () => {
+    expect(isWatchedVaultPath("docs/auth/oauth.md")).toBe(true);
+    expect(isWatchedVaultPath(".tipsboard/pins.json")).toBe(true);
+    expect(isWatchedVaultPath(".tipsboard/note.md")).toBe(false);
+    expect(isWatchedVaultPath("node_modules/pkg/readme.md")).toBe(false);
+    expect(isWatchedVaultPath("docs/image.png")).toBe(false);
   });
 });

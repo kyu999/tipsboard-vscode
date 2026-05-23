@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { NAV_MEMORY_STACK_LIMIT, cloneNavMemory, pushNavStackLimited, type NavMemory } from "./navMemory";
+import {
+  NAV_MEMORY_STACK_LIMIT,
+  cloneNavMemory,
+  navMemoryEqual,
+  pushNavStackLimited,
+  type NavMemory,
+} from "./navMemory";
 
 function sampleMemory(overrides: Partial<NavMemory> = {}): NavMemory {
   return {
@@ -11,6 +17,7 @@ function sampleMemory(overrides: Partial<NavMemory> = {}): NavMemory {
     openTabs: [{ id: "t1", kind: "note", path: "/pages/a.md" }],
     activeTabId: "t1",
     query: "",
+    searchMode: "keyword",
     showSearchResults: false,
     ...overrides,
   };
@@ -27,6 +34,17 @@ describe("navMemory stacks", () => {
     const copy = cloneNavMemory(original);
     copy.openTabs[0]!.path = "/pages/changed.md";
     expect(original.openTabs[0]!.path).toBe("/pages/x.md");
+  });
+
+  it("cloneNavMemory preserves search mode", () => {
+    const copy = cloneNavMemory(sampleMemory({ searchMode: "semantic" }));
+    expect(copy.searchMode).toBe("semantic");
+  });
+
+  it("navMemoryEqual compares search mode", () => {
+    expect(navMemoryEqual(sampleMemory({ searchMode: "keyword" }), sampleMemory({ searchMode: "semantic" }))).toBe(
+      false,
+    );
   });
 
   it("pushNavStackLimited drops oldest when over limit", () => {

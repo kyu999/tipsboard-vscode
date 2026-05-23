@@ -1,7 +1,12 @@
 import * as vscode from "vscode";
 import type { RpcInbound } from "../bridge/protocol.js";
 import { handleRpcInbound } from "../bridge/rpc-handler.js";
-import { filterExternalChangePaths, fsPathToVaultRelative, normalizeVaultRelativePath } from "./vaultFileWatchHelpers.js";
+import {
+  filterExternalChangePaths,
+  fsPathToVaultRelative,
+  isWatchedVaultPath,
+  normalizeVaultRelativePath,
+} from "./vaultFileWatchHelpers.js";
 
 const VAULT_CHANGE_DEBOUNCE_MS = 250;
 /** Paths written via Tipsboard RPC are masked from conflict detection briefly (watcher can lag). */
@@ -110,7 +115,7 @@ export class TipsboardPanel {
     if (!vaultFsPath) return;
 
     const vaultRoot = vscode.Uri.file(vaultFsPath);
-    const patterns = ["pages/*.md", ".tipsboard/kanban.json", ".tipsboard/pins.json"];
+    const patterns = ["**/*.md", ".tipsboard/kanban.json", ".tipsboard/pins.json"];
     for (const pattern of patterns) {
       const watcher = vscode.workspace.createFileSystemWatcher(
         new vscode.RelativePattern(vaultRoot, pattern),
@@ -142,8 +147,10 @@ export class TipsboardPanel {
 
   private scheduleVaultFilesChanged(uri: vscode.Uri): void {
     const rel = this.uriToVaultRelative(uri);
-    if (rel) {
+    if (rel && isWatchedVaultPath(rel)) {
       this.pendingVaultChangePaths.add(rel);
+    } else if (rel) {
+      return;
     } else {
       this.pendingUnknownVaultChange = true;
     }

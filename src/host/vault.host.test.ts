@@ -27,28 +27,42 @@ async function withVault(run: (vaultPath: string) => Promise<void>): Promise<voi
 }
 
 describe("vault (VS Code host)", () => {
-  it("creates and reads notes from the pages directory", async () => {
+  it("creates and reads notes from the Unsorted directory", async () => {
     await withVault(async (vaultPath) => {
       const note = await createNote(vaultPath, "Alpha");
       const snapshot = await readVault(vaultPath);
 
-      expect(note.path).toBe("pages/Alpha.md");
-      await expect(fs.readFile(path.join(vaultPath, "pages", "Alpha.md"), "utf8")).resolves.toBe("Alpha\n");
-      expect(snapshot.notes.map((note) => note.path)).toEqual(["pages/Alpha.md"]);
+      expect(note.path).toBe("Unsorted/Alpha.md");
+      await expect(fs.readFile(path.join(vaultPath, "Unsorted", "Alpha.md"), "utf8")).resolves.toBe("Alpha\n");
+      expect(snapshot.notes.map((note) => note.path)).toEqual(["Unsorted/Alpha.md"]);
       expect(snapshot.notes[0]?.filename).toBe("Alpha.md");
     });
   });
 
-  it("renames saved notes within the pages directory", async () => {
+  it("renames saved notes within their current directory", async () => {
     await withVault(async (vaultPath) => {
       const note = await createNote(vaultPath, "Alpha");
 
       const saved = await saveNote(vaultPath, note.path, "Beta\nBody");
 
-      expect(saved.path).toBe("pages/Beta.md");
+      expect(saved.path).toBe("Unsorted/Beta.md");
       expect(saved.filename).toBe("Beta.md");
-      await expect(fs.readFile(path.join(vaultPath, "pages", "Beta.md"), "utf8")).resolves.toBe("Beta\nBody");
-      await expect(fs.access(path.join(vaultPath, "pages", "Alpha.md"))).rejects.toThrow();
+      await expect(fs.readFile(path.join(vaultPath, "Unsorted", "Beta.md"), "utf8")).resolves.toBe("Beta\nBody");
+      await expect(fs.access(path.join(vaultPath, "Unsorted", "Alpha.md"))).rejects.toThrow();
+    });
+  });
+
+  it("recursively reads workspace markdown while excluding ignored directories", async () => {
+    await withVault(async (vaultPath) => {
+      await fs.mkdir(path.join(vaultPath, "docs", "auth"), { recursive: true });
+      await fs.mkdir(path.join(vaultPath, ".tipsboard"), { recursive: true });
+      await fs.writeFile(path.join(vaultPath, "docs", "auth", "oauth.md"), "OAuth\nBody", "utf8");
+      await fs.writeFile(path.join(vaultPath, ".tipsboard", "hidden.md"), "Hidden\n", "utf8");
+
+      const snapshot = await readVault(vaultPath);
+
+      expect(snapshot.notes.map((note) => note.path)).toEqual(["docs/auth/oauth.md"]);
+      expect(snapshot.notes[0]?.title).toBe("OAuth");
     });
   });
 
@@ -103,7 +117,7 @@ describe("vault (VS Code host)", () => {
         TEN_MB,
       );
 
-      await saveNote(vaultPath, "pages/Doc.md", `Doc\n[Specification](${linked!.relativePath})\n`);
+      await saveNote(vaultPath, "Unsorted/Doc.md", `Doc\n[Specification](${linked!.relativePath})\n`);
 
       const snapshot = await readVault(vaultPath);
       const linkedSummary = snapshot.attachments.find((attachment) => attachment.relativePath === linked!.relativePath);
@@ -113,7 +127,7 @@ describe("vault (VS Code host)", () => {
       expect(linkedSummary?.referenced).toBe(true);
       expect(linkedSummary?.references).toEqual([
         {
-          notePath: "pages/Doc.md",
+          notePath: "Unsorted/Doc.md",
           noteTitle: "Doc",
           noteFilename: "Doc.md",
           label: "Specification",
@@ -139,12 +153,12 @@ describe("vault (VS Code host)", () => {
     });
   });
 
-  it("requires pages directory paths for deleteNote", async () => {
+  it("requires safe markdown paths for deleteNote", async () => {
     await withVault(async (vaultPath) => {
       const note = await createNote(vaultPath, "Alpha");
-      await expect(deleteNote(vaultPath, "Alpha.md")).rejects.toThrow("pages directory");
+      await expect(deleteNote(vaultPath, "Alpha.txt")).rejects.toThrow("Markdown files");
       await deleteNote(vaultPath, note.path);
-      await expect(fs.access(path.join(vaultPath, "pages", "Alpha.md"))).rejects.toThrow();
+      await expect(fs.access(path.join(vaultPath, "Unsorted", "Alpha.md"))).rejects.toThrow();
     });
   });
 
@@ -152,8 +166,8 @@ describe("vault (VS Code host)", () => {
     await withVault(async (vaultPath) => {
       const first = await createNote(vaultPath, "Dup");
       const second = await createNote(vaultPath, "Dup");
-      expect(first.path).toBe("pages/Dup.md");
-      expect(second.path).toBe("pages/Dup (2).md");
+      expect(first.path).toBe("Unsorted/Dup.md");
+      expect(second.path).toBe("Unsorted/Dup (2).md");
     });
   });
 
@@ -164,12 +178,12 @@ describe("vault (VS Code host)", () => {
       const before = await readVault(vaultPath);
       expect(before.notes[0]?.title).toBe("Newer");
 
-      await setNotePinned(vaultPath, "pages/Older.md", true);
+      await setNotePinned(vaultPath, "Unsorted/Older.md", true);
       const after = await readVault(vaultPath);
       expect(after.notes[0]?.title).toBe("Older");
-      expect(after.pins).toEqual(["pages/Older.md"]);
+      expect(after.pins).toEqual(["Unsorted/Older.md"]);
 
-      await setNotePinned(vaultPath, "pages/Older.md", false);
+      await setNotePinned(vaultPath, "Unsorted/Older.md", false);
       const cleared = await readVault(vaultPath);
       expect(cleared.notes[0]?.title).toBe("Newer");
       expect(cleared.pins).toEqual([]);

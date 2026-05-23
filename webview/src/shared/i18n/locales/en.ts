@@ -38,6 +38,8 @@ const en = {
   },
   semanticSearch: {
     open: "Semantic search",
+    toggle: "Toggle semantic search",
+    toggleShort: "Semantic",
     title: "Semantic search",
     description: "Find note sections by meaning instead of exact keyword matches. The first run may take time while the local model is prepared.",
     placeholder: "Example: prevent stale API responses",
@@ -56,6 +58,7 @@ const en = {
     rebuildConfirmMessage: "This re-embeds every chunk in the vault. It can take much longer than an incremental update.",
     close: "Close",
     empty: "Enter what you want to find in natural language.",
+    runHint: "Press Enter to search",
     noResults: "No semantically similar notes found.",
     indexedChunks: "{{count}} chunk(s) indexed",
   },
@@ -116,6 +119,8 @@ const en = {
       rewriteInboundLinksMessage:
         "The title changed from “{{oldTitle}}” to “{{newTitle}}”. {{count}} note(s) still use internal `[…]` links that resolve to the old title. Rewrite them to match the new title?",
       rewriteInboundLinksConfirm: "Rewrite links",
+      ambiguousLinkTitle: "Choose a note",
+      ambiguousLinkMessage: "Multiple notes are titled “{{title}}”. Choose where this link should open.",
     },
   },
   kanban: {

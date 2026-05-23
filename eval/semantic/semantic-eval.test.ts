@@ -45,7 +45,7 @@ describe("semantic search evaluation", () => {
       "This run has no Vitest timeout; MLDR with thousands of documents can take well over an hour on CPU.",
     );
     if (reranker) {
-      logSemanticEvalProgress(`Reranker spike requested (${reranker}), but reranking is not enabled in the product path yet`);
+      logSemanticEvalProgress(`External reranker spike requested (${reranker}), but only built-in heuristic reranking is enabled in the product path`);
     }
     const seeded = await seedSemanticEvalVault({ datasetId, cacheDir });
     try {
@@ -223,7 +223,7 @@ function readNumber(name: string, fallback: number): number {
 }
 
 function readSearchMode(raw: string | undefined): "dense" | "hybrid" {
-  return raw === "hybrid" ? "hybrid" : "dense";
+  return raw === "dense" ? "dense" : "hybrid";
 }
 
 function printReport(report: {
