@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { createTransformersEmbeddingProvider, type EmbeddingProvider } from "./semantic.js";
 import { ensureSemanticRuntime } from "./semanticRuntime.js";
-import { readSemanticSettings } from "./semanticSettings.js";
+import { readSemanticSettings, resolveSemanticModelCacheDir } from "./semanticSettings.js";
 
 const providerCache = new Map<string, EmbeddingProvider>();
 
@@ -26,10 +26,17 @@ export async function createSemanticProviderForExtension(options: {
     ? await semanticPackResolverBasePath(settings.importedPath)
     : await semanticRuntimeResolverBasePath(options, settings.runtimeDownloadBaseUrl);
 
-  const cacheKey = `${resolverBasePath}\0${options.cacheDir}\0${settings.modelId}`;
+  const modelCacheDir = resolveSemanticModelCacheDir(settings, options.cacheDir);
+  await fs.mkdir(modelCacheDir, { recursive: true });
+  const cacheKey = `${resolverBasePath}\0${modelCacheDir}\0${settings.modelId}\0${settings.allowRemoteModels}`;
   let provider = providerCache.get(cacheKey);
   if (!provider) {
-    provider = createTransformersEmbeddingProvider(options.cacheDir, resolverBasePath, settings.modelId);
+    provider = createTransformersEmbeddingProvider({
+      cacheDir: modelCacheDir,
+      resolverBasePath,
+      modelId: settings.modelId,
+      allowRemoteModels: settings.allowRemoteModels,
+    });
     providerCache.set(cacheKey, provider);
   }
   return provider;

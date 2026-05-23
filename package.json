@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {
@@ -88,6 +88,10 @@
       {
         "command": "tipsboard-vscode.installSemanticRuntime",
         "title": "Tipsboard: Install Semantic Runtime from File..."
+      },
+      {
+        "command": "tipsboard-vscode.revealSemanticModelCache",
+        "title": "Tipsboard: Reveal Semantic Model Cache"
       }
     ],
     "keybindings": [
@@ -134,14 +138,56 @@
             "bundled"
           ],
           "default": "bundled",
-          "markdownDescription": "Semantic search (meaning-based search from the wand button in the Tipsboard panel).\n\n- **bundled** (default): local Transformers.js runtime prepared in VS Code global storage. If missing, Tipsboard can download or install a runtime pack.\n- **off**: disables semantic search.\n\nOptional `importedPath` overrides where `@huggingface/transformers` is resolved from.",
+          "markdownDescription": "Semantic search (meaning-based search from the wand button in the Tipsboard panel).\n\n- **bundled** (default): local Transformers.js runtime. If missing, Tipsboard can download or install a runtime pack.\n- **off**: disables semantic search.\n\nOn closed networks, use `importedPath` / **Install Semantic Runtime from File** and set **Allow Remote Models** to `false` with a pre-deployed model cache.",
           "description": "Semantic search on/off."
         },
         "tipsboard-vscode.semanticSearch.modelId": {
           "type": "string",
-          "default": "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
-          "markdownDescription": "Hugging Face model id for local semantic search (Transformers.js). Usually leave the default.",
+          "enum": [
+            "Xenova/multilingual-e5-base",
+            "Xenova/bge-m3"
+          ],
+          "default": "Xenova/multilingual-e5-base",
+          "markdownDescription": "Hugging Face model id for local semantic search (Transformers.js). First use downloads weights into the model cache unless **Allow Remote Models** is `false`.",
           "description": "Semantic search model id."
+        },
+        "tipsboard-vscode.semanticSearch.allowRemoteModels": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Default `true`: download missing embedding models from Hugging Face Hub. Set `false` on closed networks and deploy a cache via **Model Cache Path** (see `npm run prepare:semantic-model-cache` in a build environment). Command: **Tipsboard: Reveal Semantic Model Cache**.",
+          "description": "Allow downloading embedding models from Hugging Face Hub."
+        },
+        "tipsboard-vscode.semanticSearch.modelCachePath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional absolute path for the Transformers.js model cache. For closed networks, point this to the **semantic-model-cache** folder produced by `npm run prepare:semantic-model-cache` (the parent folder containing model directories such as `Xenova/multilingual-e5-base/`). When empty, uses extension global storage (`semantic-models`).",
+          "description": "Semantic embedding model cache directory."
+        },
+        "tipsboard-vscode.semanticSearch.mode": {
+          "type": "string",
+          "enum": [
+            "dense",
+            "hybrid"
+          ],
+          "default": "dense",
+          "markdownDescription": "Semantic search ranking mode. `dense` uses embedding similarity only. `hybrid` combines dense similarity with a local BM25 lexical score.",
+          "description": "Semantic search ranking mode."
+        },
+        "tipsboard-vscode.semanticSearch.denseWeight": {
+          "type": "number",
+          "default": 0.75,
+          "minimum": 0,
+          "maximum": 1,
+          "markdownDescription": "Dense embedding score weight used when semantic search mode is `hybrid`.",
+          "description": "Dense score weight for hybrid semantic search."
+        },
+        "tipsboard-vscode.semanticSearch.bm25Weight": {
+          "type": "number",
+          "default": 0.25,
+          "minimum": 0,
+          "maximum": 1,
+          "markdownDescription": "BM25 lexical score weight used when semantic search mode is `hybrid`.",
+          "description": "BM25 score weight for hybrid semantic search."
         },
         "tipsboard-vscode.semanticSearch.importedPath": {
           "type": "string",
@@ -160,16 +206,20 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile && npm run build:extension && npm run build:webview",
-    "compile": "tsc --noEmit -p ./tsconfig.extension.json",
+    "compile": "tsc --noEmit -p ./tsconfig.extension.json && tsc --noEmit -p ./tsconfig.semantic-eval.json",
     "build:extension": "node scripts/build-extension.cjs",
     "build:extension:fast": "TIPSBOARD_SKIP_SEMANTIC_COPY=1 node scripts/build-extension.cjs",
     "prepare:semantic-pack": "node scripts/prepare-semantic-pack.cjs",
+    "prepare:semantic-model-cache": "node scripts/prepare-semantic-model-cache.cjs",
     "watch": "tsc -watch -p ./tsconfig.extension.json",
     "watch:webview": "npm run watch --prefix webview",
     "build:webview": "npm install --prefix webview && npm run build --prefix webview",
     "build:webview:fast": "npm run build --prefix webview",
     "lint": "tsc --noEmit -p ./tsconfig.extension.json",
     "test": "vitest run --config vitest.config.mts",
+    "eval:semantic": "node scripts/eval-semantic.cjs",
+    "eval:semantic:mldr": "node scripts/eval-semantic.cjs --dataset mldr",
+    "eval:semantic:models": "node scripts/eval-semantic-models.cjs",
     "test:webview:e2e": "playwright test --config playwright.config.ts",
     "package": "node scripts/package-vsix.cjs"
   },

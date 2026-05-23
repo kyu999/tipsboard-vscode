@@ -35,7 +35,15 @@ import { resolveVaultFilesChangedAction } from "@/lib/vaultFilesChangedHandling"
 import { changeLanguage, getSupportedLanguage, supportedLanguages } from "@/shared/i18n";
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
 import { clearTipsboardResolvedAssetCache } from "@/vscode-bridge-client";
-import type { NoteSummary, SaveState, SemanticSearchResult, VaultAttachmentSummary, VaultSnapshot } from "@/types";
+import type {
+  NoteSummary,
+  SaveState,
+  SemanticIndexProgress,
+  SemanticSearchResult,
+  SemanticSearchSettings,
+  VaultAttachmentSummary,
+  VaultSnapshot,
+} from "@/types";
 
 const CARD_GAP = 12;
 const MAX_CARD_WIDTH = 168;
@@ -92,6 +100,10 @@ export function App() {
   const [semanticSearchBusy, setSemanticSearchBusy] = useState(false);
   const [semanticSearchError, setSemanticSearchError] = useState<string | null>(null);
   const [semanticIndexedChunkCount, setSemanticIndexedChunkCount] = useState<number | null>(null);
+  const [semanticIndexProgress, setSemanticIndexProgress] = useState<SemanticIndexProgress | null>(null);
+  const [semanticIndexMaintBusy, setSemanticIndexMaintBusy] = useState(false);
+  const [semanticIndexStatus, setSemanticIndexStatus] = useState<string | null>(null);
+  const [semanticSettings, setSemanticSettings] = useState<SemanticSearchSettings | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const hasUnsavedChanges = saveState === "unsaved" || saveState === "error";
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +144,21 @@ export function App() {
   useEffect(() => {
     activeTabIdRef.current = activeTabId;
   }, [activeTabId]);
+
+  useEffect(() => {
+    let alive = true;
+    void window.tipsboardDesktop.getSemanticSearchSettings().then(
+      (settings) => {
+        if (alive) setSemanticSettings(settings);
+      },
+      () => {
+        if (alive) setSemanticSettings(null);
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useLayoutEffect(() => {
     if (!selectedPath) return;
@@ -439,8 +466,9 @@ export function App() {
     }
     setSemanticSearchBusy(true);
     setSemanticSearchError(null);
+    setSemanticIndexProgress(null);
     try {
-      const response = await window.tipsboardDesktop.semanticSearch(trimmed, 20);
+      const response = await window.tipsboardDesktop.semanticSearch(trimmed, 20, setSemanticIndexProgress);
       setSemanticResults(response.results);
       setSemanticIndexedChunkCount(response.indexedChunkCount);
     } catch (caught) {
@@ -448,8 +476,62 @@ export function App() {
       setSemanticResults([]);
     } finally {
       setSemanticSearchBusy(false);
+      setSemanticIndexProgress(null);
     }
   }, [semanticQuery]);
+
+  const runSemanticIndexUpdate = useCallback(async () => {
+    setSemanticIndexMaintBusy(true);
+    setSemanticSearchError(null);
+    setSemanticIndexStatus(null);
+    setSemanticIndexProgress(null);
+    try {
+      const result = await window.tipsboardDesktop.updateSemanticIndex(setSemanticIndexProgress);
+      setSemanticIndexedChunkCount(result.chunkCount);
+      setSemanticIndexStatus(
+        t("semanticSearch.indexUpdated", {
+          newlyEmbedded: result.newlyEmbeddedCount,
+          reused: result.reusedChunkCount,
+          total: result.chunkCount,
+        }),
+      );
+    } catch (caught) {
+      setSemanticSearchError(messageForError(caught));
+    } finally {
+      setSemanticIndexMaintBusy(false);
+      setSemanticIndexProgress(null);
+    }
+  }, [t]);
+
+  const runSemanticIndexRebuild = useCallback(async () => {
+    const confirmed = await requestConfirm({
+      title: t("semanticSearch.rebuildConfirmTitle"),
+      message: t("semanticSearch.rebuildConfirmMessage"),
+      confirmLabel: t("semanticSearch.rebuildIndex"),
+      destructive: true,
+      onConfirm: async () => undefined,
+    });
+    if (!confirmed) return;
+
+    setSemanticIndexMaintBusy(true);
+    setSemanticSearchError(null);
+    setSemanticIndexStatus(null);
+    setSemanticIndexProgress(null);
+    try {
+      const result = await window.tipsboardDesktop.rebuildSemanticIndex(setSemanticIndexProgress);
+      setSemanticIndexedChunkCount(result.chunkCount);
+      setSemanticIndexStatus(
+        t("semanticSearch.indexRebuilt", {
+          total: result.chunkCount,
+        }),
+      );
+    } catch (caught) {
+      setSemanticSearchError(messageForError(caught));
+    } finally {
+      setSemanticIndexMaintBusy(false);
+      setSemanticIndexProgress(null);
+    }
+  }, [requestConfirm, t]);
 
   const handleActivateTab = useCallback(
     async (tabId: string) => {
@@ -1129,6 +1211,30 @@ export function App() {
     void changeLanguage(getSupportedLanguage(event.target.value));
   }, []);
 
+  const handleSemanticModelChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    const modelId = event.target.value;
+    setSemanticSettings((prev) => (prev ? { ...prev, modelId } : prev));
+    void window.tipsboardDesktop.updateSemanticSearchSettings({ modelId }).then(setSemanticSettings, (caught) => {
+      setError(messageForError(caught));
+    });
+  }, []);
+
+  const handleSemanticRemoteModelsChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const allowRemoteModels = event.target.checked;
+    setSemanticSettings((prev) => (prev ? { ...prev, allowRemoteModels } : prev));
+    void window.tipsboardDesktop.updateSemanticSearchSettings({ allowRemoteModels }).then(setSemanticSettings, (caught) => {
+      setError(messageForError(caught));
+    });
+  }, []);
+
+  const handleSemanticModelCachePathChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const modelCachePath = event.target.value;
+    setSemanticSettings((prev) => (prev ? { ...prev, modelCachePath } : prev));
+    void window.tipsboardDesktop.updateSemanticSearchSettings({ modelCachePath }).then(setSemanticSettings, (caught) => {
+      setError(messageForError(caught));
+    });
+  }, []);
+
   if (!snapshot.vaultPath) {
     return (
       <main className="flex min-h-screen items-center justify-center px-6">
@@ -1306,7 +1412,7 @@ export function App() {
               <i className="fa-solid fa-gear" aria-hidden />
             </button>
             {localMenuOpen && (
-              <div className="absolute bottom-0 left-[calc(100%+10px)] z-50 max-h-[min(22rem,calc(100dvh-4rem))] w-52 overflow-y-auto overflow-x-hidden rounded-2xl border border-accent-link/10 bg-bg-card py-1 text-sm shadow-dropdown">
+              <div className="absolute bottom-0 left-[calc(100%+10px)] z-50 max-h-[min(30rem,calc(100dvh-4rem))] w-80 overflow-y-auto overflow-x-hidden rounded-2xl border border-accent-link/10 bg-bg-card py-1 text-sm shadow-dropdown">
                 <button
                   type="button"
                   onClick={() => void handleImportJson()}
@@ -1341,6 +1447,55 @@ export function App() {
                     ))}
                   </select>
                 </div>
+                {semanticSettings && (
+                  <div className="border-t border-accent-link/10 px-3 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-text-muted">
+                      {t("settings.sections.semanticSearch")}
+                    </p>
+                    <p className="mt-1 text-xs text-text-primary">{t("settings.semanticSearch.model.label")}</p>
+                    <p className="mt-1 text-2xs text-text-muted">{t("settings.semanticSearch.model.helper")}</p>
+                    <select
+                      value={semanticSettings.modelId}
+                      onChange={handleSemanticModelChange}
+                      className="tb-input mt-2 w-full text-sm"
+                    >
+                      {semanticSettings.modelIds.map((modelId) => (
+                        <option key={modelId} value={modelId}>
+                          {modelId}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="mt-3 flex items-start gap-2 text-xs text-text-secondary">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={semanticSettings.allowRemoteModels}
+                        onChange={handleSemanticRemoteModelsChange}
+                      />
+                      <span>
+                        <span className="block text-text-primary">{t("settings.semanticSearch.allowRemote.label")}</span>
+                        <span className="mt-0.5 block text-2xs text-text-muted">
+                          {t("settings.semanticSearch.allowRemote.helper")}
+                        </span>
+                      </span>
+                    </label>
+                    {!semanticSettings.allowRemoteModels && (
+                      <div className="mt-3">
+                        <p className="text-xs text-text-primary">{t("settings.semanticSearch.modelCachePath.label")}</p>
+                        <p className="mt-1 text-2xs text-text-muted">
+                          {t("settings.semanticSearch.modelCachePath.helper")}
+                        </p>
+                        <input
+                          type="text"
+                          className="tb-input mt-2 w-full text-xs"
+                          value={semanticSettings.modelCachePath}
+                          onChange={handleSemanticModelCachePathChange}
+                          placeholder={t("settings.semanticSearch.modelCachePath.placeholder")}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1731,11 +1886,15 @@ export function App() {
         <SemanticSearchModal
           query={semanticQuery}
           results={semanticResults}
-          busy={semanticSearchBusy}
+          busy={semanticSearchBusy || semanticIndexMaintBusy}
           error={semanticSearchError}
           indexedChunkCount={semanticIndexedChunkCount}
+          indexProgress={semanticIndexProgress}
+          indexStatus={semanticIndexStatus}
           onQueryChange={setSemanticQuery}
           onSearch={() => void runSemanticSearch()}
+          onUpdateIndex={() => void runSemanticIndexUpdate()}
+          onRebuildIndex={() => void runSemanticIndexRebuild()}
           onClose={() => setSemanticSearchOpen(false)}
           onSelect={(result, event) => {
             void handleSelectNote(result.path, { openInNewTab: event.metaKey || event.ctrlKey }).then((selected) => {
@@ -1767,8 +1926,12 @@ function SemanticSearchModal({
   busy,
   error,
   indexedChunkCount,
+  indexProgress,
+  indexStatus,
   onQueryChange,
   onSearch,
+  onUpdateIndex,
+  onRebuildIndex,
   onClose,
   onSelect,
 }: {
@@ -1777,13 +1940,21 @@ function SemanticSearchModal({
   busy: boolean;
   error: string | null;
   indexedChunkCount: number | null;
+  indexProgress: SemanticIndexProgress | null;
+  indexStatus: string | null;
   onQueryChange: (query: string) => void;
   onSearch: () => void;
+  onUpdateIndex: () => void;
+  onRebuildIndex: () => void;
   onClose: () => void;
   onSelect: (result: SemanticSearchResult, event: ReactMouseEvent<HTMLButtonElement>) => void;
 }) {
   const { t } = useTranslation();
   const hasQuery = query.trim().length > 0;
+  const progressPercent =
+    indexProgress && indexProgress.total > 0
+      ? Math.min(100, Math.round((indexProgress.completed / indexProgress.total) * 100))
+      : null;
 
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-center bg-black/40 px-4 py-12 backdrop-blur-sm">
@@ -1826,10 +1997,60 @@ function SemanticSearchModal({
             </button>
           </form>
 
-          {indexedChunkCount !== null && (
-            <p className="text-xs text-text-muted">
-              {t("semanticSearch.indexedChunks", { count: indexedChunkCount })}
+          <div className="flex items-center justify-between gap-3">
+            <p className="min-w-0 text-xs text-text-muted">
+              {indexedChunkCount !== null
+                ? t("semanticSearch.indexedChunks", { count: indexedChunkCount })
+                : t("semanticSearch.indexStatusIdle")}
             </p>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={busy}
+                onClick={onUpdateIndex}
+                title={t("semanticSearch.updateIndex")}
+                aria-label={t("semanticSearch.updateIndex")}
+              >
+                <i className="fa-solid fa-rotate-right text-xs" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={busy}
+                onClick={onRebuildIndex}
+                title={t("semanticSearch.rebuildIndex")}
+                aria-label={t("semanticSearch.rebuildIndex")}
+              >
+                <i className="fa-solid fa-arrows-rotate text-xs" aria-hidden />
+              </button>
+            </div>
+          </div>
+
+          {indexStatus && (
+            <div className="rounded-xl border border-accent-link/10 bg-bg-card px-3.5 py-3 text-xs text-text-secondary">
+              {indexStatus}
+            </div>
+          )}
+
+          {busy && indexProgress && (
+            <div className="space-y-2 rounded-xl border border-accent-link/10 bg-bg-card px-3.5 py-3">
+              <div className="flex items-center justify-between gap-3 text-xs text-text-muted">
+                <span>
+                  {t("semanticSearch.indexProgress", {
+                    completed: indexProgress.completed,
+                    total: indexProgress.total,
+                  })}
+                </span>
+                {progressPercent !== null && <span>{progressPercent}%</span>}
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-bg-hover">
+                <div
+                  className="h-full rounded-full bg-accent-link transition-[width] duration-300"
+                  style={{ width: `${progressPercent ?? 0}%` }}
+                />
+              </div>
+            </div>
           )}
 
           {error && (
@@ -1841,7 +2062,12 @@ function SemanticSearchModal({
           <div className="max-h-[55vh] overflow-auto rounded-xl border border-accent-link/10">
             {busy ? (
               <div className="px-4 py-8 text-center text-sm text-text-muted">
-                {t("semanticSearch.preparing")}
+                {indexProgress
+                  ? t("semanticSearch.preparingWithProgress", {
+                      completed: indexProgress.completed,
+                      total: indexProgress.total,
+                    })
+                  : t("semanticSearch.preparing")}
               </div>
             ) : results.length > 0 ? (
               <div className="divide-y divide-accent-link/10">

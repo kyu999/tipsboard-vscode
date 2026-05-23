@@ -2,7 +2,10 @@ import type {
   ImportedImage,
   ImportAttachmentBuffersResult,
   NoteSummary,
+  SemanticIndexProgress,
+  SemanticIndexSyncResult,
   SemanticSearchResponse,
+  SemanticSearchSettings,
   VaultAttachmentSummary,
   VaultSnapshot,
 } from "@/types";
@@ -46,8 +49,17 @@ declare global {
         entries: Array<{ name: string; data: Uint8Array | number[] | ArrayBuffer }>,
       ) => Promise<ImportAttachmentBuffersResult>;
       getAttachmentSummaries: () => Promise<VaultAttachmentSummary[]>;
-      semanticSearch: (query: string, limit?: number) => Promise<SemanticSearchResponse>;
-      rebuildSemanticIndex: () => Promise<unknown>;
+      semanticSearch: (
+        query: string,
+        limit?: number,
+        onProgress?: (progress: SemanticIndexProgress) => void,
+      ) => Promise<SemanticSearchResponse>;
+      getSemanticSearchSettings: () => Promise<SemanticSearchSettings>;
+      updateSemanticSearchSettings: (
+        settings: Partial<Pick<SemanticSearchSettings, "modelId" | "allowRemoteModels" | "modelCachePath">>,
+      ) => Promise<SemanticSearchSettings>;
+      updateSemanticIndex: (onProgress?: (progress: SemanticIndexProgress) => void) => Promise<SemanticIndexSyncResult>;
+      rebuildSemanticIndex: (onProgress?: (progress: SemanticIndexProgress) => void) => Promise<SemanticIndexSyncResult>;
       readAssetDataUrls: (paths: string[]) => Promise<Record<string, string>>;
       prefetchAssets: (paths: string[]) => Promise<void>;
       getPathForFile: (file: File) => string;

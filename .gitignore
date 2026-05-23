@@ -10,6 +10,8 @@ media/
 coverage/
 test-results/
 playwright-report/
+eval/.cache/
+eval/.tmp/
 *.log
 .env
 .env.*

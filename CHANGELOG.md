@@ -4,6 +4,22 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.1] - 2026-05-23
+
+### Added
+
+- **Semantic search maintenance UI**: added semantic index update/rebuild flows with progress feedback, indexed chunk counts, current model display, and settings controls from the Tipsboard panel.
+- **Hybrid semantic ranking**: semantic search can combine dense embedding similarity with local BM25 scoring (`dense` / `hybrid`, with configurable weights).
+- **Closed-network support**: added model cache configuration, **Tipsboard: Reveal Semantic Model Cache**, `prepare:semantic-model-cache`, offline error hints, and documentation for deploying both the runtime and embedding weights without Hub access.
+- **Semantic search evaluation tooling**: added `npm run eval:semantic`, dataset aliases for MLDR and SciFact, model comparison scripts, JSON reports, generated evaluation vaults, and `docs_wiki/SEMANTIC_SEARCH.md`.
+
+### Changed
+
+- **Default embedding model** is now `Xenova/multilingual-e5-base`; `Xenova/paraphrase-multilingual-MiniLM-L12-v2` is removed from the product model choices. Existing MiniLM settings are normalized to the new default on read.
+- **Semantic index updates** now reuse unchanged chunk vectors instead of rebuilding every vector when note content is unchanged, and chunking covers deeper Markdown headings.
+- **Model-specific embedding profiles** now apply the correct pooling and query/document prefixes for e5, bge-m3, and gte-style models.
+- **README** now introduces semantic search as part of knowledge discovery and moves runtime/model-cache details into a dedicated settings section.
+
 ## [0.3.0] - 2026-05-22
 
 ### Added

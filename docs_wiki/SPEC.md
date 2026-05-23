@@ -241,7 +241,7 @@ RPC 応答リスナは `kind === "rpc-result"` のみ処理し、イベントは
 | `resolveAssetUrl` | **同期だがキャッシュヒット時のみ**文字列。初期は空 |
 | `getPathForFile` | **常に `""`**（Electron 専用 API のスタブ） |
 | `semanticSearch` | RPC `semanticSearch`（`{ query, limit? }`） |
-| `rebuildSemanticIndex` | RPC `rebuildSemanticIndex` |
+| `updateSemanticIndex` / `rebuildSemanticIndex` | RPC（差分更新 / 完全再構築） |
 | `onOpenFind` / `onFindNext` / `onFindPrevious` | **空の unsubscribe を返すだけ**（VS Code メニュー未接続） |
 
 **開発上の意味**: Editor 由来の `NoteEditor` / CodeMirror は `onOpenFind` 等にフックするが、VS Code 版では **CodeMirror の検索パネル（`@codemirror/search`）がローカルに完結**する。
@@ -300,9 +300,10 @@ vault/
 
 #### 8.1.1 セマンティック検索索引（`.tipsboard/semantic/`）
 
+- **詳細仕様・評価方式**: [`SEMANTIC_SEARCH.md`](./SEMANTIC_SEARCH.md)（チャンク化、スコアリング、hybrid、開発用ベンチマーク）。
 - **用途**: セマンティック検索利用時に、vault 内 `pages/*.md` から作ったチャンクとベクトルを保持する（Git に含めない運用が推奨）。
 - **ファイル**: `manifest.json`（スキーマ・モデル id・次元・件数・日時）、`chunks.json`（メタデータと本文断片）、`vectors.f32`（Float32 連結）。
-- **モデル本体**: Hugging Face Hub からの初回取得分は **`ExtensionContext.globalStorageUri` 配下**（`TipsboardPanel.semanticModelCacheDir()`）にキャッシュされ、vault 外に置かれる。
+- **モデル本体**: Transformers.js のキャッシュ（既定は Hub から初回取得、`allowRemoteModels` 既定 `true`）。閉域では `false` + `modelCachePath` と `prepare:semantic-model-cache` 配布。詳細は [`SEMANTIC_SEARCH.md`](./SEMANTIC_SEARCH.md) の「オンライン利用と閉域利用」。
 
 ### 8.2 ノートパスの検証
 

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { Buffer } from "node:buffer";
 import * as vscode from "vscode";
-import type { RpcInbound, RpcOutbound } from "./protocol.js";
+import type { RpcInbound, RpcOutbound, RpcProgressOutbound } from "./protocol.js";
 import {
   readVault,
   createNote,
@@ -36,8 +36,14 @@ import {
 import {
   rebuildSemanticIndex,
   semanticSearch,
+  updateSemanticIndex,
 } from "../host/semantic.js";
 import { createSemanticProviderForExtension } from "../host/semanticProviderFactory.js";
+import {
+  SEMANTIC_SEARCH_MODEL_IDS,
+  readSemanticSettings,
+  semanticConfigurationPrefix,
+} from "../host/semanticSettings.js";
 import type { TipsboardPanel } from "../panel/TipsboardPanel.js";
 
 function semanticProviderFor(panel: TipsboardPanel) {
@@ -66,6 +72,16 @@ export async function handleRpcInbound(
       ok: partial.ok ?? true,
       result: partial.result,
       error: partial.error,
+    };
+    void webview.postMessage(msg);
+  };
+  const progress = (method: string, value: unknown): void => {
+    const msg: RpcProgressOutbound = {
+      source: "tipsboard-vscode-host",
+      kind: "rpc-progress",
+      id: raw.id,
+      method,
+      progress: value,
     };
     void webview.postMessage(msg);
   };
@@ -299,19 +315,76 @@ export async function handleRpcInbound(
       case "semanticSearch": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
         const payload = raw.payload as { query?: string; limit?: number };
+        const settings = readSemanticSettings();
         const result = await semanticSearch(
           vaultPath,
           String(payload?.query ?? ""),
           await semanticProviderFor(panel),
-          { limit: payload?.limit },
+          {
+            limit: payload?.limit,
+            mode: settings.mode,
+            denseWeight: settings.denseWeight,
+            bm25Weight: settings.bm25Weight,
+            onEmbeddingProgress: (value) => progress("semanticSearch", value),
+          },
         );
+        reply({ ok: true, result });
+        return;
+      }
+
+      case "getSemanticSearchSettings": {
+        const settings = readSemanticSettings();
+        reply({
+          ok: true,
+          result: {
+            modelId: settings.modelId,
+            allowRemoteModels: settings.allowRemoteModels,
+            modelCachePath: settings.modelCachePath,
+            modelIds: SEMANTIC_SEARCH_MODEL_IDS,
+          },
+        });
+        return;
+      }
+
+      case "updateSemanticSearchSettings": {
+        const payload = raw.payload as { modelId?: string; allowRemoteModels?: boolean; modelCachePath?: string } | undefined;
+        const config = vscode.workspace.getConfiguration(semanticConfigurationPrefix());
+        if (typeof payload?.modelId === "string" && SEMANTIC_SEARCH_MODEL_IDS.some((id) => id === payload.modelId)) {
+          await config.update("modelId", payload.modelId, vscode.ConfigurationTarget.Global);
+        }
+        if (typeof payload?.allowRemoteModels === "boolean") {
+          await config.update("allowRemoteModels", payload.allowRemoteModels, vscode.ConfigurationTarget.Global);
+        }
+        if (typeof payload?.modelCachePath === "string") {
+          await config.update("modelCachePath", payload.modelCachePath.trim(), vscode.ConfigurationTarget.Global);
+        }
+        const settings = readSemanticSettings();
+        reply({
+          ok: true,
+          result: {
+            modelId: settings.modelId,
+            allowRemoteModels: settings.allowRemoteModels,
+            modelCachePath: settings.modelCachePath,
+            modelIds: SEMANTIC_SEARCH_MODEL_IDS,
+          },
+        });
+        return;
+      }
+
+      case "updateSemanticIndex": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const result = await updateSemanticIndex(vaultPath, await semanticProviderFor(panel), {
+          onEmbeddingProgress: (value) => progress("updateSemanticIndex", value),
+        });
         reply({ ok: true, result });
         return;
       }
 
       case "rebuildSemanticIndex": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
-        const result = await rebuildSemanticIndex(vaultPath, await semanticProviderFor(panel));
+        const result = await rebuildSemanticIndex(vaultPath, await semanticProviderFor(panel), {
+          onEmbeddingProgress: (value) => progress("rebuildSemanticIndex", value),
+        });
         reply({ ok: true, result });
         return;
       }

@@ -2,7 +2,11 @@ import * as vscode from "vscode";
 import { TipsboardPanel } from "./panel/TipsboardPanel.js";
 import { clearSemanticProviderCache } from "./host/semanticProviderFactory.js";
 import { downloadAndInstallSemanticRuntime, installSemanticRuntimeFromFile } from "./host/semanticRuntime.js";
-import { readSemanticSettings, semanticConfigurationPrefix } from "./host/semanticSettings.js";
+import {
+  readSemanticSettings,
+  resolveSemanticModelCacheDir,
+  semanticConfigurationPrefix,
+} from "./host/semanticSettings.js";
 import { pickVaultFolder, resolveVaultFsPath } from "./host/vaultRoot.js";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -35,6 +39,19 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("tipsboard-vscode.installSemanticRuntime", async () => {
       await installSemanticRuntimeFromFile(semanticRuntimeOptions());
       clearSemanticProviderCache();
+    }),
+    vscode.commands.registerCommand("tipsboard-vscode.revealSemanticModelCache", async () => {
+      const settings = readSemanticSettings();
+      const defaultCacheDir = vscode.Uri.joinPath(context.globalStorageUri, "semantic-models").fsPath;
+      const cacheDir = resolveSemanticModelCacheDir(settings, defaultCacheDir);
+      const cacheUri = vscode.Uri.file(cacheDir);
+      await vscode.workspace.fs.createDirectory(cacheUri);
+      await vscode.commands.executeCommand("revealFileInOS", cacheUri);
+      void vscode.window.showInformationMessage(
+        settings.allowRemoteModels
+          ? `Semantic model cache: ${cacheDir}`
+          : `Semantic model cache (offline / no Hub): ${cacheDir}`,
+      );
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration(semanticConfigurationPrefix())) {

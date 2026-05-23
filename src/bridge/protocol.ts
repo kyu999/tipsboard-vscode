@@ -16,3 +16,11 @@ export interface RpcOutbound {
   result?: unknown;
   error?: string;
 }
+
+export interface RpcProgressOutbound {
+  source: "tipsboard-vscode-host";
+  kind: "rpc-progress";
+  id: string;
+  method: string;
+  progress: unknown;
+}

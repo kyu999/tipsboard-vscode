@@ -25,7 +25,7 @@ Tipsboard combines:
 - rich Markdown editing
 - Kanban organization
 - image embedding and preview
-- **semantic search** (meaning-based note search; turn off with `tipsboard-vscode.semanticSearch.provider` = `off` if needed)
+- optional local semantic search for finding notes by meaning
 - English and Japanese UI
 
 Everything stays compatible with your existing Markdown workflow and works naturally with Git and external backups.
@@ -89,13 +89,15 @@ The experience is inspired by connected-note and personal knowledge management w
 
 ---
 
-### Semantic search
+### Meaning-Based Search
 
 ![Semantic search](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/semantic-search.png)
 
-Use the **wand** button next to the header search field to open **semantic search**: natural-language queries match note **sections** by meaning, not only exact keywords. Pick a result to open the note.
+Links, backlinks, tags, and related notes are the main way to move through a Tipsboard vault. When you remember an idea but not the exact title or words, use the **wand** button next to the header search field to open semantic search.
 
-By default (**Tipsboard: Semantic Search Provider** = `bundled`), search runs locally via Transformers.js. If the local semantic runtime is not installed yet, Tipsboard can download the matching runtime pack automatically or install a zip you downloaded in a browser. Reload VS Code after installing the runtime, then run semantic search. Index data is written under **`.tipsboard/semantic/`** in your vault (generated files; add to `.gitignore` if you do not want them in Git). The first search may also download embedding model weights into VS Code **global storage** (not your note files). Set the provider to **`off`** in settings to disable semantic search entirely.
+Semantic search accepts natural-language queries and matches note **sections** by meaning, not only exact keywords. Results open the original Markdown note, so it remains part of the same plain-file workflow.
+
+Search runs locally by default. The generated index is stored under `.tipsboard/semantic/` in your vault, and model weights are cached outside your notes in VS Code global storage unless you configure another cache path. See [Semantic Search Settings](#semantic-search-settings) for runtime, offline, and model options.
 
 ---
 
@@ -276,6 +278,9 @@ Commands such as **Tipsboard: New Note** remain available regardless of conflict
 | `Tipsboard: Select Vault Folder...` | Choose a vault directory |
 | `Tipsboard: New Note` | Create a note (also bound to Ctrl/Cmd+N while the Tipsboard panel is focused) |
 | `Tipsboard: Close active tab` | Close the active Tipsboard tab (also bound to `Ctrl+Alt+Shift+W` / macOS `Cmd+Alt+Shift+W`; blocked when only one tab remains) |
+| `Tipsboard: Download Semantic Runtime` | Download the local semantic search runtime pack |
+| `Tipsboard: Install Semantic Runtime from File...` | Install a prepared semantic runtime zip |
+| `Tipsboard: Reveal Semantic Model Cache` | Open the embedding model cache folder |
 
 ---
 
@@ -287,9 +292,22 @@ Commands such as **Tipsboard: New Note** remain available regardless of conflict
 | `tipsboard-vscode.manualVaultPath` | Explicit vault path override |
 | `tipsboard-vscode.maxAttachmentBytes` | Maximum size in bytes per Shift+drag attachment (images and other files); default 10485760 (10 MiB) |
 | `tipsboard-vscode.semanticSearch.provider` | `bundled` (default) enables local semantic search; `off` disables it |
-| `tipsboard-vscode.semanticSearch.modelId` | Hugging Face model id for embeddings (default suits Japanese and English) |
+| `tipsboard-vscode.semanticSearch.modelId` | Hugging Face model id for embeddings; default is `Xenova/multilingual-e5-base` |
+| `tipsboard-vscode.semanticSearch.mode` | Ranking mode: `dense` or `hybrid` |
+| `tipsboard-vscode.semanticSearch.allowRemoteModels` | Allow missing embedding model weights to download from Hugging Face Hub |
+| `tipsboard-vscode.semanticSearch.modelCachePath` | Optional Transformers.js model cache folder |
 | `tipsboard-vscode.semanticSearch.importedPath` | Optional absolute path to a custom semantic runtime folder instead of the managed runtime |
 | `tipsboard-vscode.semanticSearch.runtimeDownloadBaseUrl` | Base URL for semantic runtime pack downloads |
+
+---
+
+### Semantic Search Settings
+
+Semantic search is optional and local-first. With the default provider (`bundled`), Tipsboard uses a local Transformers.js runtime and the `Xenova/multilingual-e5-base` embedding model. The first search may download the runtime pack and model weights if they are not already installed.
+
+For closed networks, install the semantic runtime from a prepared zip or point `tipsboard-vscode.semanticSearch.importedPath` at a prepared runtime folder. Then set `tipsboard-vscode.semanticSearch.allowRemoteModels` to `false` and set `tipsboard-vscode.semanticSearch.modelCachePath` to a prebuilt `semantic-model-cache` folder. The command **Tipsboard: Reveal Semantic Model Cache** opens the cache location currently used by the extension.
+
+Use `tipsboard-vscode.semanticSearch.provider = off` to disable semantic search entirely.
 
 ---
 

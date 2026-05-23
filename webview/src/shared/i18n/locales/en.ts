@@ -44,6 +44,16 @@ const en = {
     search: "Search",
     searching: "Searching…",
     preparing: "Preparing the local index. The first run may take a little while.",
+    preparingWithProgress: "Preparing the local index: {{completed}} / {{total}} chunks embedded.",
+    indexProgress: "Embedding index chunks: {{completed}} / {{total}}",
+    updateIndex: "Update index",
+    rebuildIndex: "Rebuild from scratch",
+    indexStatusIdle: "Semantic index",
+    indexMaintenanceHint: "Update applies only changed chunks. Rebuild re-embeds every chunk (use after model changes).",
+    indexUpdated: "Index updated: {{newlyEmbedded}} embedded, {{reused}} reused ({{total}} chunks total).",
+    indexRebuilt: "Index rebuilt for all {{total}} chunks.",
+    rebuildConfirmTitle: "Rebuild semantic index?",
+    rebuildConfirmMessage: "This re-embeds every chunk in the vault. It can take much longer than an incremental update.",
     close: "Close",
     empty: "Enter what you want to find in natural language.",
     noResults: "No semantically similar notes found.",
@@ -52,10 +62,26 @@ const en = {
   settings: {
     sections: {
       language: "Language",
+      semanticSearch: "Semantic search",
     },
     language: {
       label: "Display language",
       helper: "Your language selection is saved in this app.",
+    },
+    semanticSearch: {
+      model: {
+        label: "Embedding model",
+        helper: "Changing the model rebuilds the semantic index on the next search.",
+      },
+      allowRemote: {
+        label: "Download missing models from Hugging Face Hub",
+        helper: "Turn this off on closed networks and use a pre-deployed model cache.",
+      },
+      modelCachePath: {
+        label: "Model cache folder",
+        helper: "For closed networks, point to the semantic-model-cache folder produced by prepare:semantic-model-cache (the parent containing Xenova/...).",
+        placeholder: "/path/to/semantic-model-cache",
+      },
     },
   },
   page: {

@@ -2,7 +2,10 @@ import type {
   ImportedImage,
   ImportAttachmentBuffersResult,
   NoteSummary,
+  SemanticIndexProgress,
+  SemanticIndexSyncResult,
   SemanticSearchResponse,
+  SemanticSearchSettings,
   VaultAttachmentSummary,
   VaultSnapshot,
 } from "@/types";
@@ -10,6 +13,7 @@ import type {
 type Pending = {
   resolve: (v: unknown) => void;
   reject: (e: Error) => void;
+  onProgress?: (progress: unknown) => void;
 };
 
 const pending = new Map<string, Pending>();
@@ -18,7 +22,7 @@ const missingAssetCache = new Set<string>();
 
 let vscodeApi: ReturnType<typeof acquireVsCodeApi>;
 
-function rpc(method: string, payload?: unknown): Promise<unknown> {
+function rpc(method: string, payload?: unknown, onProgress?: (progress: unknown) => void): Promise<unknown> {
   vscodeApi ??= acquireVsCodeApi();
   const id = crypto.randomUUID();
   vscodeApi.postMessage({ source: "tipsboard-vscode", kind: "rpc", id, method, payload });
@@ -27,6 +31,7 @@ function rpc(method: string, payload?: unknown): Promise<unknown> {
     pending.set(id, {
       resolve,
       reject,
+      onProgress,
     });
   });
 }
@@ -39,12 +44,18 @@ window.addEventListener("message", (ev: MessageEvent) => {
     ok?: boolean;
     result?: unknown;
     error?: string;
+    progress?: unknown;
   };
-  if (data?.kind !== "rpc-result" || data?.source !== "tipsboard-vscode-host" || typeof data.id !== "string") {
+  if (data?.source !== "tipsboard-vscode-host" || typeof data.id !== "string") {
     return;
   }
   const p = pending.get(data.id);
   if (!p) return;
+  if (data.kind === "rpc-progress") {
+    p.onProgress?.(data.progress);
+    return;
+  }
+  if (data.kind !== "rpc-result") return;
   pending.delete(data.id);
   if (data.ok) p.resolve(data.result);
   else p.reject(new Error(data.error ?? "RPC failed"));
@@ -120,10 +131,33 @@ function wireDesktop(): typeof window.tipsboardDesktop {
 
     getAttachmentSummaries: () => rpc("getAttachmentSummaries") as Promise<VaultAttachmentSummary[]>,
 
-    semanticSearch: (query: string, limit?: number) =>
-      rpc("semanticSearch", { query, limit }) as Promise<SemanticSearchResponse>,
+    semanticSearch: (query: string, limit?: number, onProgress?: (progress: SemanticIndexProgress) => void) =>
+      rpc(
+        "semanticSearch",
+        { query, limit },
+        onProgress as ((progress: unknown) => void) | undefined,
+      ) as Promise<SemanticSearchResponse>,
 
-    rebuildSemanticIndex: () => rpc("rebuildSemanticIndex"),
+    getSemanticSearchSettings: () => rpc("getSemanticSearchSettings") as Promise<SemanticSearchSettings>,
+
+    updateSemanticSearchSettings: (
+      settings: Partial<Pick<SemanticSearchSettings, "modelId" | "allowRemoteModels" | "modelCachePath">>,
+    ) =>
+      rpc("updateSemanticSearchSettings", settings) as Promise<SemanticSearchSettings>,
+
+    updateSemanticIndex: (onProgress?: (progress: SemanticIndexProgress) => void) =>
+      rpc(
+        "updateSemanticIndex",
+        undefined,
+        onProgress as ((progress: unknown) => void) | undefined,
+      ) as Promise<SemanticIndexSyncResult>,
+
+    rebuildSemanticIndex: (onProgress?: (progress: SemanticIndexProgress) => void) =>
+      rpc(
+        "rebuildSemanticIndex",
+        undefined,
+        onProgress as ((progress: unknown) => void) | undefined,
+      ) as Promise<SemanticIndexSyncResult>,
 
     readAssetDataUrls: (paths: string[]) => rpc("readAssetDataUrls", { paths }) as Promise<Record<string, string>>,
 

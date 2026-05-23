@@ -44,6 +44,16 @@ const ja = {
     search: "検索",
     searching: "検索中…",
     preparing: "インデックスを準備しています。初回は少し時間がかかります。",
+    preparingWithProgress: "インデックスを準備しています: {{completed}} / {{total}} チャンクを埋め込み済み。",
+    indexProgress: "インデックスチャンクを埋め込み中: {{completed}} / {{total}}",
+    updateIndex: "索引を更新",
+    rebuildIndex: "索引を完全再構築",
+    indexStatusIdle: "セマンティック索引",
+    indexMaintenanceHint: "更新は変更のあったチャンクだけを埋め込み直します。完全再構築は全チャンクを対象にします（モデル変更後など）。",
+    indexUpdated: "索引を更新しました: 新規埋め込み {{newlyEmbedded}}、再利用 {{reused}}（合計 {{total}} チャンク）。",
+    indexRebuilt: "索引を完全再構築しました（{{total}} チャンク）。",
+    rebuildConfirmTitle: "セマンティック索引を完全再構築しますか？",
+    rebuildConfirmMessage: "vault 内の全チャンクを embedding し直します。差分更新より時間がかかります。",
     close: "閉じる",
     empty: "自然文で探したい内容を入力してください。",
     noResults: "意味が近いメモは見つかりませんでした。",
@@ -52,10 +62,26 @@ const ja = {
   settings: {
     sections: {
       language: "言語",
+      semanticSearch: "セマンティック検索",
     },
     language: {
       label: "表示言語",
       helper: "選択した言語はこのアプリに保存されます。",
+    },
+    semanticSearch: {
+      model: {
+        label: "Embedding モデル",
+        helper: "モデルを変えると、次回検索時にセマンティック索引を作り直します。",
+      },
+      allowRemote: {
+        label: "不足しているモデルを Hugging Face Hub から取得する",
+        helper: "閉域ネットワークではオフにし、事前配布したモデルキャッシュを使います。",
+      },
+      modelCachePath: {
+        label: "モデルキャッシュフォルダ",
+        helper: "閉域では prepare:semantic-model-cache で作った semantic-model-cache フォルダを指定します（中に Xenova/... が入る親フォルダ）。",
+        placeholder: "/path/to/semantic-model-cache",
+      },
     },
   },
   page: {

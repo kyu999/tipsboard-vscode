@@ -94,6 +94,26 @@ export interface SemanticSearchResponse {
   modelId: string;
 }
 
+export interface SemanticIndexProgress {
+  completed: number;
+  total: number;
+}
+
+export interface SemanticSearchSettings {
+  modelId: string;
+  allowRemoteModels: boolean;
+  modelCachePath: string;
+  modelIds: string[];
+}
+
+export interface SemanticIndexSyncResult {
+  chunkCount: number;
+  modelId: string;
+  newlyEmbeddedCount: number;
+  reusedChunkCount: number;
+  updatedAt: number;
+}
+
 export interface LinkSuggestion {
   title: string;
   filename: string;
