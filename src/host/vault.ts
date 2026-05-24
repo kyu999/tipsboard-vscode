@@ -18,10 +18,10 @@ import {
   prunePinsToValidPaths,
   savePinsState,
 } from "./pins.js";
+import { listInboxDirCandidates } from "../shared/inboxPath.js";
+import { loadWorkspacePreferences } from "./workspacePreferences.js";
 
 const PAGES_PREFIX = "pages";
-const UNSORTED_PREFIX = "Unsorted";
-const TIPSBOARD_UNSORTED_PREFIX = "Tipsboard Unsorted";
 const EXCLUDED_MARKDOWN_DIRS = new Set([".tipsboard", ".git", "node_modules", "dist", "build", "out"]);
 
 function nowIso(): string {
@@ -106,6 +106,20 @@ function normalizeSafeRelativeMarkdownPath(relativePath: string): string {
   }
   if (parts.some((part) => EXCLUDED_MARKDOWN_DIRS.has(part))) {
     throw new Error("Note paths must not be inside excluded workspace directories");
+  }
+  return parts.join("/");
+}
+
+function normalizeSafeRelativeFolderPath(relativePath: string): string {
+  if (!relativePath) throw new Error("Folder paths must be workspace-relative directories");
+  if (path.isAbsolute(relativePath)) throw new Error("Folder paths must be workspace-relative directories");
+  const normalized = path.normalize(relativePath).replace(/\\/g, "/").replace(/^\.\//, "");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length === 0 || parts.some((part) => part === "." || part === "..")) {
+    throw new Error("Folder paths must be workspace-relative directories");
+  }
+  if (parts.some((part) => EXCLUDED_MARKDOWN_DIRS.has(part))) {
+    throw new Error("Folder paths must not be inside excluded workspace directories");
   }
   return parts.join("/");
 }
@@ -366,6 +380,7 @@ export async function readVault(vaultPath: string | null): Promise<VaultSnapshot
   }
 
   const notesOrdered = reorderNotesWithPins(notes, pinsPruned.paths);
+  const workspacePreferences = await loadWorkspacePreferences(vaultPath);
 
   return {
     vaultPath,
@@ -373,6 +388,7 @@ export async function readVault(vaultPath: string | null): Promise<VaultSnapshot
     attachments: await buildAttachmentSummaries(vaultPath, notesOrdered),
     pins: pinsPruned.paths.slice(),
     kanban: kanbanClean,
+    workspacePreferences,
   };
 }
 
@@ -427,10 +443,13 @@ async function pathExists(abs: string): Promise<boolean> {
   );
 }
 
-async function resolveUnsortedDir(vaultPath: string): Promise<{ abs: string; rel: string }> {
-  const candidates = [UNSORTED_PREFIX, TIPSBOARD_UNSORTED_PREFIX];
-  for (let i = 2; i < 9999; i += 1) {
-    candidates.push(`${TIPSBOARD_UNSORTED_PREFIX} ${i}`);
+async function resolveInboxDir(vaultPath: string): Promise<{ abs: string; rel: string }> {
+  const candidates = listInboxDirCandidates();
+
+  for (const rel of candidates) {
+    const abs = path.join(vaultPath, rel);
+    const stats = await fs.stat(abs).catch(() => null);
+    if (stats?.isDirectory()) return { abs, rel };
   }
 
   for (const rel of candidates) {
@@ -440,18 +459,17 @@ async function resolveUnsortedDir(vaultPath: string): Promise<{ abs: string; rel
       await fs.mkdir(abs, { recursive: true });
       return { abs, rel };
     }
-    if (stats.isDirectory()) return { abs, rel };
   }
 
-  throw new Error("Could not allocate an Unsorted folder");
+  throw new Error("Could not allocate an inbox folder");
 }
 
 export async function createNote(vaultPath: string, titleIn: string): Promise<NoteSummary> {
   const trimmed = titleIn.trim();
   const titleLine = trimmed || "Untitled";
-  const unsortedDir = await resolveUnsortedDir(vaultPath);
-  const filename = await allocateUniqueFilename(unsortedDir.abs, titleLine);
-  const relative = `${unsortedDir.rel}/${filename}`;
+  const inboxDir = await resolveInboxDir(vaultPath);
+  const filename = await allocateUniqueFilename(inboxDir.abs, titleLine);
+  const relative = `${inboxDir.rel}/${filename}`;
   const body = `${titleLine}\n`;
   const abs = path.join(vaultPath, relative);
   await fs.writeFile(abs, body, "utf8");
@@ -504,6 +522,59 @@ export async function saveNote(vaultPath: string, relativePath: string, body: st
   await fs.writeFile(abs, body, "utf8");
 
   return statNote(vaultPath, finalRelative);
+}
+
+export async function moveNoteToFolder(
+  vaultPath: string,
+  relativePath: string,
+  targetFolder: string,
+): Promise<NoteSummary> {
+  const safeRelativePath = normalizeSafeRelativeMarkdownPath(relativePath);
+  const safeTargetFolder = normalizeSafeRelativeFolderPath(targetFolder);
+  const absOld = path.join(vaultPath, safeRelativePath);
+  const absTargetDir = path.join(vaultPath, safeTargetFolder);
+  const targetStats = await fs.stat(absTargetDir).catch(() => null);
+  if (!targetStats?.isDirectory()) {
+    throw new Error("Target folder must already exist");
+  }
+
+  const currentFolder = path.posix.dirname(safeRelativePath);
+  if (currentFolder === safeTargetFolder) {
+    return statNote(vaultPath, safeRelativePath);
+  }
+
+  const currentBasename = path.basename(safeRelativePath);
+  const targetBasename = await allocateUniqueMarkdownBasename(
+    absTargetDir,
+    path.basename(currentBasename, ".md"),
+    undefined,
+  );
+  const finalRelative = path.posix.join(safeTargetFolder, targetBasename).replace(/\\/g, "/");
+  const absNew = path.join(vaultPath, finalRelative);
+
+  await fs.rename(absOld, absNew);
+  await patchKanbanNotePaths(vaultPath, safeRelativePath, finalRelative);
+  await patchPinsNotePaths(vaultPath, safeRelativePath, finalRelative);
+  return statNote(vaultPath, finalRelative);
+}
+
+export async function moveNotesToFolders(
+  vaultPath: string,
+  moves: Array<{ notePath: string; targetFolder: string }>,
+): Promise<{
+  snapshot: VaultSnapshot;
+  moved: Array<{ fromPath: string; toPath: string; note: NoteSummary }>;
+}> {
+  const moved: Array<{ fromPath: string; toPath: string; note: NoteSummary }> = [];
+  for (const move of moves) {
+    const fromPath = move.notePath.replace(/\\/g, "/");
+    const note = await moveNoteToFolder(vaultPath, move.notePath, move.targetFolder);
+    const toPath = note.path.replace(/\\/g, "/");
+    if (fromPath !== toPath) {
+      moved.push({ fromPath, toPath, note });
+    }
+  }
+  return { snapshot: await readVault(vaultPath), moved };
 }
 
 export async function deleteNote(vaultPath: string, relativePath: string): Promise<void> {
@@ -762,7 +833,7 @@ export async function importVaultJson(vaultPath: string, jsonPath: string): Prom
     throw new Error("Unsupported import file");
   }
 
-  const unsortedDir = await resolveUnsortedDir(vaultPath);
+  const inboxDir = await resolveInboxDir(vaultPath);
 
   for (const p of parsed.pages) {
     const page = p as {
@@ -788,8 +859,8 @@ export async function importVaultJson(vaultPath: string, jsonPath: string): Prom
     if (existing) {
       await saveNote(vaultPath, existing, body);
     } else {
-      const file = await allocateUniqueFilename(unsortedDir.abs, title);
-      const rel = `${unsortedDir.rel}/${file}`;
+      const file = await allocateUniqueFilename(inboxDir.abs, title);
+      const rel = `${inboxDir.rel}/${file}`;
       await fs.writeFile(path.join(vaultPath, rel), body, "utf8");
     }
   }

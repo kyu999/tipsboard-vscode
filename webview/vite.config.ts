@@ -11,6 +11,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
+      "@tipsboard/shared": path.resolve(__dirname, "../src/shared"),
     },
     dedupe: ["react", "react-dom"],
   },

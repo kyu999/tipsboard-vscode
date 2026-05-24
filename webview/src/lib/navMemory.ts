@@ -2,7 +2,7 @@ import type { EditorTab } from "./editorTabs";
 
 export interface NavMemory {
   selectedPath: string | null;
-  viewMode: "list" | "kanban" | "attachments";
+  viewMode: "list" | "kanban" | "attachments" | "organize";
   kanbanFocus: {
     boardId: string | null;
     columnId: string | null;

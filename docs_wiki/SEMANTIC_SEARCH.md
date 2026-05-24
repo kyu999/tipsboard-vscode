@@ -437,7 +437,7 @@ JSON レポート（例: `eval/.cache/reports/semantic-eval-jmteb-lite-mldr-*.js
 | 既定 `jmteb-lite-mldr` | `eval/.cache/vaults/jmteb-lite-mldr/` |
 | `beir-scifact` | `eval/.cache/vaults/beir-scifact/` |
 
-Tipsboard で **Select Vault Folder** から上記フォルダを選びます。評価実行時に `.tipsboard/semantic/` も作られるため、そのまま wand から semantic 検索を試せます。
+VS Code で上記フォルダを開き、Tipsboard を起動します。評価実行時に `.tipsboard/semantic/` も作られるため、そのまま wand から semantic 検索を試せます。
 
 ---
 
@@ -478,7 +478,7 @@ npm run eval:semantic -- --mode hybrid --dense-weight 0.7 --bm25-weight 0.3
 npm run eval:semantic -- --dataset mldr
 ```
 
-→ `eval/.cache/vaults/jmteb-lite-mldr/` を Select Vault Folder で開く。
+→ `eval/.cache/vaults/jmteb-lite-mldr/` を VS Code で開く。
 
 複数モデル比較:
 

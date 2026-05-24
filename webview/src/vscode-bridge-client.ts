@@ -1,7 +1,10 @@
 import type {
+  BulkMoveNotesResponse,
+  BulkOrganizeSuggestionsResponse,
   ImportedImage,
   ImportAttachmentBuffersResult,
   NoteSummary,
+  OrganizeSuggestionsResponse,
   SemanticIndexProgress,
   SemanticIndexSyncResult,
   SemanticSearchResponse,
@@ -65,7 +68,6 @@ function wireDesktop(): typeof window.tipsboardDesktop {
   return {
     getSnapshot: () => rpc("getSnapshot") as Promise<VaultSnapshot>,
 
-    selectFolder: () => rpc("selectFolder") as Promise<VaultSnapshot>,
 
     createNote: (title: string) =>
       rpc("createNote", title) as Promise<{ notePath: string; note: NoteSummary }>,
@@ -130,6 +132,33 @@ function wireDesktop(): typeof window.tipsboardDesktop {
       ) as Promise<ImportAttachmentBuffersResult>,
 
     getAttachmentSummaries: () => rpc("getAttachmentSummaries") as Promise<VaultAttachmentSummary[]>,
+
+    getOrganizeSuggestions: (notePath: string, onProgress?: (progress: SemanticIndexProgress) => void) =>
+      rpc(
+        "getOrganizeSuggestions",
+        { notePath },
+        onProgress as ((progress: unknown) => void) | undefined,
+      ) as Promise<OrganizeSuggestionsResponse>,
+
+    getBulkOrganizeSuggestions: (onProgress?: (progress: unknown) => void) =>
+      rpc(
+        "getBulkOrganizeSuggestions",
+        undefined,
+        onProgress,
+      ) as Promise<BulkOrganizeSuggestionsResponse>,
+
+    moveNoteToFolder: (notePath: string, targetFolder: string) =>
+      rpc("moveNoteToFolder", { notePath, targetFolder }) as Promise<{
+        notePath: string;
+        note: NoteSummary;
+        snapshot: VaultSnapshot;
+      }>,
+
+    moveNotesToFolders: (moves: Array<{ notePath: string; targetFolder: string }>) =>
+      rpc("moveNotesToFolders", { moves }) as Promise<BulkMoveNotesResponse>,
+
+    setWorkspacePreferences: (preferences: { preferFolderHierarchy: boolean }) =>
+      rpc("setWorkspacePreferences", preferences) as Promise<VaultSnapshot>,
 
     semanticSearch: (query: string, limit?: number, onProgress?: (progress: SemanticIndexProgress) => void) =>
       rpc(

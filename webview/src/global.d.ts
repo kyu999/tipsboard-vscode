@@ -1,7 +1,10 @@
 import type {
+  BulkMoveNotesResponse,
+  BulkOrganizeSuggestionsResponse,
   ImportedImage,
   ImportAttachmentBuffersResult,
   NoteSummary,
+  OrganizeSuggestionsResponse,
   SemanticIndexProgress,
   SemanticIndexSyncResult,
   SemanticSearchResponse,
@@ -16,7 +19,6 @@ declare global {
   interface Window {
     tipsboardDesktop: {
       getSnapshot: () => Promise<VaultSnapshot>;
-      selectFolder: () => Promise<VaultSnapshot>;
       createNote: (title: string) => Promise<{ notePath: string; note: NoteSummary }>;
       saveNote: (
         path: string,
@@ -49,6 +51,23 @@ declare global {
         entries: Array<{ name: string; data: Uint8Array | number[] | ArrayBuffer }>,
       ) => Promise<ImportAttachmentBuffersResult>;
       getAttachmentSummaries: () => Promise<VaultAttachmentSummary[]>;
+      getOrganizeSuggestions: (
+        notePath: string,
+        onProgress?: (progress: SemanticIndexProgress) => void,
+      ) => Promise<OrganizeSuggestionsResponse>;
+      getBulkOrganizeSuggestions: (
+        onProgress?: (progress: unknown) => void,
+      ) => Promise<BulkOrganizeSuggestionsResponse>;
+      moveNoteToFolder: (
+        notePath: string,
+        targetFolder: string,
+      ) => Promise<{ notePath: string; note: NoteSummary; snapshot: VaultSnapshot }>;
+      moveNotesToFolders: (
+        moves: Array<{ notePath: string; targetFolder: string }>,
+      ) => Promise<BulkMoveNotesResponse>;
+      setWorkspacePreferences: (preferences: {
+        preferFolderHierarchy: boolean;
+      }) => Promise<VaultSnapshot>;
       semanticSearch: (
         query: string,
         limit?: number,

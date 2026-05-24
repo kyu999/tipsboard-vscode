@@ -117,8 +117,8 @@ flowchart LR
 
 次のとき `TipsboardPanel.notifyVaultChanged` が呼ばれうる。
 
-- **設定** `manualVaultPath` / `vaultFolder` の変更（`onDidChangeConfiguration`）。
-- **コマンド** `Tipsboard: Select Vault Folder`（フォルダ選択後に `resolveVaultFsPath` で再評価）。
+- **設定** `vaultFolder` の変更（`onDidChangeConfiguration`）。
+- **ワークスペースフォルダの追加・削除**（`onDidChangeWorkspaceFolders`）で `resolveVaultFsPath` を再評価。
 
 処理内容:
 
@@ -154,14 +154,13 @@ WebView の `App.tsx` の挙動:
 
 `resolveVaultFsPath()`（`src/host/vaultRoot.ts`）の**決定順は固定**で、上から試す。
 
-1. **`tipsboard-vscode.manualVaultPath`**（trim 後非空）→ その文字列を絶対パスとして採用（**単一フォルダ WS でもワークスペースより優先**。UI から vault 切り替えが必ず反映されるようにするため）。
-2. **ワークスペースフォルダが 1 つだけ** → その `uri.fsPath`。
-3. **マルチルート** かつ **`tipsboard-vscode.vaultFolder`** が非空  
+1. **ワークスペースフォルダが 1 つだけ** → その `uri.fsPath` を vault とする。
+2. **マルチルート** かつ **`tipsboard-vscode.vaultFolder`** が非空  
    - 絶対パスならそのまま。  
    - そうでなければ、フォルダの **表示名**または **fsPath との一致**で最初のヒット。
-4. 上記いずれでも決まらない → `undefined`（**vault 未選択**）。
+3. 上記いずれでも決まらない → `undefined`（**vault 未選択**）。WebView はオンボーディングを表示する（フォルダ未オープン、またはマルチルートで `vaultFolder` 未設定）。
 
-`manualVaultPath` の永続化は **`ConfigurationTarget.Global`**（`persistManualVaultPath`）。マルチマシンで共有したい場合は VS Code の設定同期の対象になる。
+パネル内に vault フォルダ選択 UI は持たない。別の vault を使うときは VS Code 側でフォルダを開き直す。
 
 ---
 
@@ -187,7 +186,7 @@ WebView の `App.tsx` の挙動:
 ### 6.3 `localResourceRoots`
 
 - **拡張ルート**は常に含める（バンドル CSS/JS）。
-- **vault ルート**は `getSnapshot` / `selectFolder` のたびに `setVaultRoots` で追加。これにより **`asWebviewUri(file(vault + relative))`** で **vault 内ファイル**を WebView から読める（主に `assets/images/`）。
+- **vault ルート**は `getSnapshot` のたびに `setVaultRoots` で追加。これにより **`asWebviewUri(file(vault + relative))`** で **vault 内ファイル**を WebView から読める（主に `assets/images/`）。
 
 ---
 
@@ -231,7 +230,6 @@ RPC 応答リスナは `kind === "rpc-result"` のみ処理し、イベントは
 | メンバー | 振る舞い（現行） |
 | --- | --- |
 | `getSnapshot` | RPC `getSnapshot` |
-| `selectFolder` | RPC（フォルダピッカー + 設定保存の場合あり） |
 | `createNote` / `saveNote` / `deleteNote` / `setNotePinned` | 各 RPC |
 | KANBAN 一式 | 各 RPC、戻りは基本的に **更新後の `VaultSnapshot`** |
 | `exportJson` / `importJson` | ダイアログ + I/O |
@@ -248,12 +246,11 @@ RPC 応答リスナは `kind === "rpc-result"` のみ処理し、イベントは
 
 ### 7.4 RPC メソッドと Host 実装の対応表
 
-vault 未選択時、**`getSnapshot` と `selectFolder` を除き**概ね `Error: Vault folder is not selected`。
+vault 未選択時、**`getSnapshot` を除き**概ね `Error: Vault folder is not selected`。
 
 | method | payload 型（要旨） | result（要旨） | 備考 |
 | --- | --- | --- | --- |
-| `getSnapshot` | なし | `VaultSnapshot` | 併せて `panel.setVaultRoots(vaultPath)`。`VaultSnapshot` に **`attachmentMaxBytes`** を載せる（`tipsboard-vscode.maxAttachmentBytes`） |
-| `selectFolder` | なし | `VaultSnapshot` | キャンセル時は現在の `resolveVaultFsPath()` で `readVault`。同上 **`attachmentMaxBytes`** |
+| `getSnapshot` | なし | `VaultSnapshot` | 併せて `panel.setVaultRoots(vaultPath)`。`VaultSnapshot` に **`vaultResolution`** と **`attachmentMaxBytes`** を載せる |
 | `createNote` | string | `{ notePath, note: NoteSummary }` | WebView は `mergeCreatedNoteIntoSnapshot` で `snapshot.notes` を更新（ホストはフル `readVault` を返さない） |
 | `saveNote` | `{ path, body }` | `{ notePath, note: NoteSummary }` | WebView は `upsertSavedNote` でマージ。タイトル stem 変化でリネーム可 |
 | `deleteNote` | string | `VaultSnapshot` | |
@@ -288,7 +285,7 @@ vault 未選択時、**`getSnapshot` と `selectFolder` を除き**概ね `Error
 vault/
   docs/auth/oauth.md   … ノート（vault 相対の任意階層）
   adr/0001-*.md        … ノート
-  Unsorted/*.md        … Tipsboard で作った新規ノートの初期保存先
+  inbox/*.md           … Tipsboard で作った新規ノートの初期保存先（inbox）
   assets/images/       … インポート画像（WebView 表示許可パス）
   assets/files/        … インポート添付ファイル（本文は `[label](assets/files/...)`、開く際は Host RPC）
   .tipsboard/
@@ -314,10 +311,18 @@ vault/
 ### 8.3 タイトル・ファイル名
 
 - **タイトル**は本文 **先頭行**（`extractTitle`）。
-- **新規作成時**、`createNote` は vault root 直下の `Unsorted/` に `stem.md` を作る。`Unsorted` がファイル等で使えない場合は `Tipsboard Unsorted/`、`Tipsboard Unsorted 2/` ... にフォールバックする。
+- **新規作成時**、`createNote` は vault root 直下の `inbox/` に `stem.md` を作る。`inbox` がファイル等で使えない場合は `Tipsboard inbox/`、`Tipsboard inbox 2/` ... にフォールバックする。
 - **保存時**、先頭行から stem を作り、**既存ファイル名と異なれば同じディレクトリ内でリネーム**（衝突時は `stem (2).md` のようにユニーク化）。既存フォルダ階層は保存だけでは変えない。
 - リネーム時、**KANBAN** の `note_path` と **pins** のパスを **パッチ**する。
 - 本文側の単一ブラケット **内部ウィキリンク**の文言については、§9.6 のとおり WebView が **オプション**かつ確認付きで一括書き換えする（ホスト側 `saveNote` の責務外）。
+
+### 8.3.1 Inbox 整理提案
+
+- `inbox/` または `Tipsboard inbox/` 系フォルダ内のノートは、WebView 上で未整理として表示する。
+- `getOrganizeSuggestions` は実行時点の vault を読み直し、既存フォルダのみを移動先候補にする。候補には inbox 系フォルダ、除外ディレクトリを含めない。
+- 提案 signal は、内部リンク、セマンティック近傍、タグ分布、タイトルパターン、フォルダ語彙 profile とする。セマンティック検索が off の場合は、リンク、タグ、キーワード系 signal のみで候補を返す。
+- `moveNoteToFolder` はユーザー確認後にだけ呼び出される。移動先に同名ファイルがある場合は `stem (2).md` のように一意化し、移動後に KANBAN と pins のパスをパッチする。
+- 対象ノート内に通常の Markdown 相対リンクがある場合、WebView は移動前に確認を促す。初期仕様では相対リンク本文の自動修正は行わない。
 
 ### 8.4 `readVault` の正規化
 
@@ -355,7 +360,7 @@ vault/
 ### 8.7 JSON export / import
 
 - **export**: `schemaVersion: 1`、`project` 名、`exportedAt`、`pages` 配列（各ノートの title, normalized_title, body, 日時）。`deleted_at: null` フィールドを含む形（`ExportPage` 型）。
-- **import**: `schemaVersion` が 1 で `pages` が配列でなければ例外。`deleted_at` が付いたページはスキップ。既存ノートは **`normalized_title` 一致で上書き**、なければ `Unsorted/`（またはフォールバック先）に `allocateUniqueFilename` で新規作成。`pages` というフィールド名は export 形式の互換名であり、ディスク上の `pages/` ディレクトリを意味しない。
+- **import**: `schemaVersion` が 1 で `pages` が配列でなければ例外。`deleted_at` が付いたページはスキップ。既存ノートは **`normalized_title` 一致で上書き**、なければ `inbox/`（またはフォールバック先）に `allocateUniqueFilename` で新規作成。`pages` というフィールド名は export 形式の互換名であり、ディスク上の `pages/` ディレクトリを意味しない。
 
 ### 8.8 同時編集・ファイル監視
 
@@ -368,15 +373,15 @@ vault/
 ### 9.1 状態の中心: `VaultSnapshot`
 
 - `snapshot: VaultSnapshot` が **アプリのキャッシュされた vault 全体**（全ノートの `body` を含む）。
-- **`attachmentMaxBytes`**: `getSnapshot` / `selectFolder` の応答に含まれる（設定 **`tipsboard-vscode.maxAttachmentBytes`**）。部分的な RPC が `VaultSnapshot` を返す場合、`mergeVaultSnapshotFromHost` は **欠けているとき既存値を温存**する。
-- マウント時に **`getSnapshot()`** を必ず呼ぶ。`vaultPath === null` なら **オンボーディング画面**のみ表示（フォルダ選択ボタン → `selectFolder`）。
+- **`attachmentMaxBytes`**: `getSnapshot` の応答に含まれる（設定 **`tipsboard-vscode.maxAttachmentBytes`**）。部分的な RPC が `VaultSnapshot` を返す場合、`mergeVaultSnapshotFromHost` は **欠けているとき既存値を温存**する。
+- マウント時に **`getSnapshot()`** を必ず呼ぶ。`vaultPath === null` なら **オンボーディング画面**のみ表示（VS Code でフォルダを開く、またはマルチルートで `vaultFolder` を設定する案内）。
 
 ### 9.2 主要な React state（概念）
 
 | state | 意味 |
 | --- | --- |
 | `snapshot` | 上記。KANBAN・pins・全ノート本文。 |
-| `selectedPath` | 現在選んでいるノートの vault 相対 Markdown パス（例: `docs/auth/oauth.md`, `Unsorted/New Idea.md`）または null。 |
+| `selectedPath` | 現在選んでいるノートの vault 相対 Markdown パス（例: `docs/auth/oauth.md`, `inbox/New Idea.md`）または null。 |
 | `openTabs` / `activeTabId` | WebView 内タブ（ノート path またはタグ検索）。`webview/src/lib/editorTabs.ts` のヘルパで追加・フォーカス・重複排除。 |
 | `viewMode` | `"list"` \| `"kanban"` \| `"attachments"`（左サイドバーのクリップで **添付ライブラリ** `AttachmentLibraryView`） |
 | `kanbanFocus` | ボード / 列 / カードのフォーカス情報 |

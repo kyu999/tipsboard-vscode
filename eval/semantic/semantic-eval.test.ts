@@ -258,7 +258,7 @@ function printReport(report: {
     `Query latency p95: ${formatMs(report.summary.p95QueryLatencyMs)}`,
   ];
   lines.push(`Tipsboard vault: ${report.vaultPath}`);
-  lines.push("Open this folder in Tipsboard (Select Vault Folder) to try semantic search.");
+  lines.push("Open this folder in VS Code, then run Tipsboard: Open to try semantic search.");
   lines.push(`Report: ${report.reportPath}`);
   lines.push(`Latest: ${report.latestPath}`);
   console.log(lines.join("\n"));

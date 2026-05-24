@@ -7,7 +7,7 @@ import {
   resolveSemanticModelCacheDir,
   semanticConfigurationPrefix,
 } from "./host/semanticSettings.js";
-import { pickVaultFolder, resolveVaultFsPath } from "./host/vaultRoot.js";
+import { resolveVaultFsPath } from "./host/vaultRoot.js";
 
 export function activate(context: vscode.ExtensionContext): void {
   const semanticRuntimeOptions = () => ({
@@ -18,12 +18,6 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("tipsboard-vscode.open", () => {
-      TipsboardPanel.render(context);
-    }),
-    vscode.commands.registerCommand("tipsboard-vscode.selectVaultFolder", async () => {
-      const p = await pickVaultFolder();
-      if (!p) return;
-      TipsboardPanel.notifyVaultChanged(resolveVaultFsPath() ?? p);
       TipsboardPanel.render(context);
     }),
     vscode.commands.registerCommand("tipsboard-vscode.newNote", () => {
@@ -59,12 +53,14 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       if (
-        !e.affectsConfiguration("tipsboard-vscode.manualVaultPath") &&
         !e.affectsConfiguration("tipsboard-vscode.vaultFolder") &&
         !e.affectsConfiguration("tipsboard-vscode.maxAttachmentBytes")
       ) {
         return;
       }
+      TipsboardPanel.notifyVaultChanged(resolveVaultFsPath());
+    }),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
       TipsboardPanel.notifyVaultChanged(resolveVaultFsPath());
     }),
   );

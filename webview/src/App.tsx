@@ -7,6 +7,7 @@ import { normalizeTitle } from "@/domain/title/title";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { KanbanBoardView } from "@/components/KanbanBoardView";
 import { AttachmentLibraryView } from "@/components/AttachmentLibraryView";
+import { OrganizeInboxView } from "@/components/OrganizeInboxView";
 import { NoteEditor } from "@/components/NoteEditor";
 import { NoteTabBar } from "@/components/NoteTabBar";
 import { SaveStatus } from "@/components/SaveStatus";
@@ -36,7 +37,9 @@ import { changeLanguage, getSupportedLanguage, supportedLanguages } from "@/shar
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
 import { clearTipsboardResolvedAssetCache } from "@/vscode-bridge-client";
 import type {
+  BulkMoveNotesResponse,
   NoteSummary,
+  OrganizeSuggestionsResponse,
   SaveState,
   SemanticIndexProgress,
   SemanticSearchResult,
@@ -68,6 +71,7 @@ function normalizeVaultNotePath(notePath: string): string {
   return notePath.replace(/\\/g, "/");
 }
 
+import { isInboxNotePath } from "@tipsboard/shared/inboxPath";
 function rebuildDiskCommittedTitles(snapshot: VaultSnapshot, mapRef: { current: Map<string, string> }): void {
   const map = mapRef.current;
   map.clear();
@@ -92,7 +96,7 @@ export function App() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [openTabs, setOpenTabs] = useState<EditorTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "kanban" | "attachments">("list");
+  const [viewMode, setViewMode] = useState<"list" | "kanban" | "attachments" | "organize">("list");
   const [kanbanFocus, setKanbanFocus] = useState<{
     boardId: string | null;
     columnId: string | null;
@@ -112,11 +116,15 @@ export function App() {
   const [semanticIndexMaintBusy, setSemanticIndexMaintBusy] = useState(false);
   const [semanticIndexStatus, setSemanticIndexStatus] = useState<string | null>(null);
   const [semanticSettings, setSemanticSettings] = useState<SemanticSearchSettings | null>(null);
+  const [organizeOpen, setOrganizeOpen] = useState(false);
+  const [organizeSuggestions, setOrganizeSuggestions] = useState<OrganizeSuggestionsResponse | null>(null);
+  const [organizeBusy, setOrganizeBusy] = useState(false);
+  const [organizeError, setOrganizeError] = useState<string | null>(null);
+  const [organizeProgress, setOrganizeProgress] = useState<SemanticIndexProgress | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const hasUnsavedChanges = saveState === "unsaved" || saveState === "error";
   const [error, setError] = useState<string | null>(null);
   const [externalChangesPending, setExternalChangesPending] = useState(false);
-  const [vaultMenuOpen, setVaultMenuOpen] = useState(false);
   const [localMenuOpen, setLocalMenuOpen] = useState(false);
   const [userGuideOpen, setUserGuideOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
@@ -182,6 +190,7 @@ export function App() {
         ...next,
         attachments: next.attachments ?? prev.attachments,
         attachmentMaxBytes: next.attachmentMaxBytes ?? prev.attachmentMaxBytes,
+        workspacePreferences: next.workspacePreferences ?? prev.workspacePreferences,
       };
       rebuildDiskCommittedTitles(merged, diskCommittedTitleRef);
       return merged;
@@ -313,6 +322,13 @@ export function App() {
     () => snapshot.notes.find((note) => note.path === selectedPath) ?? null,
     [selectedPath, snapshot.notes],
   );
+  const preferFolderHierarchy = snapshot.workspacePreferences?.preferFolderHierarchy !== false;
+  const inboxNotes = useMemo(
+    () => snapshot.notes.filter((note) => isInboxNotePath(note.path)),
+    [snapshot.notes],
+  );
+  const selectedNoteIsInbox = Boolean(selectedNote && isInboxNotePath(selectedNote.path));
+  const selectedNoteCanOrganize = selectedNoteIsInbox && preferFolderHierarchy;
   const selectedEntry = selectedNote ? index.entries.get(selectedNote.path) : null;
   const duplicateTitlePathSet = useMemo(() => {
     const paths = new Set<string>();
@@ -354,6 +370,13 @@ export function App() {
   );
 
   useEffect(() => {
+    setOrganizeOpen(false);
+    setOrganizeSuggestions(null);
+    setOrganizeError(null);
+    setOrganizeProgress(null);
+  }, [selectedPath]);
+
+  useEffect(() => {
     const element = listContentRef.current;
     if (!element) return;
 
@@ -368,7 +391,6 @@ export function App() {
   const listColumns = getColumnCount(listWidth);
   const listCardWidth = getCardWidth(listWidth, listColumns);
 
-  const vaultMenuRef = useClickOutside<HTMLDivElement>(vaultMenuOpen, () => setVaultMenuOpen(false));
   const localMenuRef = useClickOutside<HTMLDivElement>(localMenuOpen, () => setLocalMenuOpen(false));
 
   const navHistoryRef = useRef<NavMemory[]>([]);
@@ -644,29 +666,6 @@ export function App() {
       clearTimeout(exportHtmlBannerTimer.current);
     };
   }, []);
-
-  const handleSelectFolder = useCallback(async () => {
-    if (!(await confirmDiscardChanges())) return;
-    try {
-      setError(null);
-      const next = await window.tipsboardDesktop.selectFolder();
-      mergeVaultSnapshotFromHost(next);
-      setSelectedPath(null);
-      setOpenTabs([]);
-      setActiveTabId(null);
-      setVaultMenuOpen(false);
-      setLocalMenuOpen(false);
-      setUserGuideOpen(false);
-      setSearchMode("keyword");
-      setQuery("");
-      setListSearchFilter(null);
-      setShowSearchResults(false);
-      navHistoryRef.current = [];
-      navForwardRef.current = [];
-    } catch (caught) {
-      setError(messageForError(caught));
-    }
-  }, [confirmDiscardChanges, mergeVaultSnapshotFromHost]);
 
   const handleApplyExternalChanges = useCallback(async () => {
     if (!(await confirmDiscardChanges())) return;
@@ -955,6 +954,67 @@ export function App() {
     }
   }, [mergeVaultSnapshotFromHost, requestConfirm, selectedNote, t]);
 
+  const handleRequestOrganizeSuggestions = useCallback(async () => {
+    if (!selectedNote || !selectedNoteCanOrganize) return;
+    if (hasUnsavedChanges) {
+      setOrganizeError(t("organize.saveBeforeOrganize"));
+      return;
+    }
+    setOrganizeBusy(true);
+    setOrganizeError(null);
+    setOrganizeProgress(null);
+    try {
+      const response = await window.tipsboardDesktop.getOrganizeSuggestions(selectedNote.path, setOrganizeProgress);
+      setOrganizeSuggestions(response);
+    } catch (caught) {
+      setOrganizeError(messageForError(caught));
+      setOrganizeSuggestions(null);
+    } finally {
+      setOrganizeBusy(false);
+      setOrganizeProgress(null);
+    }
+  }, [hasUnsavedChanges, selectedNote, selectedNoteCanOrganize, t]);
+
+  const handleMoveNoteToSuggestedFolder = useCallback(
+    async (targetFolder: string) => {
+      if (!selectedNote) return;
+      if (hasUnsavedChanges) {
+        setOrganizeError(t("organize.saveBeforeOrganize"));
+        return;
+      }
+      const confirmed = await requestConfirm({
+        title: t("organize.moveConfirmTitle"),
+        message: t("organize.moveConfirmMessage", {
+          from: selectedNote.path,
+          to: `${targetFolder}/${selectedNote.filename}`,
+        }),
+        confirmLabel: t("organize.move"),
+      });
+      if (!confirmed) return;
+
+      setOrganizeBusy(true);
+      setOrganizeError(null);
+      try {
+        const beforePath = normalizeVaultNotePath(selectedNote.path);
+        const result = await window.tipsboardDesktop.moveNoteToFolder(selectedNote.path, targetFolder);
+        mergeVaultSnapshotFromHost(result.snapshot);
+        setSelectedPath(result.note.path);
+        selectedPathRef.current = result.note.path;
+        setOpenTabs((prev) => renameNotePathInTabs(prev, beforePath, result.note.path));
+        diskCommittedTitleRef.current.delete(beforePath);
+        diskCommittedTitleRef.current.set(normalizeVaultNotePath(result.note.path), result.note.title);
+        setEditorSessionId((current) => current + 1);
+        setOrganizeSuggestions(null);
+        setOrganizeOpen(false);
+      } catch (caught) {
+        setOrganizeError(messageForError(caught));
+      } finally {
+        setOrganizeBusy(false);
+      }
+    },
+    [hasUnsavedChanges, mergeVaultSnapshotFromHost, requestConfirm, selectedNote, t],
+  );
+
   const handleToggleNotePin = useCallback(async (notePath: string, pinned: boolean) => {
     try {
       setError(null);
@@ -1015,7 +1075,6 @@ export function App() {
   const handleExportJson = useCallback(async () => {
     try {
       await window.tipsboardDesktop.exportJson();
-      setVaultMenuOpen(false);
       setLocalMenuOpen(false);
     } catch (caught) {
       setError(messageForError(caught));
@@ -1030,7 +1089,6 @@ export function App() {
       setSelectedPath(null);
       setOpenTabs([]);
       setActiveTabId(null);
-      setVaultMenuOpen(false);
       setLocalMenuOpen(false);
       setUserGuideOpen(false);
       setSearchMode("keyword");
@@ -1051,7 +1109,6 @@ export function App() {
     setViewMode("list");
     setKanbanFocus({ boardId: null, columnId: null, notePath: null });
     setSaveState("idle");
-    setVaultMenuOpen(false);
     setLocalMenuOpen(false);
     setUserGuideOpen(false);
   }, [confirmDiscardChanges]);
@@ -1064,10 +1121,65 @@ export function App() {
     setListSearchFilter(null);
     setKanbanFocus(focus ?? { boardId: null, columnId: null, notePath: null });
     setSaveState("idle");
-    setVaultMenuOpen(false);
     setLocalMenuOpen(false);
     setUserGuideOpen(false);
   }, [confirmDiscardChanges]);
+
+  const handleOpenOrganize = useCallback(async () => {
+    if (!(await confirmDiscardChanges())) return;
+    pushNavHistory();
+    setSelectedPath(null);
+    setViewMode("organize");
+    setListSearchFilter(null);
+    setKanbanFocus({ boardId: null, columnId: null, notePath: null });
+    setSaveState("idle");
+    setLocalMenuOpen(false);
+    setUserGuideOpen(false);
+    setShowSearchResults(false);
+  }, [confirmDiscardChanges]);
+
+  const handleSetPreferFolderHierarchy = useCallback(
+    async (value: boolean) => {
+      try {
+        const next = await window.tipsboardDesktop.setWorkspacePreferences({ preferFolderHierarchy: value });
+        mergeVaultSnapshotFromHost(next);
+        if (!value) {
+          setOrganizeOpen(false);
+          setOrganizeSuggestions(null);
+          setOrganizeError(null);
+        }
+      } catch (caught) {
+        setError(messageForError(caught));
+      }
+    },
+    [mergeVaultSnapshotFromHost],
+  );
+
+  const handleBulkMoved = useCallback(
+    (result: BulkMoveNotesResponse) => {
+      for (const move of result.moved) {
+        diskCommittedTitleRef.current.delete(normalizeVaultNotePath(move.fromPath));
+        diskCommittedTitleRef.current.set(normalizeVaultNotePath(move.toPath), move.note.title);
+      }
+      setOpenTabs((prev) =>
+        result.moved.reduce(
+          (tabs, move) => renameNotePathInTabs(tabs, move.fromPath, move.toPath),
+          prev,
+        ),
+      );
+      const currentSelected = selectedPathRef.current;
+      if (currentSelected) {
+        const normalized = normalizeVaultNotePath(currentSelected);
+        const movedSelected = result.moved.find((move) => move.fromPath === normalized);
+        if (movedSelected) {
+          setSelectedPath(movedSelected.toPath);
+          selectedPathRef.current = movedSelected.toPath;
+          setEditorSessionId((current) => current + 1);
+        }
+      }
+    },
+    [],
+  );
 
   const handleOpenAttachments = useCallback(async () => {
     if (!(await confirmDiscardChanges())) return;
@@ -1077,7 +1189,6 @@ export function App() {
     setListSearchFilter(null);
     setKanbanFocus({ boardId: null, columnId: null, notePath: null });
     setSaveState("idle");
-    setVaultMenuOpen(false);
     setLocalMenuOpen(false);
     setUserGuideOpen(false);
     setShowSearchResults(false);
@@ -1086,7 +1197,6 @@ export function App() {
   const handleToggleUserGuide = useCallback(async () => {
     if (userGuideOpen) {
       setUserGuideOpen(false);
-      setVaultMenuOpen(false);
       setLocalMenuOpen(false);
       return;
     }
@@ -1097,7 +1207,6 @@ export function App() {
     setViewMode("list");
     setKanbanFocus({ boardId: null, columnId: null, notePath: null });
     setSaveState("idle");
-    setVaultMenuOpen(false);
     setLocalMenuOpen(false);
     setShowSearchResults(false);
   }, [confirmDiscardChanges, userGuideOpen]);
@@ -1121,7 +1230,6 @@ export function App() {
         setUserGuideOpen(entry.userGuideOpen);
         setListSearchFilter(entry.listSearchFilter);
         setSaveState("idle");
-        setVaultMenuOpen(false);
         setLocalMenuOpen(false);
         if (path) setEditorSessionId((current) => current + 1);
       } finally {
@@ -1293,6 +1401,10 @@ export function App() {
       : null;
 
   if (!snapshot.vaultPath) {
+    const onboardingDescription =
+      snapshot.vaultResolution === "multi-root"
+        ? t("onboarding.descriptionMultiRoot")
+        : t("onboarding.description");
     return (
       <main className="flex min-h-screen items-center justify-center px-6">
         <section className="tb-card max-w-xl px-8 py-10 text-center">
@@ -1303,13 +1415,7 @@ export function App() {
             {t("onboarding.eyebrow")}
           </p>
           <h1 className="mt-4 text-3xl font-bold tracking-tight">{t("onboarding.title")}</h1>
-          <p className="mt-4 text-sm leading-7 text-text-secondary">
-            {t("onboarding.description")}
-          </p>
-          <button type="button" onClick={handleSelectFolder} className="tb-btn-primary mt-6">
-            <i className="fa-solid fa-folder-open" aria-hidden />
-            {t("onboarding.selectFolder")}
-          </button>
+          <p className="mt-4 text-sm leading-7 text-text-secondary">{onboardingDescription}</p>
           {error && <p className="mt-4 text-sm text-accent-error">{error}</p>}
         </section>
       </main>
@@ -1327,7 +1433,6 @@ export function App() {
             type="button"
             onClick={() => {
               void handleToggleUserGuide();
-              setVaultMenuOpen(false);
               setLocalMenuOpen(false);
             }}
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
@@ -1344,52 +1449,10 @@ export function App() {
 
           <div className="my-0.5 h-px w-7 bg-accent-link/15" aria-hidden />
 
-          <div ref={vaultMenuRef} className="relative flex flex-col items-center">
-            <button
-              type="button"
-              onClick={() => {
-                setVaultMenuOpen((open) => !open);
-                setLocalMenuOpen(false);
-              }}
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
-                vaultMenuOpen
-                  ? "bg-accent-link/12 text-accent-link shadow-[inset_0_0_0_1px_rgba(8,127,54,0.18)]"
-                  : "text-text-muted hover:bg-bg-hover hover:text-text-primary"
-              }`}
-              title={snapshot.vaultPath ?? undefined}
-              aria-label={t("layout.currentVault")}
-              aria-haspopup="menu"
-              aria-expanded={vaultMenuOpen}
-            >
-              <i className="fa-solid fa-folder-open" aria-hidden />
-            </button>
-            {vaultMenuOpen && (
-              <div className="absolute left-[calc(100%+10px)] top-0 z-50 w-[min(18rem,calc(100vw-5rem))] overflow-hidden rounded-2xl border border-accent-link/10 bg-bg-card py-1 text-sm shadow-dropdown">
-                <p
-                  className="truncate border-b border-accent-link/10 px-3 py-2 text-2xs text-text-muted"
-                  title={snapshot.vaultPath ?? undefined}
-                >
-                  {snapshot.vaultPath}
-                </p>
-                <button
-                  type="button"
-                  onClick={handleSelectFolder}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-                >
-                  <i className="fa-solid fa-folder-open text-[10px]" aria-hidden />
-                  {t("layout.changeFolder")}
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="my-0.5 h-px w-7 bg-accent-link/15" aria-hidden />
-
           <button
             type="button"
             onClick={() => {
               void handleOpenCardView();
-              setVaultMenuOpen(false);
               setLocalMenuOpen(false);
             }}
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
@@ -1407,7 +1470,6 @@ export function App() {
             type="button"
             onClick={() => {
               void handleOpenKanban();
-              setVaultMenuOpen(false);
               setLocalMenuOpen(false);
             }}
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
@@ -1425,7 +1487,6 @@ export function App() {
             type="button"
             onClick={() => {
               void handleOpenAttachments();
-              setVaultMenuOpen(false);
               setLocalMenuOpen(false);
             }}
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
@@ -1442,8 +1503,29 @@ export function App() {
           <button
             type="button"
             onClick={() => {
+              void handleOpenOrganize();
+              setLocalMenuOpen(false);
+            }}
+            className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
+              viewMode === "organize"
+                ? "bg-accent-link/12 text-accent-link shadow-[inset_0_0_0_1px_rgba(8,127,54,0.18)]"
+                : "text-text-muted hover:bg-bg-hover hover:text-text-primary"
+            }`}
+            aria-pressed={viewMode === "organize"}
+            title={t("layout.organize")}
+            aria-label={t("layout.organize")}
+          >
+            <i className="fa-solid fa-inbox" aria-hidden />
+            {preferFolderHierarchy && inboxNotes.length > 0 && (
+              <span className="absolute right-1.5 top-1.5 min-w-[1rem] rounded-full bg-amber-500 px-1 text-[10px] font-semibold leading-4 text-white">
+                {inboxNotes.length > 9 ? "9+" : inboxNotes.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
               void handleCreateNote();
-              setVaultMenuOpen(false);
               setLocalMenuOpen(false);
             }}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25"
@@ -1458,7 +1540,6 @@ export function App() {
               type="button"
               onClick={() => {
                 setLocalMenuOpen((open) => !open);
-                setVaultMenuOpen(false);
               }}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25"
               title={t("layout.settings")}
@@ -1619,7 +1700,7 @@ export function App() {
                           const trimmed = query.trim();
                           setShowSearchResults(false);
                           const needsNavigateAway =
-                            selectedNote !== null || userGuideOpen || viewMode === "kanban" || viewMode === "attachments";
+                            selectedNote !== null || userGuideOpen || viewMode === "kanban" || viewMode === "attachments" || viewMode === "organize";
                           if (needsNavigateAway) {
                             if (!(await confirmDiscardChanges())) {
                               return;
@@ -1630,7 +1711,6 @@ export function App() {
                             setUserGuideOpen(false);
                             setKanbanFocus({ boardId: null, columnId: null, notePath: null });
                             setSaveState("idle");
-                            setVaultMenuOpen(false);
                             setLocalMenuOpen(false);
                           }
                           setListSearchFilter(trimmed || null);
@@ -1886,6 +1966,32 @@ export function App() {
                 </div>
               )}
 
+              {selectedNoteCanOrganize && (
+                <OrganizeInboxStrip
+                  open={organizeOpen}
+                  response={organizeSuggestions}
+                  busy={organizeBusy}
+                  error={organizeError}
+                  progress={organizeProgress}
+                  onOpenOrganizePanel={() => {
+                    void handleOpenOrganize();
+                  }}
+                  onToggleOpen={() => {
+                    if (organizeOpen) {
+                      setOrganizeOpen(false);
+                      return;
+                    }
+                    setOrganizeOpen(true);
+                    if (!organizeSuggestions && !organizeBusy && selectedNoteCanOrganize) {
+                      void handleRequestOrganizeSuggestions();
+                    }
+                  }}
+                  onClose={() => setOrganizeOpen(false)}
+                  onRequestSuggestions={handleRequestOrganizeSuggestions}
+                  onMove={handleMoveNoteToSuggestedFolder}
+                />
+              )}
+
               {selectedKanbanStatuses.length > 0 && (
                 <div className="mb-3 flex flex-wrap gap-2">
                   {selectedKanbanStatuses.map(({ board, column }) => (
@@ -1990,6 +2096,20 @@ export function App() {
             onSelectNote={(path) => {
               void handleSelectNote(path);
             }}
+          />
+        ) : viewMode === "organize" ? (
+          <OrganizeInboxView
+            notes={snapshot.notes}
+            preferFolderHierarchy={preferFolderHierarchy}
+            onPreferFolderHierarchyChange={(value) => {
+              void handleSetPreferFolderHierarchy(value);
+            }}
+            onSnapshotChange={mergeVaultSnapshotFromHost}
+            onBulkMoved={handleBulkMoved}
+            onSelectNote={(path) => {
+              void handleSelectNote(path);
+            }}
+            onError={setError}
           />
         ) : viewMode === "kanban" ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -2153,6 +2273,205 @@ function SemanticSearchModeSwitch({
         />
       </button>
     </label>
+  );
+}
+
+function OrganizeInboxStrip({
+  open,
+  response,
+  busy,
+  error,
+  progress,
+  onOpenOrganizePanel,
+  onToggleOpen,
+  onClose,
+  onRequestSuggestions,
+  onMove,
+}: {
+  open: boolean;
+  response: OrganizeSuggestionsResponse | null;
+  busy: boolean;
+  error: string | null;
+  progress: SemanticIndexProgress | null;
+  onOpenOrganizePanel: () => void;
+  onToggleOpen: () => void;
+  onClose: () => void;
+  onRequestSuggestions: () => void;
+  onMove: (folder: string) => void;
+}) {
+  const { t } = useTranslation();
+  const stripRef = useClickOutside<HTMLDivElement>(open, onClose);
+  const topSuggestion = response?.suggestions[0];
+
+  return (
+    <div ref={stripRef} className="relative mb-3">
+      <div className="flex flex-col gap-2 rounded-lg border border-amber-500/20 border-l-[3px] border-l-amber-500/55 bg-amber-500/[0.06] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <i
+            className="fa-solid fa-inbox mt-0.5 shrink-0 text-[13px] text-amber-700/90 dark:text-amber-300/90"
+            aria-hidden
+          />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-text-primary">{t("organize.inboxTitle")}</p>
+            <p className="mt-0.5 text-2xs leading-4 text-text-muted">{t("organize.inboxMessage")}</p>
+            {topSuggestion && !open && (
+              <p className="mt-1 truncate text-2xs text-text-secondary">
+                {t("organize.topSuggestion", { folder: `${topSuggestion.folder}/` })}
+              </p>
+            )}
+            {error && !open && <p className="mt-1 text-2xs text-accent-error">{error}</p>}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
+          <button
+            type="button"
+            className="tb-btn-secondary text-xs"
+            onClick={onOpenOrganizePanel}
+          >
+            <i className="fa-solid fa-table-list text-[11px]" aria-hidden />
+            {t("organize.openOrganizePanel")}
+          </button>
+          <button
+            type="button"
+            className="tb-btn-secondary text-xs"
+            disabled={busy}
+            aria-expanded={open}
+            aria-haspopup="dialog"
+            onClick={onToggleOpen}
+          >
+            <i className="fa-solid fa-folder-tree text-[11px]" aria-hidden />
+            {busy ? t("organize.analyzing") : t("organize.suggestAction")}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <OrganizeSuggestionsPopover
+          response={response}
+          busy={busy}
+          error={error}
+          progress={progress}
+          onClose={onClose}
+          onRequestSuggestions={onRequestSuggestions}
+          onMove={onMove}
+          className="absolute right-0 top-full z-30 mt-1.5 w-[min(20rem,calc(100vw-2rem))]"
+        />
+      )}
+    </div>
+  );
+}
+
+function OrganizeSuggestionsPopover({
+  response,
+  busy,
+  error,
+  progress,
+  onClose,
+  onRequestSuggestions,
+  onMove,
+  className = "",
+}: {
+  response: OrganizeSuggestionsResponse | null;
+  busy: boolean;
+  error: string | null;
+  progress: SemanticIndexProgress | null;
+  onClose: () => void;
+  onRequestSuggestions: () => void;
+  onMove: (folder: string) => void;
+  className?: string;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div
+      role="dialog"
+      aria-label={t("organize.title")}
+      className={`overflow-hidden rounded-xl border border-accent-link/15 bg-bg-card shadow-dropdown ${className}`}
+    >
+          <div className="flex items-center justify-between gap-2 border-b border-accent-link/10 px-3 py-2">
+            <p className="text-xs font-medium text-text-primary">{t("organize.title")}</p>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
+                disabled={busy}
+                onClick={onRequestSuggestions}
+                aria-label={t("organize.refresh")}
+                title={t("organize.refresh")}
+              >
+                <i className={`fa-solid fa-rotate-right text-[11px] ${busy ? "fa-spin" : ""}`} aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+                onClick={onClose}
+                aria-label={t("organize.close")}
+              >
+                <i className="fa-solid fa-xmark text-[11px]" aria-hidden />
+              </button>
+            </div>
+          </div>
+
+          <div className="max-h-[min(18rem,50dvh)] overflow-y-auto px-3 py-2">
+            {busy && !response && (
+              <p className="py-2 text-xs text-text-muted">
+                {progress && progress.total > 0
+                  ? t("organize.preparingWithProgress", {
+                      completed: progress.completed,
+                      total: progress.total,
+                    })
+                  : t("organize.analyzing")}
+              </p>
+            )}
+            {error && <p className="py-1 text-xs text-accent-error">{error}</p>}
+            {response && !response.semanticEnabled && (
+              <p className="mb-2 text-2xs leading-4 text-text-muted">{t("organize.semanticRecommended")}</p>
+            )}
+            {response?.hasRelativeMarkdownLinks && (
+              <p className="mb-2 text-2xs leading-4 text-amber-700 dark:text-amber-300">{t("organize.relativeLinksWarning")}</p>
+            )}
+            {response?.lowConfidence && response.suggestions.length > 0 && (
+              <p className="mb-2 text-2xs leading-4 text-amber-700 dark:text-amber-300">{t("organize.lowConfidenceWarning")}</p>
+            )}
+
+            {response && response.suggestions.length === 0 && !busy && (
+              <p className="py-2 text-xs text-text-muted">{t("organize.noSuggestions")}</p>
+            )}
+
+            {response && response.suggestions.length > 0 && (
+              <ul className="space-y-1">
+                {response.suggestions.map((suggestion) => (
+                  <li key={suggestion.folder}>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onMove(suggestion.folder)}
+                      className="w-full rounded-lg border border-transparent px-2 py-2 text-left transition-colors hover:border-accent-link/15 hover:bg-bg-hover disabled:opacity-50"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0 break-all text-xs font-medium text-text-primary">
+                          {suggestion.folder}/
+                        </span>
+                        <span className="shrink-0 text-2xs tabular-nums text-accent-link">
+                          {Math.round(suggestion.score * 100)}%
+                        </span>
+                      </div>
+                      {suggestion.reasons[0] && (
+                        <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-text-muted">
+                          {suggestion.reasons[0].message}
+                        </p>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {!response && !busy && !error && (
+              <p className="py-2 text-xs text-text-muted">{t("organize.hint")}</p>
+            )}
+          </div>
+    </div>
   );
 }
 

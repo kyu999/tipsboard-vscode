@@ -6,6 +6,8 @@ import {
   readVault,
   createNote,
   saveNote,
+  moveNoteToFolder,
+  moveNotesToFolders,
   deleteNote,
   exportVaultJson,
   importVaultJson,
@@ -25,7 +27,7 @@ import {
   createKanbanColumn,
   reorderKanbanColumns,
 } from "../host/kanban.js";
-import { resolveVaultFsPath, pickVaultFolder } from "../host/vaultRoot.js";
+import { resolveVault, resolveVaultFsPath } from "../host/vaultRoot.js";
 import { readAttachmentMaxBytes } from "../host/attachmentSettings.js";
 import {
   imageMimeFromAssetPath,
@@ -44,6 +46,9 @@ import {
   readSemanticSettings,
   semanticConfigurationPrefix,
 } from "../host/semanticSettings.js";
+import { buildOrganizeSuggestions, buildBulkOrganizeSuggestions } from "../host/organizeSuggestions.js";
+import { isInboxNotePath } from "../shared/inboxPath.js";
+import { loadWorkspacePreferences, saveWorkspacePreferences } from "../host/workspacePreferences.js";
 import type { TipsboardPanel } from "../panel/TipsboardPanel.js";
 
 function semanticProviderFor(panel: TipsboardPanel) {
@@ -55,8 +60,14 @@ function semanticProviderFor(panel: TipsboardPanel) {
   });
 }
 
-async function vaultSnapshotPayload(vp: string | null): Promise<Awaited<ReturnType<typeof readVault>> & { attachmentMaxBytes: number }> {
-  return { ...(await readVault(vp)), attachmentMaxBytes: readAttachmentMaxBytes() };
+async function vaultSnapshotPayload(): Promise<Awaited<ReturnType<typeof readVault>> & { attachmentMaxBytes: number }> {
+  const resolution = resolveVault();
+  const vaultPath = resolution.status === "ready" ? resolution.fsPath ?? null : null;
+  return {
+    ...(await readVault(vaultPath)),
+    attachmentMaxBytes: readAttachmentMaxBytes(),
+    vaultResolution: resolution.status,
+  };
 }
 
 export async function handleRpcInbound(
@@ -92,15 +103,7 @@ export async function handleRpcInbound(
     switch (raw.method) {
       case "getSnapshot": {
         panel.setVaultRoots(vaultPath);
-        reply({ ok: true, result: await vaultSnapshotPayload(vaultPath ?? null) });
-        return;
-      }
-
-      case "selectFolder": {
-        const picked = await pickVaultFolder();
-        const vp = picked ?? resolveVaultFsPath();
-        panel.setVaultRoots(vp);
-        reply({ ok: true, result: await vaultSnapshotPayload(vp ?? null) });
+        reply({ ok: true, result: await vaultSnapshotPayload() });
         return;
       }
 
@@ -142,6 +145,135 @@ export async function handleRpcInbound(
           ".tipsboard/pins.json",
         ]);
         reply({ ok: true, result: await readVault(vaultPath) });
+        return;
+      }
+
+      case "getOrganizeSuggestions": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const payload = raw.payload as { notePath?: string } | string | undefined;
+        const notePath = typeof payload === "string" ? payload : String(payload?.notePath ?? "");
+        const snapshot = await readVault(vaultPath);
+        const note = snapshot.notes.find((item) => item.path.replace(/\\/g, "/") === notePath.replace(/\\/g, "/"));
+        const settings = readSemanticSettings();
+        const semanticEnabled = settings.provider !== "off";
+        const semanticNeighbors = semanticEnabled && note
+          ? (await semanticSearch(
+            vaultPath,
+            note.body,
+            await semanticProviderFor(panel),
+            {
+              limit: 20,
+              mode: settings.mode,
+              denseWeight: settings.denseWeight,
+              bm25Weight: settings.bm25Weight,
+              onEmbeddingProgress: (value) => progress("getOrganizeSuggestions", value),
+            },
+          )).results
+          : [];
+        reply({
+          ok: true,
+          result: buildOrganizeSuggestions({
+            notePath,
+            notes: snapshot.notes,
+            semanticEnabled,
+            semanticNeighbors,
+          }),
+        });
+        return;
+      }
+
+      case "setWorkspacePreferences": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const payload = raw.payload as { preferFolderHierarchy?: boolean };
+        const current = await loadWorkspacePreferences(vaultPath);
+        const next = {
+          version: 1 as const,
+          preferFolderHierarchy:
+            typeof payload?.preferFolderHierarchy === "boolean"
+              ? payload.preferFolderHierarchy
+              : current.preferFolderHierarchy,
+        };
+        await saveWorkspacePreferences(vaultPath, next);
+        panel.recordSelfWrites([".tipsboard/workspace.json"]);
+        reply({ ok: true, result: await vaultSnapshotPayload() });
+        return;
+      }
+
+      case "getBulkOrganizeSuggestions": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const snapshot = await readVault(vaultPath);
+        const inboxNotes = snapshot.notes.filter((note) => isInboxNotePath(note.path));
+        const settings = readSemanticSettings();
+        const semanticEnabled = settings.provider !== "off";
+        const semanticNeighborsByPath = new Map<string, Awaited<ReturnType<typeof semanticSearch>>["results"]>();
+        if (semanticEnabled) {
+          const provider = await semanticProviderFor(panel);
+          for (let i = 0; i < inboxNotes.length; i += 1) {
+            const note = inboxNotes[i]!;
+            progress("getBulkOrganizeSuggestions", {
+              completed: i,
+              total: inboxNotes.length,
+              notePath: note.path,
+            });
+            const search = await semanticSearch(vaultPath, note.body, provider, {
+              limit: 20,
+              mode: settings.mode,
+              denseWeight: settings.denseWeight,
+              bm25Weight: settings.bm25Weight,
+            });
+            semanticNeighborsByPath.set(note.path.replace(/\\/g, "/"), search.results);
+          }
+          progress("getBulkOrganizeSuggestions", {
+            completed: inboxNotes.length,
+            total: inboxNotes.length,
+            notePath: null,
+          });
+        }
+        reply({
+          ok: true,
+          result: buildBulkOrganizeSuggestions({
+            notes: snapshot.notes,
+            semanticEnabled,
+            semanticNeighborsByPath,
+          }),
+        });
+        return;
+      }
+
+      case "moveNotesToFolders": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const payload = raw.payload as { moves?: Array<{ notePath?: string; targetFolder?: string }> };
+        const moves = (payload?.moves ?? [])
+          .map((move) => ({
+            notePath: String(move.notePath ?? "").replace(/\\/g, "/"),
+            targetFolder: String(move.targetFolder ?? ""),
+          }))
+          .filter((move) => move.notePath && move.targetFolder);
+        const result = await moveNotesToFolders(vaultPath, moves);
+        panel.recordSelfWrites([
+          ...result.moved.flatMap((move) => [move.fromPath, move.toPath]),
+          ".tipsboard/kanban.json",
+          ".tipsboard/pins.json",
+        ]);
+        reply({ ok: true, result });
+        return;
+      }
+
+      case "moveNoteToFolder": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const payload = raw.payload as { notePath?: string; targetFolder?: string };
+        const beforePath = String(payload?.notePath ?? "").replace(/\\/g, "/");
+        const note = await moveNoteToFolder(vaultPath, beforePath, String(payload?.targetFolder ?? ""));
+        const afterPath = note.path.replace(/\\/g, "/");
+        panel.recordSelfWrites([beforePath, afterPath, ".tipsboard/kanban.json", ".tipsboard/pins.json"]);
+        reply({
+          ok: true,
+          result: {
+            notePath: afterPath,
+            note,
+            snapshot: await readVault(vaultPath),
+          },
+        });
         return;
       }
 

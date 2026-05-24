@@ -31,8 +31,11 @@ export interface VaultAttachmentSummary {
   referenced: boolean;
 }
 
+export type VaultResolutionStatus = "ready" | "no-workspace" | "multi-root";
+
 export interface VaultSnapshot {
   vaultPath: string | null;
+  vaultResolution?: VaultResolutionStatus;
   notes: NoteSummary[];
   attachments: VaultAttachmentSummary[];
   /** Pinned paths in front-of-grid order (same as `.tipsboard/pins.json`). */
@@ -40,6 +43,13 @@ export interface VaultSnapshot {
   kanban: KanbanState;
   /** From VS Code setting `tipsboard-vscode.maxAttachmentBytes`; omitted on partial RPC payloads. */
   attachmentMaxBytes?: number;
+  /** Workspace-level Tipsboard preferences (`.tipsboard/workspace.json`). */
+  workspacePreferences?: WorkspacePreferences;
+}
+
+export interface WorkspacePreferences {
+  version: 1;
+  preferFolderHierarchy: boolean;
 }
 
 export interface KanbanColumn {
@@ -80,6 +90,51 @@ export interface ImportedImage {
 export interface ImportAttachmentBuffersResult {
   imported: ImportedImage[];
   attachments: VaultAttachmentSummary[];
+}
+
+export type OrganizeSuggestionConfidence = "high" | "medium" | "low";
+
+export type OrganizeSuggestionSignal =
+  | "wiki-link"
+  | "semantic-neighbor"
+  | "tag-distribution"
+  | "title-pattern"
+  | "folder-profile";
+
+export interface OrganizeSuggestionReason {
+  signal: OrganizeSuggestionSignal;
+  message: string;
+}
+
+export interface OrganizeSuggestion {
+  folder: string;
+  score: number;
+  confidence: OrganizeSuggestionConfidence;
+  reasons: OrganizeSuggestionReason[];
+}
+
+export interface OrganizeSuggestionsResponse {
+  notePath: string;
+  suggestions: OrganizeSuggestion[];
+  semanticEnabled: boolean;
+  lowConfidence: boolean;
+  hasRelativeMarkdownLinks: boolean;
+}
+
+export interface BulkOrganizeSuggestionsResponse {
+  items: OrganizeSuggestionsResponse[];
+  semanticEnabled: boolean;
+}
+
+export interface BulkMoveNoteResult {
+  fromPath: string;
+  toPath: string;
+  note: NoteSummary;
+}
+
+export interface BulkMoveNotesResponse {
+  snapshot: VaultSnapshot;
+  moved: BulkMoveNoteResult[];
 }
 
 export interface ExportPage {

@@ -4,6 +4,20 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.3] - 2026-05-24
+
+### Added
+
+- **Inbox organization suggestions**: notes created in `inbox/` now show a subtle inbox strip that reminds users the note still needs filing. From there, Tipsboard can suggest existing destination folders and move the file after confirmation.
+- **Explainable folder scoring**: organization suggestions combine wiki links, semantic neighbors, tag distribution, title patterns, and lightweight folder vocabulary profiles. When semantic search is off, Tipsboard still uses links, tags, and keywords while recommending semantic search for better results.
+- **Move safety checks**: moving a note patches pins and Kanban paths, chooses a unique filename on collision, and warns when the note contains Markdown relative links that may need review after the move.
+
+### Changed
+
+- **Workspace folder as vault**: removed the in-panel open-folder/sidebar folder picker and the persisted manual vault override. Tipsboard now treats the single VS Code workspace folder as the vault; multi-root workspaces use `tipsboard-vscode.vaultFolder` to choose the root.
+- **Inbox UI**: replaced the large organization panel with a quieter inline inbox notice and compact suggestion popover so the reminder is visible without dominating the editor.
+- **Default inbox folder**: new notes are saved to vault-root `inbox/`.
+
 ## [0.3.2] - 2026-05-24
 
 ### Added

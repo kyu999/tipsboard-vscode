@@ -9,6 +9,7 @@ import {
   extractTitle,
   importAttachmentBuffers,
   importImageBuffers,
+  moveNoteToFolder,
   readVault,
   readVaultAttachmentSummaries,
   saveNote,
@@ -27,14 +28,14 @@ async function withVault(run: (vaultPath: string) => Promise<void>): Promise<voi
 }
 
 describe("vault (VS Code host)", () => {
-  it("creates and reads notes from the Unsorted directory", async () => {
+  it("creates and reads notes from the inbox directory", async () => {
     await withVault(async (vaultPath) => {
       const note = await createNote(vaultPath, "Alpha");
       const snapshot = await readVault(vaultPath);
 
-      expect(note.path).toBe("Unsorted/Alpha.md");
-      await expect(fs.readFile(path.join(vaultPath, "Unsorted", "Alpha.md"), "utf8")).resolves.toBe("Alpha\n");
-      expect(snapshot.notes.map((note) => note.path)).toEqual(["Unsorted/Alpha.md"]);
+      expect(note.path).toBe("inbox/Alpha.md");
+      await expect(fs.readFile(path.join(vaultPath, "inbox", "Alpha.md"), "utf8")).resolves.toBe("Alpha\n");
+      expect(snapshot.notes.map((note) => note.path)).toEqual(["inbox/Alpha.md"]);
       expect(snapshot.notes[0]?.filename).toBe("Alpha.md");
     });
   });
@@ -45,10 +46,10 @@ describe("vault (VS Code host)", () => {
 
       const saved = await saveNote(vaultPath, note.path, "Beta\nBody");
 
-      expect(saved.path).toBe("Unsorted/Beta.md");
+      expect(saved.path).toBe("inbox/Beta.md");
       expect(saved.filename).toBe("Beta.md");
-      await expect(fs.readFile(path.join(vaultPath, "Unsorted", "Beta.md"), "utf8")).resolves.toBe("Beta\nBody");
-      await expect(fs.access(path.join(vaultPath, "Unsorted", "Alpha.md"))).rejects.toThrow();
+      await expect(fs.readFile(path.join(vaultPath, "inbox", "Beta.md"), "utf8")).resolves.toBe("Beta\nBody");
+      await expect(fs.access(path.join(vaultPath, "inbox", "Alpha.md"))).rejects.toThrow();
     });
   });
 
@@ -117,7 +118,7 @@ describe("vault (VS Code host)", () => {
         TEN_MB,
       );
 
-      await saveNote(vaultPath, "Unsorted/Doc.md", `Doc\n[Specification](${linked!.relativePath})\n`);
+      await saveNote(vaultPath, "inbox/Doc.md", `Doc\n[Specification](${linked!.relativePath})\n`);
 
       const snapshot = await readVault(vaultPath);
       const linkedSummary = snapshot.attachments.find((attachment) => attachment.relativePath === linked!.relativePath);
@@ -127,7 +128,7 @@ describe("vault (VS Code host)", () => {
       expect(linkedSummary?.referenced).toBe(true);
       expect(linkedSummary?.references).toEqual([
         {
-          notePath: "Unsorted/Doc.md",
+          notePath: "inbox/Doc.md",
           noteTitle: "Doc",
           noteFilename: "Doc.md",
           label: "Specification",
@@ -158,7 +159,7 @@ describe("vault (VS Code host)", () => {
       const note = await createNote(vaultPath, "Alpha");
       await expect(deleteNote(vaultPath, "Alpha.txt")).rejects.toThrow("Markdown files");
       await deleteNote(vaultPath, note.path);
-      await expect(fs.access(path.join(vaultPath, "Unsorted", "Alpha.md"))).rejects.toThrow();
+      await expect(fs.access(path.join(vaultPath, "inbox", "Alpha.md"))).rejects.toThrow();
     });
   });
 
@@ -166,8 +167,42 @@ describe("vault (VS Code host)", () => {
     await withVault(async (vaultPath) => {
       const first = await createNote(vaultPath, "Dup");
       const second = await createNote(vaultPath, "Dup");
-      expect(first.path).toBe("Unsorted/Dup.md");
-      expect(second.path).toBe("Unsorted/Dup (2).md");
+      expect(first.path).toBe("inbox/Dup.md");
+      expect(second.path).toBe("inbox/Dup (2).md");
+    });
+  });
+
+  it("moves notes to existing folders with filename collision handling and metadata patches", async () => {
+    await withVault(async (vaultPath) => {
+      await fs.mkdir(path.join(vaultPath, "docs", "auth"), { recursive: true });
+      await fs.mkdir(path.join(vaultPath, ".tipsboard"), { recursive: true });
+      await fs.writeFile(path.join(vaultPath, "docs", "auth", "Alpha.md"), "Existing\n", "utf8");
+      const note = await createNote(vaultPath, "Alpha");
+      await setNotePinned(vaultPath, note.path, true);
+      await fs.writeFile(
+        path.join(vaultPath, ".tipsboard", "kanban.json"),
+        JSON.stringify({
+          version: 1,
+          boards: [{
+            id: "board",
+            name: "Board",
+            created_at: "2026-01-01T00:00:00.000Z",
+            updated_at: "2026-01-01T00:00:00.000Z",
+            columns: [],
+            cards: [{ note_path: note.path, column_id: null, position: 0 }],
+          }],
+        }),
+        "utf8",
+      );
+
+      const moved = await moveNoteToFolder(vaultPath, note.path, "docs/auth");
+      const snapshot = await readVault(vaultPath);
+
+      expect(moved.path).toBe("docs/auth/Alpha (2).md");
+      await expect(fs.readFile(path.join(vaultPath, "docs", "auth", "Alpha (2).md"), "utf8")).resolves.toBe("Alpha\n");
+      await expect(fs.access(path.join(vaultPath, "inbox", "Alpha.md"))).rejects.toThrow();
+      expect(snapshot.pins).toEqual(["docs/auth/Alpha (2).md"]);
+      expect(snapshot.kanban.boards[0]?.cards[0]?.note_path).toBe("docs/auth/Alpha (2).md");
     });
   });
 
@@ -178,12 +213,12 @@ describe("vault (VS Code host)", () => {
       const before = await readVault(vaultPath);
       expect(before.notes[0]?.title).toBe("Newer");
 
-      await setNotePinned(vaultPath, "Unsorted/Older.md", true);
+      await setNotePinned(vaultPath, "inbox/Older.md", true);
       const after = await readVault(vaultPath);
       expect(after.notes[0]?.title).toBe("Older");
-      expect(after.pins).toEqual(["Unsorted/Older.md"]);
+      expect(after.pins).toEqual(["inbox/Older.md"]);
 
-      await setNotePinned(vaultPath, "Unsorted/Older.md", false);
+      await setNotePinned(vaultPath, "inbox/Older.md", false);
       const cleared = await readVault(vaultPath);
       expect(cleared.notes[0]?.title).toBe("Newer");
       expect(cleared.pins).toEqual([]);

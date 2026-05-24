@@ -101,6 +101,18 @@ Search runs locally by default. The generated index is stored under `.tipsboard/
 
 ---
 
+### Organize Inbox Notes
+
+![Suggest Folder](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/suggest_folder.png)
+
+New notes are created in `inbox/` first. When an inbox note is open, Tipsboard shows a small notice so it is clear the note still needs to be filed into your vault.
+
+Use **Suggest folder** from that notice to ask Tipsboard where the note may belong. Suggestions combine wiki links, tags, title patterns, keyword overlap, folder vocabulary, and semantic neighbors when semantic search is enabled. Tipsboard shows the suggested folder, confidence, and reasons, then moves the file only after you confirm.
+
+If semantic search is off, Tipsboard still uses links, tags, and keywords, but semantic search is recommended for better suggestions. If the note contains Markdown relative links such as `[Spec](../docs/spec.md)`, Tipsboard warns before moving because those links may need review afterward.
+
+---
+
 ### Local Markdown Files
 
 ![Vault Structure](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/vault-structure.png)
@@ -111,7 +123,7 @@ Tipsboard stores notes as ordinary Markdown files on disk. The folder you open i
 docs/auth/oauth.md
 adr/0001-record-architecture-decisions.md
 meeting-notes/weekly.md
-Unsorted/New Idea.md
+inbox/New Idea.md
 assets/images/*
 assets/files/*
 .tipsboard/kanban.json
@@ -225,15 +237,11 @@ Embedded images open a large preview overlay. Supports:
 Tipsboard: Open
 ```
 
-The folder you have open in VS Code becomes your Tipsboard vault automatically.
+The folder you have open in VS Code becomes your Tipsboard vault automatically. To use a different vault, open another folder in VS Code.
 
-To use a different folder as your vault, run:
+Existing Markdown files can live in nested folders such as `docs/`, `adr/`, or `meeting-notes/`. New notes created from Tipsboard are saved to `inbox/` at the vault root first, so you can file them into the right folder later.
 
-```txt
-Tipsboard: Select Vault Folder...
-```
-
-Existing Markdown files can live in nested folders such as `docs/`, `adr/`, or `meeting-notes/`. New notes created from Tipsboard are saved to `Unsorted/` at the vault root first, so you can file them into the right folder later.
+For multi-root workspaces, set `tipsboard-vscode.vaultFolder` to the workspace folder name that should be your vault.
 
 ---
 
@@ -241,7 +249,7 @@ Existing Markdown files can live in nested folders such as `docs/`, `adr/`, or `
 
 ```txt
 <vault root>/**/*.md
-Unsorted/*.md
+inbox/*.md
 assets/images/*
 assets/files/*
 .tipsboard/kanban.json
@@ -252,14 +260,14 @@ assets/files/*
 | Path | Purpose |
 |---|---|
 | `<vault root>/**/*.md` | Markdown notes, including nested folders such as `docs/auth/oauth.md` |
-| `Unsorted/*.md` | Default inbox for notes created from Tipsboard |
+| `inbox/*.md` | Default inbox for notes created from Tipsboard |
 | `assets/images/*` | Embedded images |
 | `assets/files/*` | Attached files (linked from Markdown) |
 | `.tipsboard/kanban.json` | Kanban board state |
 | `.tipsboard/pins.json` | Pinned note order for the card grid |
 | `.tipsboard/semantic/` | Local semantic search index (created when you use semantic search) |
 
-Tipsboard ignores Markdown inside `.tipsboard/`, `.git/`, `node_modules/`, `dist/`, `build/`, and `out/`. If `Unsorted/` is not available as a directory, Tipsboard falls back to `Tipsboard Unsorted/`, then `Tipsboard Unsorted 2/`, and so on.
+Tipsboard ignores Markdown inside `.tipsboard/`, `.git/`, `node_modules/`, `dist/`, `build/`, and `out/`. If `inbox/` is not available as a directory, Tipsboard falls back to `Tipsboard inbox/`, then `Tipsboard inbox 2/`, and so on.
 
 ---
 
@@ -284,7 +292,6 @@ Commands such as **Tipsboard: New Note** remain available regardless of conflict
 | Command | Description |
 |---|---|
 | `Tipsboard: Open` | Open or focus the Tipsboard panel |
-| `Tipsboard: Select Vault Folder...` | Choose a vault directory |
 | `Tipsboard: New Note` | Create a note (also bound to Ctrl/Cmd+N while the Tipsboard panel is focused) |
 | `Tipsboard: Close active tab` | Close the active Tipsboard tab (also bound to `Ctrl+Alt+Shift+W` / macOS `Cmd+Alt+Shift+W`; blocked when only one tab remains) |
 | `Tipsboard: Download Semantic Runtime` | Download the local semantic search runtime pack |
@@ -297,8 +304,7 @@ Commands such as **Tipsboard: New Note** remain available regardless of conflict
 
 | Setting | Description |
 |---|---|
-| `tipsboard-vscode.vaultFolder` | Vault folder for multi-root workspaces |
-| `tipsboard-vscode.manualVaultPath` | Explicit vault path override |
+| `tipsboard-vscode.vaultFolder` | Vault folder name for multi-root workspaces |
 | `tipsboard-vscode.maxAttachmentBytes` | Maximum size in bytes per Shift+drag attachment (images and other files); default 10485760 (10 MiB) |
 | `tipsboard-vscode.semanticSearch.provider` | `bundled` (default) enables local semantic search; `off` disables it |
 | `tipsboard-vscode.semanticSearch.modelId` | Hugging Face model id for embeddings; default is `Xenova/multilingual-e5-base` |
@@ -322,11 +328,9 @@ Semantic search indexes Markdown recursively under the vault root and includes f
 
 | Situation | Vault Root |
 |---|---|
-| Single-folder workspace | Workspace folder |
-| Multi-root workspace | `tipsboard-vscode.vaultFolder` |
-| Manual override | `tipsboard-vscode.manualVaultPath` |
-
-If `manualVaultPath` is set, it overrides the workspace folder until cleared.
+| Single-folder workspace | The workspace folder opened in VS Code |
+| Multi-root workspace | The folder named in `tipsboard-vscode.vaultFolder` |
+| No folder open | Tipsboard shows onboarding until you open a folder in VS Code |
 
 ---
 
@@ -340,13 +344,7 @@ If `manualVaultPath` is set, it overrides the workspace folder until cleared.
 
 ### Vault Looks Incorrect
 
-Clear or edit:
-
-```txt
-tipsboard-vscode.manualVaultPath
-```
-
-The panel reloads automatically when the setting changes.
+Open the intended document folder in VS Code (File > Open Folder). For multi-root workspaces, set `tipsboard-vscode.vaultFolder` to the correct workspace folder name. The Tipsboard panel reloads when the workspace changes.
 
 ---
 

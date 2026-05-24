@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {
@@ -70,10 +70,6 @@
         "title": "Tipsboard: Open"
       },
       {
-        "command": "tipsboard-vscode.selectVaultFolder",
-        "title": "Tipsboard: Select Vault Folder..."
-      },
-      {
         "command": "tipsboard-vscode.newNote",
         "title": "Tipsboard: New Note"
       },
@@ -116,12 +112,6 @@
           "default": null,
           "description": "When using a multi-root workspace, vault root folder name matching a workspace folder, or absolute path.",
           "scope": "resource"
-        },
-        "tipsboard-vscode.manualVaultPath": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "Absolute vault path from *Tipsboard: Select Vault Folder* or typed here. When set, overrides the workspace folder (including single-folder workspaces). Clear to use the open folder as the vault again.",
-          "description": "Absolute vault path. Overrides workspace folder when non-empty. Clear to use the workspace folder."
         },
         "tipsboard-vscode.maxAttachmentBytes": {
           "type": "number",

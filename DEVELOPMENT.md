@@ -101,7 +101,7 @@ npm run eval:semantic:mldr
 
 Dataset aliases: `mldr`, `scifact`.
 
-By default the evaluation uses JMTEB-lite MLDR-Retrieval, converts its corpus to wiki-like `pages/*.md`, and scores search results against the dataset qrels with `nDCG@10`, `Recall@10`, and `MRR@10`. The fetched dataset rows and model files are cached under `eval/.cache/`.
+By default the evaluation uses JMTEB-lite MLDR-Retrieval, converts its corpus to a temporary Tipsboard vault, and scores search results against the dataset qrels with `nDCG@10`, `Recall@10`, and `MRR@10`. The fetched dataset rows and model files are cached under `eval/.cache/`.
 
 The converted Tipsboard vault for manual UI inspection is always written under:
 
@@ -114,7 +114,7 @@ Examples:
 - default / Japanese long body text: `eval/.cache/vaults/jmteb-lite-mldr/`
 - English scientific claims: `eval/.cache/vaults/beir-scifact/`
 
-After `npm run eval:semantic`, open that folder in Tipsboard with **Select Vault Folder**. The run also rebuilds `.tipsboard/semantic/` there so semantic search works immediately.
+After `npm run eval:semantic`, open that generated vault folder in VS Code and run **Tipsboard: Open**. The run also rebuilds `.tipsboard/semantic/` there so semantic search works immediately.
 
 For a Japanese long-document dataset closer to wiki body search, use `npm run eval:semantic -- --dataset mldr` or `npm run eval:semantic:mldr`. The first fetch caps MLDR at 5,000 corpus documents (about half of the full set) with retries and pacing to reduce Hugging Face `datasets-server` 502 errors. Use `--full-dataset` for all 10,000 docs once you have a stable network; the JSON cache is reused on later runs unless you pass `--refresh-dataset`.
 
