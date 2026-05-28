@@ -456,7 +456,7 @@ vault/
 
 - **ドロップ**: **Shift+ファイルドロップ**。`createLocalAttachmentDropExtension`（`tipsboard-image-drop.ts`）→ **`importAttachmentBuffers`** で Host に送り、返った Markdown を挿入。画像は PNG / JPEG / GIF / WebP。非画像は **`assets/files/`** へ保存され **`[label](assets/files/...)`** を挿入（実行系などブロック拡張子は Host / WebView でスキップ）。
 - **サイズ上限**: VS Code 設定 **`tipsboard-vscode.maxAttachmentBytes`**（`VaultSnapshot.attachmentMaxBytes` と整合）。Host 側でも検証し、超過時は **`TIPSBOARD_ATTACHMENT_TOO_LARGE`**。
-- **画像表示**: 本文中の `assets/images/...` は **`ensureVaultImageUrl` / `prefetchAssets`** で WebView URI に変換してから `<img>` に載せる。
+- **画像表示**: 本文中の `assets/images/...` は **`ensureVaultImageUrl` / `prefetchAssets`** で WebView URI に変換してから `<img>` に載せる。画像 alt 末尾の `|1l`〜`|10r` は表示用 alt と分離して、コンテナ幅比率（`1`=10%、`10`=100%）と配置（`l` / `c` / `r`）として解釈する。例: `![logo|5c](assets/images/logo.png)` は幅 50%・中央寄せ。普通の Markdown エディタでは標準画像として表示できることを優先し、サイズ指定が反映されなくてもよい。
 - **`assets/files/` リンク**: `tipsboard-links.ts` が **`openVaultAsset`** RPC を発行し、Host が **`vscode.env.openExternal`** で OS 既定アプリに委譲。
 - **装飾（`tipsboard-decorations.ts`）**: 非カーソル行では `[label](assets/files/...)` を **`cm-tipsboard-vault-attachment-link`** でラベル表示（クリップアイコンは CSS `::before`、テーブル内は DOM アイコン）。**カーソル行**は他記法と同様に生 Markdown。リンク範囲内にキャレット／選択があるときは **`isSyntaxActive`** により括弧・URL も表示（外部リンクと同じ切替）。
 - **添付ライブラリ（`AttachmentLibraryView`）**: `viewMode === "attachments"` のとき一覧表示。`snapshot.attachments`（`VaultAttachmentSummary[]`）を **`searchAttachments`** で絞り込み。行から **`openVaultAttachmentInHost`**（`assets/files/` の相対パス）・参照ノートへの遷移（内部リンクと同系のスタイル）・絶対パスコピー（`joinVaultAbsolutePath`）・行展開でパス／サイズ／更新日時を表示。未参照ファイルは行末に警告表示。初回・保存後は **`getAttachmentSummaries`**、`importAttachmentBuffers` 成功時は戻り値の **`attachments`** で一覧を更新。

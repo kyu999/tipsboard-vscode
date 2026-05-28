@@ -1,10 +1,12 @@
 import MarkdownIt from "markdown-it";
+import type Token from "markdown-it/lib/token.mjs";
 import markdownItTaskLists from "markdown-it-task-lists";
 import multimdTable from "markdown-it-multimd-table";
 import texmath from "markdown-it-texmath";
 import katex from "katex";
 
 import { findMermaidBlocks } from "@/editor/tipsboard-mermaid";
+import { imageLayoutInlineStyle, parseMarkdownImageAlt } from "@/domain/markdown/imageSyntax";
 import mermaid from "mermaid";
 import {
   applyDesktopImagePreprocessors,
@@ -40,6 +42,24 @@ function installExportMarkdownRenderers(md: MarkdownIt): void {
   md.renderer.rules.table_close = (tokens, idx, options, env, self) => {
     const inner = close?.(tokens, idx, options, env, self) ?? self.renderToken(tokens, idx, options);
     return `${inner}\n</div>`;
+  };
+
+  md.renderer.rules.image = (tokens, idx, options, env, self) => {
+    const token = tokens[idx] as Token;
+    const parsed = parseMarkdownImageAlt(token.content);
+    token.content = parsed.alt;
+    token.attrSet("alt", parsed.alt);
+
+    const layoutStyle = imageLayoutInlineStyle(parsed.options);
+    if (layoutStyle) {
+      token.attrJoin("style", layoutStyle);
+    }
+
+    const inner = self.renderToken(tokens, idx, options);
+    if (parsed.options.align) {
+      return `<span style="display: block; text-align: ${parsed.options.align};">${inner}</span>`;
+    }
+    return inner;
   };
 }
 

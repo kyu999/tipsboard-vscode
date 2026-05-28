@@ -7,7 +7,7 @@ import {
 
 describe("collectVaultMarkdownImagePaths", () => {
   it("collects assets/images paths and dedupes", () => {
-    const md = `![a](assets/images/x.png) ![b](assets/images/y.jpg)\n![a2](assets/images/x.png)\n`;
+    const md = `![a|5c](assets/images/x.png) ![b](assets/images/y.jpg)\n![a2](assets/images/x.png)\n`;
     expect(collectVaultMarkdownImagePaths(md).sort()).toEqual(
       ["assets/images/x.png", "assets/images/y.jpg"].sort(),
     );
@@ -26,9 +26,9 @@ describe("rewriteVaultMarkdownImages", () => {
   });
 
   it("replaces vault path when resolver returns URL", () => {
-    const raw = "![x](assets/images/m.png)";
+    const raw = "![x|5c](assets/images/m.png)";
     expect(rewriteVaultMarkdownImages(raw, () => "data:image/png;base64,QQ")).toBe(
-      "![x](data:image/png;base64,QQ)",
+      "![x|5c](data:image/png;base64,QQ)",
     );
   });
 });

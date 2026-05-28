@@ -4,6 +4,12 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.4] - 2026-05-29
+
+### Added
+
+- **Image sizing**: Markdown images can now specify container-relative width and alignment with compact alt suffixes such as `![image|5c](assets/images/example.png)`.
+
 ## [0.3.3] - 2026-05-24
 
 ### Added

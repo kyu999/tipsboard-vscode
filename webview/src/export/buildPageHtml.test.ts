@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderBundledMarkdown } from "./buildPageHtml";
+import { buildStandalonePageHtml, renderBundledMarkdown } from "./buildPageHtml";
 
 describe("renderBundledMarkdown (markdown-it + KaTeX)", () => {
   it("emits KaTeX spans for \\( ... \\) inline math", () => {
@@ -23,5 +23,35 @@ describe("renderBundledMarkdown (markdown-it + KaTeX)", () => {
   it("still renders plain paragraphs without math", () => {
     const html = renderBundledMarkdown("Hello **world**.\n");
     expect(html).toContain("<strong>world</strong>");
+  });
+
+  it("renders compact image layout options without leaking them into alt text", () => {
+    for (const [suffix, textAlign] of [
+      ["5l", "left"],
+      ["5c", "center"],
+      ["5r", "right"],
+    ] as const) {
+      const html = renderBundledMarkdown(`![Logo|${suffix}](https://example.com/logo.png)\n`);
+      expect(html).toContain('alt="Logo"');
+      expect(html).not.toContain(`Logo|${suffix}`);
+      expect(html).toContain('style="width: 50%; height: auto; max-height: none;"');
+      expect(html).toContain(`text-align: ${textAlign};`);
+    }
+  });
+});
+
+describe("buildStandalonePageHtml", () => {
+  it("keeps image layout options after rewriting vault image sources", async () => {
+    const html = await buildStandalonePageHtml({
+      title: "Note",
+      bodyMarkdown: "Title\n![Logo|5c](assets/images/logo.png)\n",
+      resolveVaultImageSrcSync: () => "data:image/png;base64,QQ",
+    });
+
+    expect(html).toContain('src="data:image/png;base64,QQ"');
+    expect(html).toContain('alt="Logo"');
+    expect(html).not.toContain("Logo|5c");
+    expect(html).toContain('style="width: 50%; height: auto; max-height: none;"');
+    expect(html).toContain('text-align: center;');
   });
 });

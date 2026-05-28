@@ -21,6 +21,11 @@ describe("firstCardImage", () => {
       expect(extractFirstCardRenderableImageSrc(body)).toBe("assets/images/x.png");
     });
 
+    it("returns the image src when the alt carries compact layout options", () => {
+      const body = "Title\n\n![a|5c](assets/images/x.png)\n";
+      expect(extractFirstCardRenderableImageSrc(body)).toBe("assets/images/x.png");
+    });
+
     it("ignores images inside fenced blocks", () => {
       const body = "```\n![x](assets/images/in.png)\n```\n\n![y](assets/images/out.png)\n";
       expect(extractFirstCardRenderableImageSrc(body)).toBe("assets/images/out.png");

@@ -1,4 +1,4 @@
-const markdownImageLineRe = /!\[([^\]\n]*)\]\(([^)\s]+)\)/g;
+import { MARKDOWN_IMAGE_RE } from "@/domain/markdown/imageSyntax";
 
 /** Editor / CodeMirror の Markdown 画像表示と同じ許可セット。 */
 export function isRenderableCardImageSrc(src: string): boolean {
@@ -20,9 +20,9 @@ export function extractFirstCardRenderableImageSrc(body: string): string | null 
     }
     if (inFence) continue;
 
-    markdownImageLineRe.lastIndex = 0;
+    MARKDOWN_IMAGE_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
-    while ((match = markdownImageLineRe.exec(line)) !== null) {
+    while ((match = MARKDOWN_IMAGE_RE.exec(line)) !== null) {
       const src = match[2];
       if (!src || !isRenderableCardImageSrc(src)) continue;
       return src;

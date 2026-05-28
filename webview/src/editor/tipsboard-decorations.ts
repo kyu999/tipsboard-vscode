@@ -20,6 +20,12 @@ import { syntaxTree } from "@codemirror/language";
 import katex from "katex";
 import { bareHttpUrlInTextRe, trimAutolinkUrl } from "@/domain/autolink";
 import { parseIconSyntax } from "@/domain/links/iconSyntax";
+import {
+  imageLayoutInlineStyle,
+  MARKDOWN_IMAGE_RE,
+  parseMarkdownImageAlt,
+  type MarkdownImageOptions,
+} from "@/domain/markdown/imageSyntax";
 import { isRenderableCardImageSrc } from "@/domain/preview/firstCardImage";
 import { normalizeTitle } from "@/domain/title/title";
 import { getCaretLineNumbers } from "./tipsboard-caret-line";
@@ -107,6 +113,7 @@ class MarkdownImageWidget extends WidgetType {
   constructor(
     private src: string,
     private alt: string,
+    private options: MarkdownImageOptions,
   ) {
     super();
   }
@@ -114,6 +121,10 @@ class MarkdownImageWidget extends WidgetType {
   toDOM(): HTMLElement {
     const wrapper = document.createElement("span");
     wrapper.className = "cm-image-widget";
+    if (this.options.align) {
+      wrapper.style.display = "block";
+      wrapper.style.textAlign = this.options.align;
+    }
 
     const img = document.createElement("img");
     let placeholderShown = false;
@@ -140,7 +151,13 @@ class MarkdownImageWidget extends WidgetType {
       img.src = this.src;
     }
     img.alt = this.alt;
-    img.className = "inline-block max-w-full max-h-64 rounded my-1";
+    const layoutStyle = imageLayoutInlineStyle(this.options);
+    img.className = layoutStyle
+      ? "inline-block max-w-full rounded my-1"
+      : "inline-block max-w-full max-h-64 rounded my-1";
+    if (layoutStyle) {
+      img.style.cssText = layoutStyle;
+    }
     img.loading = "lazy";
     img.onerror = showPlaceholder;
     attachEmbeddedImageLightbox(img);
@@ -154,7 +171,12 @@ class MarkdownImageWidget extends WidgetType {
   }
 
   eq(other: MarkdownImageWidget): boolean {
-    return this.src === other.src && this.alt === other.alt;
+    return (
+      this.src === other.src &&
+      this.alt === other.alt &&
+      this.options.widthUnits === other.options.widthUnits &&
+      this.options.align === other.options.align
+    );
   }
 }
 
@@ -594,7 +616,6 @@ const externalWithLabelRe = /(?<!\\)\[([^\[\]\n]+?)\s+(https?:\/\/\S+)\](?!\()/g
 const externalRe = /(?<!\\)\[(https?:\/\/\S+)\](?!\()/g;
 const bareHttpUrlRe = bareHttpUrlInTextRe;
 const internalLinkRe = /(?<!\\)\[([^\[\]\n]+?)\](?!\()/g;
-const markdownImageRe = /!\[([^\]\n]*)\]\(([^)\s]+)\)/g;
 const tagRe = /(?:^|\s)(#[^\s#]+)/g;
 
 function resolveMarkdownImageSrc(src: string): string {
@@ -1129,10 +1150,11 @@ function addTipsboardLinkDecorations(
       const lineText = view.state.doc.sliceString(line.from, line.to);
 
       if (!caretLines.has(line.number)) {
-        markdownImageRe.lastIndex = 0;
+        MARKDOWN_IMAGE_RE.lastIndex = 0;
         let markdownImageMatch: RegExpExecArray | null;
-        while ((markdownImageMatch = markdownImageRe.exec(lineText)) !== null) {
-          const alt = markdownImageMatch[1] ?? "";
+        while ((markdownImageMatch = MARKDOWN_IMAGE_RE.exec(lineText)) !== null) {
+          const rawAlt = markdownImageMatch[1] ?? "";
+          const { alt, options } = parseMarkdownImageAlt(rawAlt);
           const src = markdownImageMatch[2] ?? "";
           if (!isRenderableCardImageSrc(src)) continue;
           const matchFrom = line.from + markdownImageMatch.index;
@@ -1141,7 +1163,7 @@ function addTipsboardLinkDecorations(
             from: matchFrom,
             to: matchTo,
             deco: Decoration.replace({
-              widget: new MarkdownImageWidget(src, alt),
+              widget: new MarkdownImageWidget(src, alt, options),
             }),
           });
         }

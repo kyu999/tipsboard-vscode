@@ -1,8 +1,7 @@
 /** Vault 画像パスおよび HTML 出力用の内部リンク表示正規化。 */
 
 import { parseIconSyntax } from "@/domain/links/iconSyntax";
-
-export const MARKDOWN_IMAGE_RE = /!\[([^\]\n]*)\]\(([^)\s]+)\)/g;
+import { MARKDOWN_IMAGE_RE } from "@/domain/markdown/imageSyntax";
 
 /** `domain/links/links.ts` の内部リンク検出と同じ規約（標準リンク `[t](url)` は除外）。 */
 const INTERNAL_LINK_RE =

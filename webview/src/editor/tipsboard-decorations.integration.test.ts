@@ -102,6 +102,16 @@ function hasWidgetDecorationAtRange(set: DecorationSet, from: number, to: number
   return found;
 }
 
+function widgetDOMs(set: DecorationSet, docLen: number, view: EditorView): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  set.between(0, docLen, (_from, _to, deco) => {
+    const spec = (deco as { spec?: { widget?: { toDOM?: (view?: EditorView) => HTMLElement } } }).spec;
+    const dom = spec?.widget?.toDOM?.(view);
+    if (dom) out.push(dom);
+  });
+  return out;
+}
+
 describe("rangeFullyContainedInAny", () => {
   it("treats intersecting ranges that are not subsets as not contained", () => {
     const outer = { from: 10, to: 40 };
@@ -315,5 +325,35 @@ $$
     const deco = buildTipsboardDecorationSetForTesting(view);
 
     expectNoClassAtText(deco, doc, "PDF_example", "cm-tipsboard-vault-attachment-link");
+  });
+
+  it("applies compact image width and all alignment options to markdown image widgets", async () => {
+    const cases = [
+      { suffix: "5l", textAlign: "left" },
+      { suffix: "5c", textAlign: "center" },
+      { suffix: "5r", textAlign: "right" },
+    ];
+
+    for (const { suffix, textAlign } of cases) {
+      const imageMarkdown = `![Alt|${suffix}](https://example.com/image.png)`;
+      const doc = `Title\n${imageMarkdown}\n`;
+      const imageFrom = doc.indexOf(imageMarkdown);
+      const imageTo = imageFrom + imageMarkdown.length;
+      const view = makeView(doc, [], 0);
+      opened.push(view);
+      await flushLayout(view);
+      const deco = buildTipsboardDecorationSetForTesting(view);
+      const dom = widgetDOMs(deco, doc.length, view)[0]!;
+      const img = dom.querySelector("img")!;
+
+      expect(hasWidgetDecorationAtRange(deco, imageFrom, imageTo)).toBe(true);
+      expect(img.alt).toBe("Alt");
+      expect(img.className).toContain("inline-block");
+      expect(img.style.width).toBe("50%");
+      expect(img.style.height).toBe("auto");
+      expect(img.style.maxHeight).toBe("none");
+      expect(dom.style.display).toBe("block");
+      expect(dom.style.textAlign).toBe(textAlign);
+    }
   });
 });
