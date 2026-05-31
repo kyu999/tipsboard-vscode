@@ -86,7 +86,7 @@ flowchart LR
 | Bridge クライアント | `webview/src/vscode-bridge-client.ts` | RPC Promise、`prefetchAssets` / `ensureVaultImageUrl`、外部ブラウザ `openExternalInHost`。 |
 | UI 中枢 | `webview/src/App.tsx` | `VaultSnapshot` を React 状態の中心に持つ。**`mergeVaultSnapshotFromHost`**（Host 一式を取り込みつつ **`diskCommittedTitle` 再構成**）、一覧 / エディタ / KANBAN / ガイド。ノート編集中は本文幅を変えず、エディタカード右上に **控えめなアイコンのみの操作**（ピン・HTML エクスポート・削除）。 |
 | エディタ | `webview/src/components/NoteEditor.tsx`, `webview/src/editor/` | CodeMirror 初期化、保存プラグイン、装飾、リンク、画像ドロップ。 |
-| グラフ・検索 | `webview/src/lib/noteIndex.ts`, `searchNotes` 等 | メモリ上のリンクグラフ、補完候補、タグ、**ヘッダーによるキーワード検索**。セマンティック検索は Host 側（`semantic.ts`）と RPC。 |
+| グラフ・検索 | `webview/src/lib/noteIndex.ts`, `webview/src/lib/nearNotes.ts`, `searchNotes` 等 | メモリ上のリンクグラフ、補完候補、タグ、**ヘッダーによるキーワード検索**。選択中ノートの Related 領域では、リンク関連に加えて `semanticSearch(selectedNote.body)` の結果をノート単位に集約した近傍ノートを通常カードで表示する。近傍は自分自身・既存リンク関連・弱いスコアを除外し、カード内に一致度、ヒット見出し、本文スニペットを出す。発リンク・被リンクがどちらもない場合はリンク孤立として通知する。セマンティック検索本体は Host 側（`semantic.ts`）と RPC。 |
 | ドメイン | `webview/src/domain/` | タイトル正規化、リンク抽出（`extractLinks`、`INTERNAL_LINK_RE`）、**改名時リンク文言書き換え**（`rewriteInboundWikiTitles.ts`）など Editor と整合した純関数群。 |
 | ユーザーガイド | `webview/src/user-guide/` | 同梱 Markdown 相当の長文（日英）。 |
 | Host ビルド | `tsconfig.extension.json` | `src` → `dist/extension/`（CommonJS）。`scripts/build-extension.cjs` で esbuild バンドル後、`scripts/copy-extension-deps.cjs` が **`@huggingface/transformers` ツリー（optional 含む）** を `dist/extension/node_modules/` に複製し、Marketplace 向け `vsce package --no-dependencies` でもランタイム解決できるようにする。 |
@@ -389,12 +389,15 @@ vault/
 | `saveState` | `"idle" \| "unsaved" \| "saving" \| "saved" \| "error"`（CodeMirror 保存プラグインから供給） |
 | `query` / `listSearchFilter` | ヘッダー検索入力とカード一覧フィルタ。Enter で `query.trim()` を `listSearchFilter` に反映して一覧へ戻り、候補ドロップダウンのクリックは直接ノートを開く。 |
 | セマンティック検索モーダル | ヘッダーの wand から開く。`semanticSearchOpen` / `semanticQuery` / `semanticResults` 等。`tipsboardDesktop.semanticSearch` を呼ぶ（設定 off 時は Host がエラー）。 |
+| `nearNotes` / `nearNotesBusy` | 選択中ノートの本文を `semanticSearch` に渡して得た候補を `webview/src/lib/nearNotes.ts` でノート単位に集約した Related 表示用 state。 |
 | `userGuideOpen` | 同梱ガイドの表示 |
 | メニュー open フラグ | vault / local のドロップダウン |
 
 ### 9.3 衍生データ（`useMemo`）
 
 - **`buildNoteIndex(snapshot.notes)`**: 各ノートの **外向きリンク・バックリンク・2-hop・newLinks・タグ**、および補完用 `suggestions`。
+- **`selectedEntry` / `selectedNoteIsLinkIsolated`**: 選択中ノートのリンク関連と、`outgoing.length === 0 && backlinks.length === 0` によるリンク孤立判定。
+- **近傍ノート集約**: `semanticSearch(selectedNote.body, 20)` の結果から、自分自身・既存リンク関連・スコア `0.45` 未満を除外し、同じ `path` は最大スコアのチャンクにまとめて最大 6 件を Related 領域へ渡す。
 - **`searchResults`**: ヘッダー検索候補用。Enter は先頭候補を開かず、`listSearchFilter` に検索語を入れてカード一覧を絞り込む。
 - **`listDisplayNotes`**: 一覧はオプションで `listSearchFilter` により部分集合化し、**`sortNotesWithPinOrder`** でピン優先表示。
 - **`selectedKanbanStatuses`**: 選択ノートがどのボードのどの列にあるか（エディタまわりの表示用）。
@@ -549,3 +552,4 @@ vault/
 | 2026-05-17 | 拡張 **v0.2.6**: `assets/files/` リンク装飾のカーソル行切替（他記法と同様）。README・§9.8 の装飾挙動を追記。 |
 | 2026-05-22 | 拡張 **v0.3.0**: **セマンティック検索**（wand モーダル、Host `semantic.ts`、RPC `semanticSearch` / `rebuildSemanticIndex`、`.tipsboard/semantic/` 索引、設定 `semanticSearch.*`、ビルド時 `copy-extension-deps`）。README・CHANGELOG・§1・§2・§3・§7・§8.1・§9.2・§12 追記。 |
 | 2026-05-21 | 拡張 **v0.2.9**: 非画像添付の保存名 **`{サニタイズ済み元名}_{8hex}{ext}`**（ノート名なし）。**添付ライブラリ** UI（`viewMode: attachments`、`AttachmentLibraryView`、サイドバー紙クリップ）。`importAttachmentBuffers` の戻り **`attachments`**、保存後の **`getAttachmentSummaries`**。README・CHANGELOG・§1・§9.2・§9.8 追記。 |
+| 2026-05-31 | 拡張 **v0.3.5**: Related 領域に **近傍ノート**（`semanticSearch(selectedNote.body)` のノート単位集約、スコア閾値、カード内の一致度・ヒット見出し・本文スニペット）と **リンク孤立通知**を追加。README・CHANGELOG・同梱ユーザーガイド・SEMANTIC_SEARCH・§3・§9.2・§9.3 を更新。 |

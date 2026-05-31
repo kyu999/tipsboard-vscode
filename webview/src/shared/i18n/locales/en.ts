@@ -257,6 +257,11 @@ const en = {
   },
   links: {
     links: "Links",
+    nearNotes: "Nearby Notes",
+    nearNotesLoading: "Finding nearby notes…",
+    nearNoteScore: "{{score}}% match",
+    isolatedTitle: "This note is isolated",
+    isolatedDescription: "It has no outgoing links or backlinks yet.",
     newLinks: "New Links",
     twoHop: "Two-hop links",
     via: "Linked page",

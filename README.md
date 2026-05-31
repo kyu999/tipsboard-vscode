@@ -49,7 +49,9 @@ Tipsboard automatically shows:
 - outgoing links
 - backlinks
 - two-hop related notes
+- semantic nearby notes with match scores, hit headings, and snippets
 - suggested new links
+- an isolated-note notice when a note has no outgoing links or backlinks
 
 This makes it easy to navigate and grow a connected knowledge base over time.
 
@@ -83,7 +85,9 @@ Explore:
 - shared references
 - related pages
 - two-hop note relationships
+- nearby notes found by semantic similarity
 - suggested new links
+- isolated notes that have not been linked yet
 
 The experience is inspired by connected-note and personal knowledge management workflows.
 
@@ -93,9 +97,11 @@ The experience is inspired by connected-note and personal knowledge management w
 
 ![Semantic search](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/semantic-search.png)
 
-Links, backlinks, tags, and related notes are the main way to move through a Tipsboard vault. When you remember an idea but not the exact title or words, use the **wand** button next to the header search field to open semantic search.
+Links, backlinks, tags, related notes, and nearby-note cards are the main way to move through a Tipsboard vault. When you remember an idea but not the exact title or words, use the **wand** button next to the header search field to open semantic search.
 
 Semantic search accepts natural-language queries and matches note **sections** by meaning, not only exact keywords. Results open the original Markdown note, so it remains part of the same plain-file workflow.
+
+The same local semantic index also powers the **Nearby Notes** row in the Related area below the editor. Nearby cards use the regular note-card layout, show the match score, hit heading, and snippet, and filter out weak matches plus notes already connected through links.
 
 Search runs locally by default. The generated index is stored under `.tipsboard/semantic/` in your vault, and model weights are cached outside your notes in VS Code global storage unless you configure another cache path. See [Semantic Search Settings](#semantic-search-settings) for runtime, offline, and model options.
 

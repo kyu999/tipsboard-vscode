@@ -14,7 +14,8 @@ import { SaveStatus } from "@/components/SaveStatus";
 import { buildStandalonePageHtml } from "@/export/buildPageHtml";
 import { UserGuideView } from "@/user-guide/UserGuideView";
 import { collectVaultMarkdownImagePaths, sanitizeExportFilename } from "@/export/exportMarkdownPreprocess";
-import { buildNoteIndex, searchNotes, type TwoHopLink } from "@/lib/noteIndex";
+import { buildNoteIndex, isLinkIsolated, searchNotes, type TwoHopLink } from "@/lib/noteIndex";
+import { aggregateNearNotes, type NearNote } from "@/lib/nearNotes";
 import { sortNotesWithPinOrder } from "@/lib/sortNotesWithPinOrder";
 import {
   addOrFocusNoteTab,
@@ -116,6 +117,8 @@ export function App() {
   const [semanticIndexMaintBusy, setSemanticIndexMaintBusy] = useState(false);
   const [semanticIndexStatus, setSemanticIndexStatus] = useState<string | null>(null);
   const [semanticSettings, setSemanticSettings] = useState<SemanticSearchSettings | null>(null);
+  const [nearNotes, setNearNotes] = useState<NearNote[]>([]);
+  const [nearNotesBusy, setNearNotesBusy] = useState(false);
   const [organizeOpen, setOrganizeOpen] = useState(false);
   const [organizeSuggestions, setOrganizeSuggestions] = useState<OrganizeSuggestionsResponse | null>(null);
   const [organizeBusy, setOrganizeBusy] = useState(false);
@@ -330,6 +333,16 @@ export function App() {
   const selectedNoteIsInbox = Boolean(selectedNote && isInboxNotePath(selectedNote.path));
   const selectedNoteCanOrganize = selectedNoteIsInbox && preferFolderHierarchy;
   const selectedEntry = selectedNote ? index.entries.get(selectedNote.path) : null;
+  const selectedNoteIsLinkIsolated = isLinkIsolated(selectedEntry);
+  const selectedLinkedPathSet = useMemo(() => {
+    const paths = new Set<string>();
+    for (const note of selectedEntry?.outgoing ?? []) paths.add(note.path);
+    for (const note of selectedEntry?.backlinks ?? []) paths.add(note.path);
+    for (const hop of selectedEntry?.twoHop ?? []) {
+      for (const note of hop.pages) paths.add(note.path);
+    }
+    return paths;
+  }, [selectedEntry]);
   const duplicateTitlePathSet = useMemo(() => {
     const paths = new Set<string>();
     for (const candidates of index.byNormalizedTitle.values()) {
@@ -375,6 +388,46 @@ export function App() {
     setOrganizeError(null);
     setOrganizeProgress(null);
   }, [selectedPath]);
+
+  useEffect(() => {
+    if (!selectedNote?.body.trim()) {
+      setNearNotes([]);
+      setNearNotesBusy(false);
+      return;
+    }
+
+    let alive = true;
+    setNearNotes([]);
+    setNearNotesBusy(true);
+
+    const timer = window.setTimeout(() => {
+      void window.tipsboardDesktop.semanticSearch(selectedNote.body, 20).then(
+        (response) => {
+          if (!alive) return;
+          setNearNotes(
+            aggregateNearNotes({
+              results: response.results,
+              notes: snapshot.notes,
+              sourcePath: selectedNote.path,
+              linkedPaths: selectedLinkedPathSet,
+              limit: 6,
+            }),
+          );
+          setNearNotesBusy(false);
+        },
+        () => {
+          if (!alive) return;
+          setNearNotes([]);
+          setNearNotesBusy(false);
+        },
+      );
+    }, 800);
+
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [selectedNote, selectedLinkedPathSet, snapshot.notes]);
 
   useEffect(() => {
     const element = listContentRef.current;
@@ -620,10 +673,13 @@ export function App() {
 
   const handleCloseTab = useCallback(
     async (tabId: string) => {
-      if (tabId === activeTabIdRef.current && hasUnsavedChanges) {
+      const activeTabId = activeTabIdRef.current;
+      if (!activeTabId) return;
+
+      if (tabId === activeTabId && hasUnsavedChanges) {
         if (!(await confirmDiscardChanges())) return;
       }
-      const removed = removeTabAtId(openTabsRef.current, activeTabIdRef.current, tabId);
+      const removed = removeTabAtId(openTabsRef.current, activeTabId, tabId);
       if (!removed) return;
       pushNavHistory();
       setOpenTabs(removed.tabs);
@@ -2076,6 +2132,9 @@ export function App() {
                   backlinks={selectedEntry?.backlinks ?? []}
                   twoHop={selectedEntry?.twoHop ?? []}
                   newLinks={selectedEntry?.newLinks ?? []}
+                  nearNotes={nearNotes}
+                  nearNotesBusy={nearNotesBusy}
+                  isIsolated={selectedNoteIsLinkIsolated}
                   onSelect={(note, event) => {
                     const openInNewTab = event.metaKey || event.ctrlKey;
                     void handleSelectNote(note.path, { openInNewTab });
@@ -2479,6 +2538,8 @@ function NoteCard({
   note,
   showPinnedBadge,
   showPath,
+  metadata,
+  hidePreview,
   onClick,
   className = "",
 }: {
@@ -2486,6 +2547,8 @@ function NoteCard({
   /** Shown only on pinned notes; toggle pin from the editor header. */
   showPinnedBadge?: boolean;
   showPath?: boolean;
+  metadata?: ReactNode;
+  hidePreview?: boolean;
   onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   className?: string;
 }) {
@@ -2540,7 +2603,8 @@ function NoteCard({
         {showPath ? (
           <p className="mt-1 truncate text-2xs text-text-muted">{note.path}</p>
         ) : null}
-        {cardImageUrl && !previewImageFailed ? (
+        {metadata ? <div className="mt-1.5 shrink-0">{metadata}</div> : null}
+        {hidePreview ? null : cardImageUrl && !previewImageFailed ? (
           <div className="mt-2.5 min-h-0 w-full flex-1 basis-0 overflow-hidden rounded-xl bg-bg-primary">
             <img
               src={cardImageUrl}
@@ -2625,6 +2689,9 @@ function RelatedLinks({
   backlinks,
   twoHop,
   newLinks,
+  nearNotes,
+  nearNotesBusy,
+  isIsolated,
   onSelect,
   onCreateLink,
 }: {
@@ -2632,12 +2699,23 @@ function RelatedLinks({
   backlinks: NoteSummary[];
   twoHop: TwoHopLink[];
   newLinks: string[];
+  nearNotes: NearNote[];
+  nearNotesBusy: boolean;
+  isIsolated: boolean;
   onSelect: (note: NoteSummary, event: ReactMouseEvent) => void;
   onCreateLink: (title: string, options?: { openInNewTab?: boolean }) => void;
 }) {
   const { t } = useTranslation();
 
-  if (outgoing.length === 0 && backlinks.length === 0 && twoHop.length === 0 && newLinks.length === 0) {
+  if (
+    outgoing.length === 0 &&
+    backlinks.length === 0 &&
+    twoHop.length === 0 &&
+    newLinks.length === 0 &&
+    nearNotes.length === 0 &&
+    !nearNotesBusy &&
+    !isIsolated
+  ) {
     return null;
   }
 
@@ -2645,6 +2723,20 @@ function RelatedLinks({
 
   return (
     <div className="space-y-4">
+      {isIsolated && (
+        <div className="rounded-2xl border border-[rgba(217,119,6,0.35)] bg-[rgba(217,119,6,0.06)] px-4 py-3 text-sm text-text-secondary">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 text-[#d97706]" aria-hidden>
+              <i className="fa-solid fa-triangle-exclamation" />
+            </span>
+            <div className="min-w-0">
+              <p className="font-semibold text-text-primary">{t("links.isolatedTitle")}</p>
+              <p className="mt-1 text-xs leading-5 text-text-muted">{t("links.isolatedDescription")}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {linkedNotes.length > 0 && (
         <RelatedLinkRow title={t("links.links")} variant="links">
           <LinkCardGrid
@@ -2667,6 +2759,23 @@ function RelatedLinks({
             />
           ))}
         </div>
+      )}
+
+      {nearNotes.length > 0 && (
+        <RelatedLinkRow title={t("links.nearNotes")} variant="links">
+          <NearNoteCardGrid
+            nearNotes={nearNotes}
+            onSelect={(note, event) => {
+              onSelect(note, event);
+            }}
+          />
+        </RelatedLinkRow>
+      )}
+
+      {nearNotesBusy && nearNotes.length === 0 && (
+        <p className="rounded-2xl border border-accent-link/10 bg-bg-elevated px-4 py-3 text-xs text-text-muted">
+          {t("links.nearNotesLoading")}
+        </p>
       )}
 
       <NewLinkSection titles={newLinks} onCreate={onCreateLink} />
@@ -2808,6 +2917,48 @@ function LinkCardGrid({
             note={note}
             className="h-[156px] w-[156px]"
             onClick={(e) => onSelect(note, e)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NearNoteCardGrid({
+  nearNotes,
+  onSelect,
+}: {
+  nearNotes: NearNote[];
+  onSelect: (note: NoteSummary, event: ReactMouseEvent<HTMLButtonElement>) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="grid flex-1 grid-cols-[repeat(auto-fill,156px)] auto-rows-[156px] justify-start gap-3">
+      {nearNotes.map((item) => (
+        <div key={item.note.path} className="h-[156px] w-[156px]">
+          <NoteCard
+            note={item.note}
+            className="h-[156px] w-[156px]"
+            metadata={
+              <div className="space-y-0.5">
+                <p className="truncate text-2xs font-medium tabular-nums text-accent-link">
+                  {t("links.nearNoteScore", { score: Math.round(item.score * 100) })}
+                </p>
+                {item.heading ? (
+                  <p className="line-clamp-1 whitespace-pre-line break-words text-2xs font-medium leading-4 text-text-primary">
+                    {item.heading}
+                  </p>
+                ) : null}
+                {item.snippet ? (
+                  <p className="line-clamp-4 whitespace-pre-line break-words text-2xs leading-4 text-text-secondary">
+                    {item.snippet}
+                  </p>
+                ) : null}
+              </div>
+            }
+            hidePreview
+            onClick={(e) => onSelect(item.note, e)}
           />
         </div>
       ))}

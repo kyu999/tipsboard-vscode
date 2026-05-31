@@ -4,6 +4,17 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.5] - 2026-05-31
+
+### Added
+
+- **Nearby notes in Related**: the editor’s Related area now includes semantic nearby-note cards for the selected note. Results are grouped by note path, exclude the current note and already-linked related notes, apply a minimum score threshold, and show match score plus the hit heading and snippet inside the normal note card.
+- **Link-isolated note notice**: notes with no outgoing links and no backlinks now show a small isolated-note notice in the Related area, making it easier to spot pages that have not joined the graph yet.
+
+### Changed
+
+- **Related note documentation**: README, bundled user guide, semantic-search docs, and implementation specs now describe the expanded Links / Related area, semantic nearby-note scoring, and link-isolated detection.
+
 ## [0.3.4] - 2026-05-29
 
 ### Added

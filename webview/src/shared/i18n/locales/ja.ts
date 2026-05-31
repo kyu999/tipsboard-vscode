@@ -259,6 +259,11 @@ const ja = {
   },
   links: {
     links: "Links",
+    nearNotes: "近傍ノート",
+    nearNotesLoading: "近傍ノートを探しています…",
+    nearNoteScore: "一致度 {{score}}%",
+    isolatedTitle: "このノートは孤立しています",
+    isolatedDescription: "まだ発リンクも被リンクもありません。",
     newLinks: "New Links",
     twoHop: "2ホップリンク",
     via: "リンク先",

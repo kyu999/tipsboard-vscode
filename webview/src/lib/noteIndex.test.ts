@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildNoteIndex, searchNotes } from "./noteIndex";
+import { buildNoteIndex, isLinkIsolated, searchNotes } from "./noteIndex";
 import type { NoteSummary } from "@/types";
 
 function note(partial: Partial<NoteSummary> & Pick<NoteSummary, "path" | "title">): NoteSummary {
@@ -80,6 +80,17 @@ describe("noteIndex", () => {
           duplicateTitle: true,
         },
       ]);
+    });
+
+    it("detects notes without outgoing links or backlinks as link-isolated", () => {
+      const isolated = note({ path: "pages/isolated.md", title: "Isolated" });
+      const linked = note({ path: "pages/linked.md", title: "Linked", body: "Linked\n\n[Target]\n" });
+      const target = note({ path: "pages/target.md", title: "Target", normalizedTitle: "target" });
+      const idx = buildNoteIndex([isolated, linked, target]);
+
+      expect(isLinkIsolated(idx.entries.get("pages/isolated.md"))).toBe(true);
+      expect(isLinkIsolated(idx.entries.get("pages/linked.md"))).toBe(false);
+      expect(isLinkIsolated(idx.entries.get("pages/target.md"))).toBe(false);
     });
   });
 

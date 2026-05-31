@@ -123,6 +123,10 @@ export function searchNotes(notes: NoteSummary[], query: string): NoteSummary[] 
   });
 }
 
+export function isLinkIsolated(entry: Pick<NoteGraphEntry, "outgoing" | "backlinks"> | null | undefined): boolean {
+  return Boolean(entry && entry.outgoing.length === 0 && entry.backlinks.length === 0);
+}
+
 function appendMap<TKey, TValue>(map: Map<TKey, TValue[]>, key: TKey, value: TValue) {
   const values = map.get(key);
   if (values) {
