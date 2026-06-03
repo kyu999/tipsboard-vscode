@@ -1,4 +1,4 @@
-import { EditorState, type Extension } from "@codemirror/state";
+import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { EditorView, drawSelection, highlightActiveLine, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/language";
@@ -14,6 +14,7 @@ import { createManualSavePlugin, type EditorSaveConfig } from "./tipsboard-save"
 import { createLocalLinkCompletionSource } from "./tipsboard-link-completion";
 import { createLocalAttachmentDropExtension } from "./tipsboard-image-drop";
 import { DEFAULT_ATTACHMENT_MAX_BYTES } from "@/shared/attachmentConstants";
+import { clampEditorViewState, type EditorViewState } from "@/lib/editorViewState";
 import { palette } from "@/theme/palette";
 
 const ed = palette.editor;
@@ -158,6 +159,7 @@ export interface EditorConfig {
   /** After Shift+drop file import, merge refreshed `VaultSnapshot.attachments` from Host. */
   onAttachmentIndexUpdated?: (attachments: VaultAttachmentSummary[]) => void;
   onContentChange?: (content: string) => void;
+  initialViewState?: EditorViewState;
   extensions?: Extension[];
 }
 
@@ -211,13 +213,30 @@ export function createEditor(config: EditorConfig): EditorView {
     ...(config.extensions ?? []),
   ];
 
+  const doc = config.doc;
+  const initialViewState = config.initialViewState
+    ? clampEditorViewState(config.initialViewState, doc.length)
+    : undefined;
+
   const state = EditorState.create({
-    doc: config.doc,
+    doc,
+    selection: initialViewState
+      ? EditorSelection.single(initialViewState.head, initialViewState.anchor)
+      : undefined,
     extensions,
   });
 
-  return new EditorView({
+  const view = new EditorView({
     state,
     parent: config.parent,
   });
+
+  if (initialViewState) {
+    const scrollTop = initialViewState.scrollTop;
+    requestAnimationFrame(() => {
+      view.scrollDOM.scrollTop = scrollTop;
+    });
+  }
+
+  return view;
 }

@@ -16,6 +16,13 @@ import { UserGuideView } from "@/user-guide/UserGuideView";
 import { collectVaultMarkdownImagePaths, sanitizeExportFilename } from "@/export/exportMarkdownPreprocess";
 import { buildNoteIndex, isLinkIsolated, searchNotes, type TwoHopLink } from "@/lib/noteIndex";
 import { aggregateNearNotes, type NearNote } from "@/lib/nearNotes";
+import {
+  deleteEditorViewStateFromCache,
+  getEditorViewStateFromCache,
+  moveEditorViewStateInCache,
+  setEditorViewStateInCache,
+  type EditorViewState,
+} from "@/lib/editorViewState";
 import { sortNotesWithPinOrder } from "@/lib/sortNotesWithPinOrder";
 import {
   addOrFocusNoteTab,
@@ -36,6 +43,7 @@ import { runUnlessInFlight } from "@/lib/runUnlessInFlight";
 import { resolveVaultFilesChangedAction } from "@/lib/vaultFilesChangedHandling";
 import { changeLanguage, getSupportedLanguage, supportedLanguages } from "@/shared/i18n";
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { clearTipsboardResolvedAssetCache } from "@/vscode-bridge-client";
 import type {
   BulkMoveNotesResponse,
@@ -144,6 +152,11 @@ export function App() {
   const openTabsRef = useRef(openTabs);
   const activeTabIdRef = useRef(activeTabId);
   const diskCommittedTitleRef = useRef<Map<string, string>>(new Map());
+  const editorViewStateCacheRef = useRef(new Map<string, EditorViewState>());
+  const nearNotesSuppressedRef = useRef(false);
+  const nearNotesSourcePathRef = useRef<string | null>(null);
+  const nearNotesRef = useRef<NearNote[]>([]);
+  const prevSemanticSearchEnabledRef = useRef(false);
   const [exportHtmlError, setExportHtmlError] = useState<string | null>(null);
   const [exportHtmlSuccess, setExportHtmlSuccess] = useState<string | null>(null);
   const [listWidth, setListWidth] = useState(0);
@@ -184,8 +197,13 @@ export function App() {
     if (!selectedPath) return;
     const el = noteViewScrollContainerRef.current;
     if (!el) return;
-    el.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    const cached = getEditorViewStateFromCache(editorViewStateCacheRef.current, selectedPath);
+    el.scrollTo({ top: cached?.containerScrollTop ?? 0, left: 0, behavior: "auto" });
   }, [selectedPath]);
+
+  const captureEditorViewState = useCallback((path: string, state: EditorViewState) => {
+    setEditorViewStateInCache(editorViewStateCacheRef.current, path, state);
+  }, []);
 
   const mergeVaultSnapshotFromHost = useCallback((next: VaultSnapshot) => {
     setSnapshot((prev) => {
@@ -325,6 +343,9 @@ export function App() {
     () => snapshot.notes.find((note) => note.path === selectedPath) ?? null,
     [selectedPath, snapshot.notes],
   );
+  const semanticSearchEnabled = semanticSettings?.enabled ?? false;
+  const debouncedNearNoteBody = useDebouncedValue(selectedNote?.body ?? "", 800, selectedPath);
+  nearNotesRef.current = nearNotes;
   const preferFolderHierarchy = snapshot.workspacePreferences?.preferFolderHierarchy !== false;
   const inboxNotes = useMemo(
     () => snapshot.notes.filter((note) => isInboxNotePath(note.path)),
@@ -390,44 +411,91 @@ export function App() {
   }, [selectedPath]);
 
   useEffect(() => {
-    if (!selectedNote?.body.trim()) {
+    nearNotesSuppressedRef.current = false;
+    nearNotesSourcePathRef.current = null;
+    setNearNotes([]);
+    setNearNotesBusy(false);
+  }, [selectedPath]);
+
+  useEffect(() => {
+    if (semanticSearchEnabled && !prevSemanticSearchEnabledRef.current) {
+      nearNotesSuppressedRef.current = false;
+    }
+    prevSemanticSearchEnabledRef.current = semanticSearchEnabled;
+  }, [semanticSearchEnabled]);
+
+  useEffect(() => {
+    if (!semanticSearchEnabled) {
+      setNearNotes([]);
+      setNearNotesBusy(false);
+      return;
+    }
+    if (nearNotesSuppressedRef.current) {
+      setNearNotes([]);
+      setNearNotesBusy(false);
+      return;
+    }
+    if (!selectedPath) {
       setNearNotes([]);
       setNearNotesBusy(false);
       return;
     }
 
-    let alive = true;
-    setNearNotes([]);
-    setNearNotesBusy(true);
+    const body = debouncedNearNoteBody.trim();
+    if (!body) {
+      setNearNotes([]);
+      setNearNotesBusy(false);
+      nearNotesSourcePathRef.current = null;
+      return;
+    }
 
-    const timer = window.setTimeout(() => {
-      void window.tipsboardDesktop.semanticSearch(selectedNote.body, 20).then(
-        (response) => {
-          if (!alive) return;
-          setNearNotes(
-            aggregateNearNotes({
-              results: response.results,
-              notes: snapshot.notes,
-              sourcePath: selectedNote.path,
-              linkedPaths: selectedLinkedPathSet,
-              limit: 6,
-            }),
-          );
-          setNearNotesBusy(false);
-        },
-        () => {
-          if (!alive) return;
-          setNearNotes([]);
-          setNearNotesBusy(false);
-        },
-      );
-    }, 800);
+    if (nearNotesSourcePathRef.current !== selectedPath) {
+      setNearNotes([]);
+      nearNotesSourcePathRef.current = null;
+    }
+
+    const hadResultsForNote =
+      nearNotesSourcePathRef.current === selectedPath && nearNotesRef.current.length > 0;
+    if (!hadResultsForNote) {
+      setNearNotesBusy(true);
+    }
+
+    let alive = true;
+    const sourcePath = selectedPath;
+
+    void window.tipsboardDesktop.semanticSearch(body, 20).then(
+      (response) => {
+        if (!alive || selectedPathRef.current !== sourcePath) return;
+        const aggregated = aggregateNearNotes({
+          results: response.results,
+          notes: snapshot.notes,
+          sourcePath,
+          linkedPaths: selectedLinkedPathSet,
+          limit: 6,
+        });
+        nearNotesSourcePathRef.current = sourcePath;
+        setNearNotes(aggregated);
+        setNearNotesBusy(false);
+      },
+      () => {
+        if (!alive) return;
+        nearNotesSuppressedRef.current = true;
+        nearNotesSourcePathRef.current = null;
+        setNearNotes([]);
+        setNearNotesBusy(false);
+      },
+    );
 
     return () => {
       alive = false;
-      window.clearTimeout(timer);
     };
-  }, [selectedNote, selectedLinkedPathSet, snapshot.notes]);
+  }, [
+    semanticSearchEnabled,
+    selectedPath,
+    debouncedNearNoteBody,
+    selectedLinkedPathSet,
+    snapshot.notes,
+  ]);
 
   useEffect(() => {
     const element = listContentRef.current;
@@ -679,8 +747,12 @@ export function App() {
       if (tabId === activeTabId && hasUnsavedChanges) {
         if (!(await confirmDiscardChanges())) return;
       }
+      const closingTab = openTabsRef.current.find((t) => t.id === tabId);
       const removed = removeTabAtId(openTabsRef.current, activeTabId, tabId);
       if (!removed) return;
+      if (closingTab?.kind === "note") {
+        deleteEditorViewStateFromCache(editorViewStateCacheRef.current, closingTab.path);
+      }
       pushNavHistory();
       setOpenTabs(removed.tabs);
       setActiveTabId(removed.activeTabId);
@@ -824,6 +896,7 @@ export function App() {
 
       if (resultPathNorm !== pathNorm) {
         setOpenTabs((prev) => renameNotePathInTabs(prev, path, result.note.path));
+        moveEditorViewStateInCache(editorViewStateCacheRef.current, pathNorm, resultPathNorm);
       }
 
       const refreshDiskAttachments = () => {
@@ -974,6 +1047,7 @@ export function App() {
     try {
       const pathNorm = normalizeVaultNotePath(selectedNote.path);
       const next = await window.tipsboardDesktop.deleteNote(selectedNote.path);
+      deleteEditorViewStateFromCache(editorViewStateCacheRef.current, pathNorm);
       mergeVaultSnapshotFromHost(next);
       const prevTabs = openTabsRef.current;
       const filtered = prevTabs.filter(
@@ -1057,6 +1131,7 @@ export function App() {
         setSelectedPath(result.note.path);
         selectedPathRef.current = result.note.path;
         setOpenTabs((prev) => renameNotePathInTabs(prev, beforePath, result.note.path));
+        moveEditorViewStateInCache(editorViewStateCacheRef.current, beforePath, result.note.path);
         diskCommittedTitleRef.current.delete(beforePath);
         diskCommittedTitleRef.current.set(normalizeVaultNotePath(result.note.path), result.note.title);
         setEditorSessionId((current) => current + 1);
@@ -1216,6 +1291,7 @@ export function App() {
       for (const move of result.moved) {
         diskCommittedTitleRef.current.delete(normalizeVaultNotePath(move.fromPath));
         diskCommittedTitleRef.current.set(normalizeVaultNotePath(move.toPath), move.note.title);
+        moveEditorViewStateInCache(editorViewStateCacheRef.current, move.fromPath, move.toPath);
       }
       setOpenTabs((prev) =>
         result.moved.reduce(
@@ -2123,6 +2199,11 @@ export function App() {
                   onImageDropError={setError}
                   onAttachmentIndexUpdated={mergeAttachmentsFromHost}
                   attachmentMaxBytes={snapshot.attachmentMaxBytes}
+                  initialViewState={
+                    getEditorViewStateFromCache(editorViewStateCacheRef.current, selectedNote.path) ?? null
+                  }
+                  onCaptureViewState={captureEditorViewState}
+                  getNoteViewScrollContainer={() => noteViewScrollContainerRef.current}
                 />
               </div>
 
@@ -2134,6 +2215,7 @@ export function App() {
                   newLinks={selectedEntry?.newLinks ?? []}
                   nearNotes={nearNotes}
                   nearNotesBusy={nearNotesBusy}
+                  nearNotesEnabled={semanticSearchEnabled}
                   isIsolated={selectedNoteIsLinkIsolated}
                   onSelect={(note, event) => {
                     const openInNewTab = event.metaKey || event.ctrlKey;
@@ -2691,6 +2773,7 @@ function RelatedLinks({
   newLinks,
   nearNotes,
   nearNotesBusy,
+  nearNotesEnabled,
   isIsolated,
   onSelect,
   onCreateLink,
@@ -2701,6 +2784,7 @@ function RelatedLinks({
   newLinks: string[];
   nearNotes: NearNote[];
   nearNotesBusy: boolean;
+  nearNotesEnabled: boolean;
   isIsolated: boolean;
   onSelect: (note: NoteSummary, event: ReactMouseEvent) => void;
   onCreateLink: (title: string, options?: { openInNewTab?: boolean }) => void;
@@ -2712,8 +2796,7 @@ function RelatedLinks({
     backlinks.length === 0 &&
     twoHop.length === 0 &&
     newLinks.length === 0 &&
-    nearNotes.length === 0 &&
-    !nearNotesBusy &&
+    (!nearNotesEnabled || (nearNotes.length === 0 && !nearNotesBusy)) &&
     !isIsolated
   ) {
     return null;
@@ -2761,7 +2844,7 @@ function RelatedLinks({
         </div>
       )}
 
-      {nearNotes.length > 0 && (
+      {nearNotesEnabled && nearNotes.length > 0 && (
         <RelatedLinkRow title={t("links.nearNotes")} variant="links">
           <NearNoteCardGrid
             nearNotes={nearNotes}
@@ -2772,7 +2855,7 @@ function RelatedLinks({
         </RelatedLinkRow>
       )}
 
-      {nearNotesBusy && nearNotes.length === 0 && (
+      {nearNotesEnabled && nearNotesBusy && nearNotes.length === 0 && (
         <p className="rounded-2xl border border-accent-link/10 bg-bg-elevated px-4 py-3 text-xs text-text-muted">
           {t("links.nearNotesLoading")}
         </p>

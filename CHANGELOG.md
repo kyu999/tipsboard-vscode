@@ -4,6 +4,17 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.6] - 2026-06-03
+
+### Added
+
+- **Editor view-state restore**: when you switch tabs or use NavMemory back/forward, Tipsboard remembers each note’s cursor, selection, CodeMirror scroll position, and outer note-view scroll in a per-path in-memory cache and restores them after the editor remounts.
+
+### Changed
+
+- **Nearby notes in Related**: semantic search must be enabled (`tipsboard-vscode.semanticSearch.provider` not `off`); when disabled or after a failed nearby search in the session, the UI no longer shows a loading loop. While editing, previous nearby results stay visible until typing pauses (800ms debounce); switching notes triggers an immediate refresh.
+- **Semantic settings RPC**: `getSemanticSearchSettings` / `updateSemanticSearchSettings` now include `enabled` so the WebView can skip nearby-note RPC when semantic search is off.
+
 ## [0.3.5] - 2026-05-31
 
 ### Added

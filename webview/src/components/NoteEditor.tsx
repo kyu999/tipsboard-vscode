@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { findNext, findPrevious, openSearchPanel } from "@codemirror/search";
 import { createEditor } from "@/editor";
 import { setExistingLinkTitlesEffect } from "@/editor/tipsboard-decorations";
+import type { EditorViewState } from "@/lib/editorViewState";
 import type { LinkSuggestion, NoteSummary, SaveState, VaultAttachmentSummary } from "@/types";
 import { DEFAULT_ATTACHMENT_MAX_BYTES } from "@/shared/attachmentConstants";
 
@@ -18,6 +19,9 @@ interface NoteEditorProps {
   /** Merge Host-built `attachments` after Shift+drop imports into `assets/files/`. */
   onAttachmentIndexUpdated?: (attachments: VaultAttachmentSummary[]) => void;
   attachmentMaxBytes?: number;
+  initialViewState?: EditorViewState | null;
+  onCaptureViewState?: (path: string, state: EditorViewState) => void;
+  getNoteViewScrollContainer?: () => HTMLElement | null;
 }
 
 export function NoteEditor({
@@ -32,6 +36,9 @@ export function NoteEditor({
   onImageDropError,
   onAttachmentIndexUpdated,
   attachmentMaxBytes,
+  initialViewState,
+  onCaptureViewState,
+  getNoteViewScrollContainer,
 }: NoteEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<ReturnType<typeof createEditor> | null>(null);
@@ -46,6 +53,9 @@ export function NoteEditor({
   const suggestionsRef = useRef(suggestions);
   const existingNormalizedTitlesRef = useRef(existingNormalizedTitles);
   const attachmentMaxBytesRef = useRef(attachmentMaxBytes ?? DEFAULT_ATTACHMENT_MAX_BYTES);
+  const initialViewStateRef = useRef(initialViewState);
+  const onCaptureViewStateRef = useRef(onCaptureViewState);
+  const getNoteViewScrollContainerRef = useRef(getNoteViewScrollContainer);
 
   noteRef.current = note;
   onSaveRef.current = onSave;
@@ -58,6 +68,9 @@ export function NoteEditor({
   suggestionsRef.current = suggestions;
   existingNormalizedTitlesRef.current = existingNormalizedTitles;
   attachmentMaxBytesRef.current = attachmentMaxBytes ?? DEFAULT_ATTACHMENT_MAX_BYTES;
+  initialViewStateRef.current = initialViewState;
+  onCaptureViewStateRef.current = onCaptureViewState;
+  getNoteViewScrollContainerRef.current = getNoteViewScrollContainer;
 
   useEffect(() => {
     viewRef.current?.dispatch({
@@ -68,9 +81,11 @@ export function NoteEditor({
   useLayoutEffect(() => {
     if (!editorRef.current) return;
     const initialNote = noteRef.current;
+    const savedViewState = initialViewStateRef.current ?? undefined;
     const view = createEditor({
       doc: initialNote.body,
       parent: editorRef.current,
+      initialViewState: savedViewState,
       getCurrentUserPageTitle: () => noteRef.current.title,
       onLinkClick: (title, type, options) => onLinkClickRef.current(title, type, options),
       getLinkSuggestions: () => suggestionsRef.current,
@@ -111,6 +126,17 @@ export function NoteEditor({
       unsubscribeOpenFind();
       unsubscribeFindNext();
       unsubscribeFindPrevious();
+      const capture = onCaptureViewStateRef.current;
+      if (capture) {
+        const selection = view.state.selection.main;
+        const container = getNoteViewScrollContainerRef.current?.() ?? null;
+        capture(noteRef.current.path, {
+          anchor: selection.anchor,
+          head: selection.head,
+          scrollTop: view.scrollDOM.scrollTop,
+          containerScrollTop: container?.scrollTop ?? 0,
+        });
+      }
       view.destroy();
       viewRef.current = null;
     };

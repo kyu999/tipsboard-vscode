@@ -158,6 +158,8 @@ export interface SemanticSearchSettings {
   allowRemoteModels: boolean;
   modelCachePath: string;
   modelIds: string[];
+  /** False when `tipsboard-vscode.semanticSearch.provider` is `off`. */
+  enabled: boolean;
 }
 
 export interface SemanticIndexSyncResult {

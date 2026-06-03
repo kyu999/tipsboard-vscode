@@ -45,11 +45,22 @@ import {
   SEMANTIC_SEARCH_MODEL_IDS,
   readSemanticSettings,
   semanticConfigurationPrefix,
+  type SemanticSettings,
 } from "../host/semanticSettings.js";
 import { buildOrganizeSuggestions, buildBulkOrganizeSuggestions } from "../host/organizeSuggestions.js";
 import { isInboxNotePath } from "../shared/inboxPath.js";
 import { loadWorkspacePreferences, saveWorkspacePreferences } from "../host/workspacePreferences.js";
 import type { TipsboardPanel } from "../panel/TipsboardPanel.js";
+
+function semanticSearchSettingsPayload(settings: SemanticSettings) {
+  return {
+    modelId: settings.modelId,
+    allowRemoteModels: settings.allowRemoteModels,
+    modelCachePath: settings.modelCachePath,
+    modelIds: SEMANTIC_SEARCH_MODEL_IDS,
+    enabled: settings.provider !== "off",
+  };
+}
 
 function semanticProviderFor(panel: TipsboardPanel) {
   return createSemanticProviderForExtension({
@@ -468,12 +479,7 @@ export async function handleRpcInbound(
         const settings = readSemanticSettings();
         reply({
           ok: true,
-          result: {
-            modelId: settings.modelId,
-            allowRemoteModels: settings.allowRemoteModels,
-            modelCachePath: settings.modelCachePath,
-            modelIds: SEMANTIC_SEARCH_MODEL_IDS,
-          },
+          result: semanticSearchSettingsPayload(settings),
         });
         return;
       }
@@ -493,12 +499,7 @@ export async function handleRpcInbound(
         const settings = readSemanticSettings();
         reply({
           ok: true,
-          result: {
-            modelId: settings.modelId,
-            allowRemoteModels: settings.allowRemoteModels,
-            modelCachePath: settings.modelCachePath,
-            modelIds: SEMANTIC_SEARCH_MODEL_IDS,
-          },
+          result: semanticSearchSettingsPayload(settings),
         });
         return;
       }
