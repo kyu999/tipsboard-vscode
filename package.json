@@ -223,7 +223,7 @@
     "esbuild": "^0.28.0",
     "jsdom": "^25.0.1",
     "typescript": "^5.7.0",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.8"
   },
   "private": true,
   "optionalDependencies": {
