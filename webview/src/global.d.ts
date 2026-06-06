@@ -74,6 +74,7 @@ declare global {
         onProgress?: (progress: SemanticIndexProgress) => void,
       ) => Promise<SemanticSearchResponse>;
       getSemanticSearchSettings: () => Promise<SemanticSearchSettings>;
+      revealSemanticModelCache: () => Promise<string>;
       updateSemanticSearchSettings: (
         settings: Partial<Pick<SemanticSearchSettings, "modelId" | "allowRemoteModels" | "modelCachePath">>,
       ) => Promise<SemanticSearchSettings>;

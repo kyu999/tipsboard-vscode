@@ -53,6 +53,20 @@ export function aggregateNearNotes({
     .slice(0, limit);
 }
 
+export function nearNotesEqual(a: NearNote[], b: NearNote[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((item, index) => {
+    const other = b[index];
+    if (!other) return false;
+    return (
+      item.note.path === other.note.path &&
+      item.score === other.score &&
+      item.heading === other.heading &&
+      item.snippet === other.snippet
+    );
+  });
+}
+
 function normalizeVaultNotePath(notePath: string): string {
   return notePath.replace(/\\/g, "/");
 }

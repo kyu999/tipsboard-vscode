@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { aggregateNearNotes } from "./nearNotes";
+import { aggregateNearNotes, nearNotesEqual } from "./nearNotes";
 import type { NoteSummary, SemanticSearchResult } from "@/types";
 
 function note(partial: Partial<NoteSummary> & Pick<NoteSummary, "path" | "title">): NoteSummary {
@@ -106,5 +106,23 @@ describe("aggregateNearNotes", () => {
     });
 
     expect(nearNotes).toEqual([]);
+  });
+});
+
+describe("nearNotesEqual", () => {
+  it("compares paths, scores, headings, and snippets", () => {
+    const left = aggregateNearNotes({
+      results: [result({ path: "near.md", score: 0.8, heading: "A", snippet: "one" })],
+      notes: [note({ path: "source.md", title: "Source" }), note({ path: "near.md", title: "Near" })],
+      sourcePath: "source.md",
+    });
+    const right = aggregateNearNotes({
+      results: [result({ path: "near.md", score: 0.8, heading: "A", snippet: "one" })],
+      notes: [note({ path: "source.md", title: "Source" }), note({ path: "near.md", title: "Near" })],
+      sourcePath: "source.md",
+    });
+
+    expect(nearNotesEqual(left, right)).toBe(true);
+    expect(nearNotesEqual(left, [])).toBe(false);
   });
 });

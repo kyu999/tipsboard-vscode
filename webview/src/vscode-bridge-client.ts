@@ -169,6 +169,8 @@ function wireDesktop(): typeof window.tipsboardDesktop {
 
     getSemanticSearchSettings: () => rpc("getSemanticSearchSettings") as Promise<SemanticSearchSettings>,
 
+    revealSemanticModelCache: () => rpc("revealSemanticModelCache") as Promise<string>,
+
     updateSemanticSearchSettings: (
       settings: Partial<Pick<SemanticSearchSettings, "modelId" | "allowRemoteModels" | "modelCachePath">>,
     ) =>

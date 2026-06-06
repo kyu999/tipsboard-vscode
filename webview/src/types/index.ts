@@ -160,6 +160,12 @@ export interface SemanticSearchSettings {
   modelIds: string[];
   /** False when `tipsboard-vscode.semanticSearch.provider` is `off`. */
   enabled: boolean;
+  /** Direct URL to the semantic runtime zip for this OS (GitHub Releases). */
+  runtimeDownloadUrl: string;
+  /** Hugging Face page for the currently selected embedding model. */
+  modelDownloadUrl: string;
+  /** Hugging Face pages for each selectable model id. */
+  modelDownloadUrls: Record<string, string>;
 }
 
 export interface SemanticIndexSyncResult {

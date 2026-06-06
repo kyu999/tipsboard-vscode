@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {
@@ -144,13 +144,13 @@
         "tipsboard-vscode.semanticSearch.allowRemoteModels": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Default `true`: download missing embedding models from Hugging Face Hub. Set `false` on closed networks and deploy a cache via **Model Cache Path** (see `npm run prepare:semantic-model-cache` in a build environment). Command: **Tipsboard: Reveal Semantic Model Cache**.",
+          "markdownDescription": "Default `true`: download missing embedding models from Hugging Face on first use. Set `false` on offline networks, download models from the Hugging Face links in Tipsboard settings, and place them in the model cache folder (**Tipsboard: Reveal Semantic Model Cache** or **Model Cache Path**).",
           "description": "Allow downloading embedding models from Hugging Face Hub."
         },
         "tipsboard-vscode.semanticSearch.modelCachePath": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Optional absolute path for the Transformers.js model cache. For closed networks, point this to the **semantic-model-cache** folder produced by `npm run prepare:semantic-model-cache` (the parent folder containing model directories such as `Xenova/multilingual-e5-base/`). When empty, uses extension global storage (`semantic-models`).",
+          "markdownDescription": "Optional absolute path for the embedding model cache. When empty, Tipsboard uses its default folder (open via **Tipsboard: Reveal Semantic Model Cache**). For offline install, download models from Hugging Face (links in Tipsboard settings) into that folder.",
           "description": "Semantic embedding model cache directory."
         },
         "tipsboard-vscode.semanticSearch.mode": {

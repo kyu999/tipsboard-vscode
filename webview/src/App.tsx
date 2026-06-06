@@ -18,7 +18,7 @@ import { buildStandalonePageHtml } from "@/export/buildPageHtml";
 import { UserGuideView } from "@/user-guide/UserGuideView";
 import { collectVaultMarkdownImagePaths, sanitizeExportFilename } from "@/export/exportMarkdownPreprocess";
 import { buildNoteIndex, isLinkIsolated, searchNotes, type TwoHopLink } from "@/lib/noteIndex";
-import { aggregateNearNotes, type NearNote } from "@/lib/nearNotes";
+import { aggregateNearNotes, nearNotesEqual, type NearNote } from "@/lib/nearNotes";
 import {
   deleteEditorViewStateFromCache,
   getEditorViewStateFromCache,
@@ -47,7 +47,7 @@ import { resolveVaultFilesChangedAction } from "@/lib/vaultFilesChangedHandling"
 import { changeLanguage, getSupportedLanguage, supportedLanguages } from "@/shared/i18n";
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
-import { clearTipsboardResolvedAssetCache } from "@/vscode-bridge-client";
+import { clearTipsboardResolvedAssetCache, openExternalInHost } from "@/vscode-bridge-client";
 import type {
   BulkMoveNotesResponse,
   NoteSummary,
@@ -62,6 +62,8 @@ import type {
 
 const CARD_GAP = 12;
 const MAX_CARD_WIDTH = 168;
+/** Debounce before re-running semantic search for nearby notes while editing. */
+const NEAR_NOTES_BODY_DEBOUNCE_MS = 3000;
 
 interface ConfirmDialogState {
   title: string;
@@ -129,7 +131,6 @@ export function App() {
   const [semanticIndexStatus, setSemanticIndexStatus] = useState<string | null>(null);
   const [semanticSettings, setSemanticSettings] = useState<SemanticSearchSettings | null>(null);
   const [nearNotes, setNearNotes] = useState<NearNote[]>([]);
-  const [nearNotesBusy, setNearNotesBusy] = useState(false);
   const [organizeOpen, setOrganizeOpen] = useState(false);
   const [organizeSuggestions, setOrganizeSuggestions] = useState<OrganizeSuggestionsResponse | null>(null);
   const [organizeBusy, setOrganizeBusy] = useState(false);
@@ -352,6 +353,8 @@ export function App() {
     () => extractAtxHeadings(selectedNote?.body ?? ""),
     [selectedNote?.body],
   );
+  const showOutlineNav = noteHeadings.length > 0;
+  const noteContentCol = showOutlineNav ? "col-start-2" : "col-start-1";
   const handleToggleOutline = useCallback(() => {
     setOutlineOpen((current) => {
       const next = !current;
@@ -360,7 +363,11 @@ export function App() {
     });
   }, []);
   const semanticSearchEnabled = semanticSettings?.enabled ?? false;
-  const debouncedNearNoteBody = useDebouncedValue(selectedNote?.body ?? "", 800, selectedPath);
+  const debouncedNearNoteBody = useDebouncedValue(
+    selectedNote?.body ?? "",
+    NEAR_NOTES_BODY_DEBOUNCE_MS,
+    selectedPath,
+  );
   nearNotesRef.current = nearNotes;
   const preferFolderHierarchy = snapshot.workspacePreferences?.preferFolderHierarchy !== false;
   const inboxNotes = useMemo(
@@ -371,15 +378,6 @@ export function App() {
   const selectedNoteCanOrganize = selectedNoteIsInbox && preferFolderHierarchy;
   const selectedEntry = selectedNote ? index.entries.get(selectedNote.path) : null;
   const selectedNoteIsLinkIsolated = isLinkIsolated(selectedEntry);
-  const selectedLinkedPathSet = useMemo(() => {
-    const paths = new Set<string>();
-    for (const note of selectedEntry?.outgoing ?? []) paths.add(note.path);
-    for (const note of selectedEntry?.backlinks ?? []) paths.add(note.path);
-    for (const hop of selectedEntry?.twoHop ?? []) {
-      for (const note of hop.pages) paths.add(note.path);
-    }
-    return paths;
-  }, [selectedEntry]);
   const duplicateTitlePathSet = useMemo(() => {
     const paths = new Set<string>();
     for (const candidates of index.byNormalizedTitle.values()) {
@@ -430,7 +428,6 @@ export function App() {
     nearNotesSuppressedRef.current = false;
     nearNotesSourcePathRef.current = null;
     setNearNotes([]);
-    setNearNotesBusy(false);
   }, [selectedPath]);
 
   useEffect(() => {
@@ -443,37 +440,31 @@ export function App() {
   useEffect(() => {
     if (!semanticSearchEnabled) {
       setNearNotes([]);
-      setNearNotesBusy(false);
       return;
     }
     if (nearNotesSuppressedRef.current) {
-      setNearNotes([]);
-      setNearNotesBusy(false);
       return;
     }
     if (!selectedPath) {
       setNearNotes([]);
-      setNearNotesBusy(false);
       return;
     }
 
     const body = debouncedNearNoteBody.trim();
     if (!body) {
       setNearNotes([]);
-      setNearNotesBusy(false);
       nearNotesSourcePathRef.current = null;
       return;
     }
 
-    if (nearNotesSourcePathRef.current !== selectedPath) {
-      setNearNotes([]);
-      nearNotesSourcePathRef.current = null;
-    }
-
-    const hadResultsForNote =
-      nearNotesSourcePathRef.current === selectedPath && nearNotesRef.current.length > 0;
-    if (!hadResultsForNote) {
-      setNearNotesBusy(true);
+    const snapshotNow = snapshotRef.current;
+    const noteIndex = buildNoteIndex(snapshotNow.notes);
+    const entry = noteIndex.entries.get(selectedPath);
+    const linkedPaths = new Set<string>();
+    for (const linked of entry?.outgoing ?? []) linkedPaths.add(linked.path);
+    for (const linked of entry?.backlinks ?? []) linkedPaths.add(linked.path);
+    for (const hop of entry?.twoHop ?? []) {
+      for (const linked of hop.pages) linkedPaths.add(linked.path);
     }
 
     let alive = true;
@@ -484,34 +475,24 @@ export function App() {
         if (!alive || selectedPathRef.current !== sourcePath) return;
         const aggregated = aggregateNearNotes({
           results: response.results,
-          notes: snapshot.notes,
+          notes: snapshotRef.current.notes,
           sourcePath,
-          linkedPaths: selectedLinkedPathSet,
+          linkedPaths,
           limit: 6,
         });
         nearNotesSourcePathRef.current = sourcePath;
-        setNearNotes(aggregated);
-        setNearNotesBusy(false);
+        setNearNotes((current) => (nearNotesEqual(current, aggregated) ? current : aggregated));
       },
       () => {
         if (!alive) return;
         nearNotesSuppressedRef.current = true;
-        nearNotesSourcePathRef.current = null;
-        setNearNotes([]);
-        setNearNotesBusy(false);
       },
     );
 
     return () => {
       alive = false;
     };
-  }, [
-    semanticSearchEnabled,
-    selectedPath,
-    debouncedNearNoteBody,
-    selectedLinkedPathSet,
-    snapshot.notes,
-  ]);
+  }, [semanticSearchEnabled, selectedPath, debouncedNearNoteBody]);
 
   useEffect(() => {
     const element = listContentRef.current;
@@ -1780,6 +1761,54 @@ export function App() {
                         />
                       </div>
                     )}
+                    <div className="mt-3 rounded-lg border border-accent-link/10 bg-bg-elevated/50 px-2.5 py-2">
+                      <p className="text-2xs font-medium text-text-primary">
+                        {t("settings.semanticSearch.downloads.title")}
+                      </p>
+                      <ul className="mt-1.5 space-y-1.5 text-2xs text-text-muted">
+                        <li className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                          <span>{t("settings.semanticSearch.downloads.runtime")}</span>
+                          <button
+                            type="button"
+                            className="text-accent-link hover:underline"
+                            onClick={() => openExternalInHost(semanticSettings.runtimeDownloadUrl)}
+                          >
+                            {t("settings.semanticSearch.downloads.openRuntime")}
+                          </button>
+                        </li>
+                        <li className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                          <span>{t("settings.semanticSearch.downloads.model")}</span>
+                          <button
+                            type="button"
+                            className="text-accent-link hover:underline"
+                            onClick={() =>
+                              openExternalInHost(
+                                semanticSettings.modelDownloadUrls[semanticSettings.modelId] ??
+                                  semanticSettings.modelDownloadUrl,
+                              )
+                            }
+                          >
+                            {t("settings.semanticSearch.downloads.openModel")}
+                          </button>
+                        </li>
+                      </ul>
+                      <p className="mt-1.5 text-2xs leading-relaxed text-text-muted">
+                        {t(
+                          semanticSettings.allowRemoteModels
+                            ? "settings.semanticSearch.downloads.autoHint"
+                            : "settings.semanticSearch.downloads.manualHint",
+                        )}
+                      </p>
+                      <button
+                        type="button"
+                        className="tb-btn-secondary mt-2 w-full text-2xs"
+                        onClick={() => {
+                          void window.tipsboardDesktop.revealSemanticModelCache();
+                        }}
+                      >
+                        {t("settings.semanticSearch.downloads.openCache")}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2102,8 +2131,12 @@ export function App() {
             ref={noteViewScrollContainerRef}
             className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-4 sm:py-6"
           >
-            <div className="mx-auto grid w-fit max-w-full min-w-0 grid-cols-[auto_minmax(0,72rem)] items-start gap-x-3 px-4 sm:gap-x-4 sm:px-6 lg:px-8">
-              <div className="col-start-2 row-start-1 w-full min-w-0">
+            <div
+              className={`mx-auto grid w-fit max-w-full min-w-0 items-start gap-x-3 px-4 sm:gap-x-4 sm:px-6 lg:px-8 ${
+                showOutlineNav ? "grid-cols-[auto_minmax(0,72rem)]" : "grid-cols-[minmax(0,72rem)]"
+              }`}
+            >
+              <div className={`${noteContentCol} row-start-1 w-full min-w-0`}>
                 {exportHtmlError && (
                   <div className="mb-2 rounded-lg border border-accent-error/25 bg-accent-error/10 px-2 py-1 text-xs text-accent-error">
                     {exportHtmlError}
@@ -2113,32 +2146,6 @@ export function App() {
                   <div className="mb-2 rounded-lg border border-accent-link/25 bg-accent-link/10 px-2 py-1 text-xs text-accent-link">
                     {exportHtmlSuccess}
                   </div>
-                )}
-
-                {selectedNoteCanOrganize && (
-                  <OrganizeInboxStrip
-                    open={organizeOpen}
-                    response={organizeSuggestions}
-                    busy={organizeBusy}
-                    error={organizeError}
-                    progress={organizeProgress}
-                    onOpenOrganizePanel={() => {
-                      void handleOpenOrganize();
-                    }}
-                    onToggleOpen={() => {
-                      if (organizeOpen) {
-                        setOrganizeOpen(false);
-                        return;
-                      }
-                      setOrganizeOpen(true);
-                      if (!organizeSuggestions && !organizeBusy && selectedNoteCanOrganize) {
-                        void handleRequestOrganizeSuggestions();
-                      }
-                    }}
-                    onClose={() => setOrganizeOpen(false)}
-                    onRequestSuggestions={handleRequestOrganizeSuggestions}
-                    onMove={handleMoveNoteToSuggestedFolder}
-                  />
                 )}
 
                 {selectedKanbanStatuses.length > 0 && (
@@ -2165,15 +2172,17 @@ export function App() {
                 )}
               </div>
 
-              <NoteOutlineNav
-                className="tb-note-outline-align-cm-line sticky top-4 z-20 col-start-1 row-start-2 self-start sm:top-6"
-                headings={noteHeadings}
-                open={outlineOpen}
-                onToggleOpen={handleToggleOutline}
-                onSelectHeading={(lineNumber) => noteEditorRef.current?.scrollToLine(lineNumber)}
-              />
+              {showOutlineNav && (
+                <NoteOutlineNav
+                  className="tb-note-outline-align-cm-line sticky top-4 z-20 col-start-1 row-start-2 self-start sm:top-6"
+                  headings={noteHeadings}
+                  open={outlineOpen}
+                  onToggleOpen={handleToggleOutline}
+                  onSelectHeading={(lineNumber) => noteEditorRef.current?.scrollToLine(lineNumber)}
+                />
+              )}
 
-              <div className="relative col-start-2 row-start-2 w-full min-w-0">
+              <div className={`relative ${noteContentCol} row-start-2 w-full min-w-0`}>
                   <nav
                     className="absolute right-1 top-1 z-20 flex flex-col gap-0.5 rounded-lg border border-accent-link/[0.08] bg-bg-elevated/80 p-0.5 shadow-sm backdrop-blur-[6px] sm:right-2 sm:top-2"
                     aria-label={t("page.editor.stickyNav")}
@@ -2192,6 +2201,32 @@ export function App() {
                     >
                       <i className="fa-solid fa-thumbtack" aria-hidden />
                     </button>
+                    {selectedNoteCanOrganize && (
+                      <OrganizeInboxStrip
+                        notePath={selectedNote.path}
+                        open={organizeOpen}
+                        response={organizeSuggestions}
+                        busy={organizeBusy}
+                        error={organizeError}
+                        progress={organizeProgress}
+                        onOpenOrganizePanel={() => {
+                          void handleOpenOrganize();
+                        }}
+                        onToggleOpen={() => {
+                          if (organizeOpen) {
+                            setOrganizeOpen(false);
+                            return;
+                          }
+                          setOrganizeOpen(true);
+                          if (!organizeSuggestions && !organizeBusy && selectedNoteCanOrganize) {
+                            void handleRequestOrganizeSuggestions();
+                          }
+                        }}
+                        onClose={() => setOrganizeOpen(false)}
+                        onRequestSuggestions={handleRequestOrganizeSuggestions}
+                        onMove={handleMoveNoteToSuggestedFolder}
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={() => void handleExportHtml()}
@@ -2234,25 +2269,23 @@ export function App() {
                   />
               </div>
 
-              <div className="col-start-2 row-start-3 mt-6 w-full min-w-0 border-t border-accent-link/10 pt-6">
-                <RelatedLinks
-                  outgoing={selectedEntry?.outgoing ?? []}
-                  backlinks={selectedEntry?.backlinks ?? []}
-                  twoHop={selectedEntry?.twoHop ?? []}
-                  newLinks={selectedEntry?.newLinks ?? []}
-                  nearNotes={nearNotes}
-                  nearNotesBusy={nearNotesBusy}
-                  nearNotesEnabled={semanticSearchEnabled}
-                  isIsolated={selectedNoteIsLinkIsolated}
-                  onSelect={(note, event) => {
-                    const openInNewTab = event.metaKey || event.ctrlKey;
-                    void handleSelectNote(note.path, { openInNewTab });
-                  }}
-                  onCreateLink={(title, linkOpts) => {
-                    void handleLinkClick(title, "internal", linkOpts);
-                  }}
-                />
-              </div>
+              <RelatedLinks
+                className={`${noteContentCol} row-start-3 w-full min-w-0`}
+                outgoing={selectedEntry?.outgoing ?? []}
+                backlinks={selectedEntry?.backlinks ?? []}
+                twoHop={selectedEntry?.twoHop ?? []}
+                newLinks={selectedEntry?.newLinks ?? []}
+                nearNotes={nearNotes}
+                nearNotesEnabled={semanticSearchEnabled}
+                isIsolated={selectedNoteIsLinkIsolated}
+                onSelect={(note, event) => {
+                  const openInNewTab = event.metaKey || event.ctrlKey;
+                  void handleSelectNote(note.path, { openInNewTab });
+                }}
+                onCreateLink={(title, linkOpts) => {
+                  void handleLinkClick(title, "internal", linkOpts);
+                }}
+              />
             </div>
           </section>
         ) : userGuideOpen ? (
@@ -2445,6 +2478,7 @@ function SemanticSearchModeSwitch({
 }
 
 function OrganizeInboxStrip({
+  notePath,
   open,
   response,
   busy,
@@ -2456,6 +2490,7 @@ function OrganizeInboxStrip({
   onRequestSuggestions,
   onMove,
 }: {
+  notePath: string;
   open: boolean;
   response: OrganizeSuggestionsResponse | null;
   busy: boolean;
@@ -2468,50 +2503,81 @@ function OrganizeInboxStrip({
   onMove: (folder: string) => void;
 }) {
   const { t } = useTranslation();
-  const stripRef = useClickOutside<HTMLDivElement>(open, onClose);
+  const [stripOpen, setStripOpen] = useState(false);
   const topSuggestion = response?.suggestions[0];
 
+  useEffect(() => {
+    setStripOpen(false);
+  }, [notePath]);
+
+  const handleOutsideClick = useCallback(() => {
+    setStripOpen(false);
+    onClose();
+  }, [onClose]);
+
+  const stripRef = useClickOutside<HTMLDivElement>(stripOpen || open, handleOutsideClick);
+
   return (
-    <div ref={stripRef} className="relative mb-3">
-      <div className="flex flex-col gap-2 rounded-lg border border-amber-500/20 border-l-[3px] border-l-amber-500/55 bg-amber-500/[0.06] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-start gap-2.5">
-          <i
-            className="fa-solid fa-inbox mt-0.5 shrink-0 text-[13px] text-amber-700/90 dark:text-amber-300/90"
-            aria-hidden
-          />
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-text-primary">{t("organize.inboxTitle")}</p>
-            <p className="mt-0.5 text-2xs leading-4 text-text-muted">{t("organize.inboxMessage")}</p>
-            {topSuggestion && !open && (
-              <p className="mt-1 truncate text-2xs text-text-secondary">
-                {t("organize.topSuggestion", { folder: `${topSuggestion.folder}/` })}
-              </p>
-            )}
-            {error && !open && <p className="mt-1 text-2xs text-accent-error">{error}</p>}
+    <div ref={stripRef} className="relative">
+      <button
+        type="button"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[13px] text-text-muted/80 transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25"
+        onClick={() => {
+          setStripOpen((prev) => !prev);
+          if (open) {
+            onClose();
+          }
+        }}
+        title={t("organize.inboxHint")}
+        aria-label={t("organize.inboxHint")}
+        aria-expanded={stripOpen}
+        aria-haspopup="dialog"
+      >
+        <i className="fa-solid fa-inbox" aria-hidden />
+      </button>
+
+      {stripOpen && (
+        <div
+          role="dialog"
+          aria-label={t("organize.inboxTitle")}
+          className="absolute right-0 top-full z-30 mt-1 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-accent-link/15 bg-bg-card p-3 shadow-dropdown"
+        >
+          <p className="text-2xs leading-4 text-text-muted">{t("organize.inboxMessage")}</p>
+          {topSuggestion && !open && (
+            <p className="mt-1.5 truncate text-2xs text-text-secondary">
+              {t("organize.topSuggestion", { folder: `${topSuggestion.folder}/` })}
+            </p>
+          )}
+          {error && !open && <p className="mt-1.5 text-2xs text-accent-error">{error}</p>}
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="tb-btn-secondary text-xs"
+              onClick={() => {
+                setStripOpen(false);
+                onOpenOrganizePanel();
+              }}
+            >
+              <i className="fa-solid fa-table-list text-[11px]" aria-hidden />
+              {t("organize.openOrganizePanel")}
+            </button>
+            <button
+              type="button"
+              className="tb-btn-secondary text-xs"
+              disabled={busy}
+              aria-expanded={open}
+              aria-haspopup="dialog"
+              onClick={() => {
+                setStripOpen(false);
+                onToggleOpen();
+              }}
+            >
+              <i className="fa-solid fa-folder-tree text-[11px]" aria-hidden />
+              {busy ? t("organize.analyzing") : t("organize.suggestAction")}
+            </button>
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-center">
-          <button
-            type="button"
-            className="tb-btn-secondary text-xs"
-            onClick={onOpenOrganizePanel}
-          >
-            <i className="fa-solid fa-table-list text-[11px]" aria-hidden />
-            {t("organize.openOrganizePanel")}
-          </button>
-          <button
-            type="button"
-            className="tb-btn-secondary text-xs"
-            disabled={busy}
-            aria-expanded={open}
-            aria-haspopup="dialog"
-            onClick={onToggleOpen}
-          >
-            <i className="fa-solid fa-folder-tree text-[11px]" aria-hidden />
-            {busy ? t("organize.analyzing") : t("organize.suggestAction")}
-          </button>
-        </div>
-      </div>
+      )}
 
       {open && (
         <OrganizeSuggestionsPopover
@@ -2522,7 +2588,7 @@ function OrganizeInboxStrip({
           onClose={onClose}
           onRequestSuggestions={onRequestSuggestions}
           onMove={onMove}
-          className="absolute right-0 top-full z-30 mt-1.5 w-[min(20rem,calc(100vw-2rem))]"
+          className="absolute right-0 top-full z-30 mt-1 w-[min(20rem,calc(100vw-2rem))]"
         />
       )}
     </div>
@@ -2794,23 +2860,23 @@ function AmbiguousLinkDialog({
 }
 
 function RelatedLinks({
+  className = "",
   outgoing,
   backlinks,
   twoHop,
   newLinks,
   nearNotes,
-  nearNotesBusy,
   nearNotesEnabled,
   isIsolated,
   onSelect,
   onCreateLink,
 }: {
+  className?: string;
   outgoing: NoteSummary[];
   backlinks: NoteSummary[];
   twoHop: TwoHopLink[];
   newLinks: string[];
   nearNotes: NearNote[];
-  nearNotesBusy: boolean;
   nearNotesEnabled: boolean;
   isIsolated: boolean;
   onSelect: (note: NoteSummary, event: ReactMouseEvent) => void;
@@ -2823,7 +2889,7 @@ function RelatedLinks({
     backlinks.length === 0 &&
     twoHop.length === 0 &&
     newLinks.length === 0 &&
-    (!nearNotesEnabled || (nearNotes.length === 0 && !nearNotesBusy)) &&
+    (!nearNotesEnabled || nearNotes.length === 0) &&
     !isIsolated
   ) {
     return null;
@@ -2832,18 +2898,14 @@ function RelatedLinks({
   const linkedNotes = uniqueNotes([...outgoing, ...backlinks]);
 
   return (
-    <div className="space-y-4">
+    <div className={`mt-6 space-y-4 border-t border-accent-link/10 pt-6 ${className}`.trim()}>
       {isIsolated && (
-        <div className="rounded-2xl border border-[rgba(217,119,6,0.35)] bg-[rgba(217,119,6,0.06)] px-4 py-3 text-sm text-text-secondary">
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 text-[#d97706]" aria-hidden>
-              <i className="fa-solid fa-triangle-exclamation" />
-            </span>
-            <div className="min-w-0">
-              <p className="font-semibold text-text-primary">{t("links.isolatedTitle")}</p>
-              <p className="mt-1 text-xs leading-5 text-text-muted">{t("links.isolatedDescription")}</p>
-            </div>
-          </div>
+        <div
+          className="flex items-center gap-1.5 text-2xs text-text-muted"
+          title={t("links.isolatedDescription")}
+        >
+          <i className="fa-solid fa-link-slash text-[10px] opacity-60" aria-hidden />
+          <span>{t("links.isolatedTitle")}</span>
         </div>
       )}
 
@@ -2880,12 +2942,6 @@ function RelatedLinks({
             }}
           />
         </RelatedLinkRow>
-      )}
-
-      {nearNotesEnabled && nearNotesBusy && nearNotes.length === 0 && (
-        <p className="rounded-2xl border border-accent-link/10 bg-bg-elevated px-4 py-3 text-xs text-text-muted">
-          {t("links.nearNotesLoading")}
-        </p>
       )}
 
       <NewLinkSection titles={newLinks} onCreate={onCreateLink} />

@@ -42,10 +42,12 @@ import {
   updateSemanticIndex,
 } from "../host/semantic.js";
 import { createSemanticProviderForExtension } from "../host/semanticProviderFactory.js";
+import { semanticRuntimeAssetName } from "../host/semanticRuntime.js";
 import {
   SEMANTIC_SEARCH_MODEL_IDS,
   readSemanticSettings,
   semanticConfigurationPrefix,
+  semanticModelHubUrl,
   type SemanticSettings,
 } from "../host/semanticSettings.js";
 import { buildOrganizeSuggestions, buildBulkOrganizeSuggestions } from "../host/organizeSuggestions.js";
@@ -54,12 +56,19 @@ import { loadWorkspacePreferences, saveWorkspacePreferences } from "../host/work
 import type { TipsboardPanel } from "../panel/TipsboardPanel.js";
 
 function semanticSearchSettingsPayload(settings: SemanticSettings) {
+  const runtimeBase = settings.runtimeDownloadBaseUrl.replace(/\/+$/, "");
+  const runtimeAsset = semanticRuntimeAssetName();
   return {
     modelId: settings.modelId,
     allowRemoteModels: settings.allowRemoteModels,
     modelCachePath: settings.modelCachePath,
     modelIds: SEMANTIC_SEARCH_MODEL_IDS,
     enabled: settings.provider !== "off",
+    runtimeDownloadUrl: `${runtimeBase}/${runtimeAsset}`,
+    modelDownloadUrl: semanticModelHubUrl(settings.modelId),
+    modelDownloadUrls: Object.fromEntries(
+      SEMANTIC_SEARCH_MODEL_IDS.map((id) => [id, semanticModelHubUrl(id)]),
+    ) as Record<string, string>,
   };
 }
 
@@ -628,6 +637,15 @@ export async function handleRpcInbound(
           await vscode.env.openExternal(vscode.Uri.parse(uri));
         }
         reply({ ok: true, result: undefined });
+        return;
+      }
+
+      case "revealSemanticModelCache": {
+        const cacheDir = panel.semanticModelCacheDir();
+        const cacheUri = vscode.Uri.file(cacheDir);
+        await vscode.workspace.fs.createDirectory(cacheUri);
+        await vscode.commands.executeCommand("revealFileInOS", cacheUri);
+        reply({ ok: true, result: cacheDir });
         return;
       }
 

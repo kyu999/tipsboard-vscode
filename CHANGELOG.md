@@ -4,6 +4,15 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.8] - 2026-06-06
+
+### Changed
+
+- **Inbox reminder**: inbox notes show a compact icon in the editor toolbar (pin → inbox → export → delete). Click to open filing actions in a popover.
+- **Related area**: link-isolated and inbox notices are subtler; nearby notes refresh in the background (3s debounce) without clearing results or loading flicker while you edit.
+- **Heading outline**: the left outline appears only when the note has ATX headings.
+- **Semantic search settings**: download links for the runtime (GitHub) and embedding model (Hugging Face), plus **Open model cache**, are shown in the Tipsboard settings panel.
+
 ## [0.3.7] - 2026-06-06
 
 ### Added
