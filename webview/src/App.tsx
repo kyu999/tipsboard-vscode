@@ -8,7 +8,10 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { KanbanBoardView } from "@/components/KanbanBoardView";
 import { AttachmentLibraryView } from "@/components/AttachmentLibraryView";
 import { OrganizeInboxView } from "@/components/OrganizeInboxView";
-import { NoteEditor } from "@/components/NoteEditor";
+import { NoteEditor, type NoteEditorHandle } from "@/components/NoteEditor";
+import { NoteOutlineNav } from "@/components/NoteOutlineNav";
+import { extractAtxHeadings } from "@/domain/markdown/atxHeadings";
+import { readNoteOutlineOpen, writeNoteOutlineOpen } from "@/lib/noteOutlinePreference";
 import { NoteTabBar } from "@/components/NoteTabBar";
 import { SaveStatus } from "@/components/SaveStatus";
 import { buildStandalonePageHtml } from "@/export/buildPageHtml";
@@ -140,7 +143,9 @@ export function App() {
   const [userGuideOpen, setUserGuideOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const [ambiguousLink, setAmbiguousLink] = useState<AmbiguousLinkState | null>(null);
+  const [outlineOpen, setOutlineOpen] = useState(readNoteOutlineOpen);
   const noteViewScrollContainerRef = useRef<HTMLElement | null>(null);
+  const noteEditorRef = useRef<NoteEditorHandle | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const listContentRef = useRef<HTMLDivElement>(null);
   const confirmResolverRef = useRef<((value: boolean) => void) | null>(null);
@@ -343,6 +348,17 @@ export function App() {
     () => snapshot.notes.find((note) => note.path === selectedPath) ?? null,
     [selectedPath, snapshot.notes],
   );
+  const noteHeadings = useMemo(
+    () => extractAtxHeadings(selectedNote?.body ?? ""),
+    [selectedNote?.body],
+  );
+  const handleToggleOutline = useCallback(() => {
+    setOutlineOpen((current) => {
+      const next = !current;
+      writeNoteOutlineOpen(next);
+      return next;
+    });
+  }, []);
   const semanticSearchEnabled = semanticSettings?.enabled ?? false;
   const debouncedNearNoteBody = useDebouncedValue(selectedNote?.body ?? "", 800, selectedPath);
   nearNotesRef.current = nearNotes;
@@ -2062,7 +2078,7 @@ export function App() {
 
         {openTabs.length > 0 && viewMode === "list" && !userGuideOpen && (
           <div className="tb-shell shrink-0 pt-1">
-            <div className="mx-auto w-full min-w-0 max-w-5xl">
+            <div className="mx-auto w-full min-w-0 max-w-6xl">
               <NoteTabBar
                 tabs={openTabs}
                 activeTabId={activeTabId}
@@ -2084,130 +2100,141 @@ export function App() {
         {selectedNote ? (
           <section
             ref={noteViewScrollContainerRef}
-            className="tb-shell flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-4 sm:py-6"
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-4 sm:py-6"
           >
-            <div className="relative mx-auto w-full min-w-0 max-w-5xl">
-              {exportHtmlError && (
-                <div className="mb-2 rounded-lg border border-accent-error/25 bg-accent-error/10 px-2 py-1 text-xs text-accent-error">
-                  {exportHtmlError}
-                </div>
-              )}
-              {exportHtmlSuccess && (
-                <div className="mb-2 rounded-lg border border-accent-link/25 bg-accent-link/10 px-2 py-1 text-xs text-accent-link">
-                  {exportHtmlSuccess}
-                </div>
-              )}
+            <div className="mx-auto grid w-fit max-w-full min-w-0 grid-cols-[auto_minmax(0,72rem)] items-start gap-x-3 px-4 sm:gap-x-4 sm:px-6 lg:px-8">
+              <div className="col-start-2 row-start-1 w-full min-w-0">
+                {exportHtmlError && (
+                  <div className="mb-2 rounded-lg border border-accent-error/25 bg-accent-error/10 px-2 py-1 text-xs text-accent-error">
+                    {exportHtmlError}
+                  </div>
+                )}
+                {exportHtmlSuccess && (
+                  <div className="mb-2 rounded-lg border border-accent-link/25 bg-accent-link/10 px-2 py-1 text-xs text-accent-link">
+                    {exportHtmlSuccess}
+                  </div>
+                )}
 
-              {selectedNoteCanOrganize && (
-                <OrganizeInboxStrip
-                  open={organizeOpen}
-                  response={organizeSuggestions}
-                  busy={organizeBusy}
-                  error={organizeError}
-                  progress={organizeProgress}
-                  onOpenOrganizePanel={() => {
-                    void handleOpenOrganize();
-                  }}
-                  onToggleOpen={() => {
-                    if (organizeOpen) {
-                      setOrganizeOpen(false);
-                      return;
-                    }
-                    setOrganizeOpen(true);
-                    if (!organizeSuggestions && !organizeBusy && selectedNoteCanOrganize) {
-                      void handleRequestOrganizeSuggestions();
-                    }
-                  }}
-                  onClose={() => setOrganizeOpen(false)}
-                  onRequestSuggestions={handleRequestOrganizeSuggestions}
-                  onMove={handleMoveNoteToSuggestedFolder}
-                />
-              )}
+                {selectedNoteCanOrganize && (
+                  <OrganizeInboxStrip
+                    open={organizeOpen}
+                    response={organizeSuggestions}
+                    busy={organizeBusy}
+                    error={organizeError}
+                    progress={organizeProgress}
+                    onOpenOrganizePanel={() => {
+                      void handleOpenOrganize();
+                    }}
+                    onToggleOpen={() => {
+                      if (organizeOpen) {
+                        setOrganizeOpen(false);
+                        return;
+                      }
+                      setOrganizeOpen(true);
+                      if (!organizeSuggestions && !organizeBusy && selectedNoteCanOrganize) {
+                        void handleRequestOrganizeSuggestions();
+                      }
+                    }}
+                    onClose={() => setOrganizeOpen(false)}
+                    onRequestSuggestions={handleRequestOrganizeSuggestions}
+                    onMove={handleMoveNoteToSuggestedFolder}
+                  />
+                )}
 
-              {selectedKanbanStatuses.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {selectedKanbanStatuses.map(({ board, column }) => (
-                    <button
-                      key={board.id}
-                      type="button"
-                      onClick={() => {
-                        void handleOpenKanban({
-                          boardId: board.id,
-                          columnId: column.id,
-                          notePath: selectedNote.path,
-                        });
-                      }}
-                      className="inline-flex items-center gap-1 rounded-full border border-accent-link/15 bg-bg-elevated px-3 py-1 text-2xs font-medium text-text-muted transition-colors hover:border-accent-link/35 hover:bg-bg-hover hover:text-text-primary"
-                      title={t("page.editor.kanbanStatus")}
-                    >
-                      <i className="fa-solid fa-table-columns text-[10px]" aria-hidden />
-                      {board.name} / {column.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="relative">
-                <nav
-                  className="absolute right-1 top-1 z-20 flex flex-col gap-0.5 rounded-lg border border-accent-link/[0.08] bg-bg-elevated/80 p-0.5 shadow-sm backdrop-blur-[6px] sm:right-2 sm:top-2"
-                  aria-label={t("page.editor.stickyNav")}
-                >
-                  <button
-                    type="button"
-                    onClick={() => void handleToggleNotePin(selectedNote.path, !selectedNotePinned)}
-                    aria-pressed={selectedNotePinned}
-                    aria-label={selectedNotePinned ? t("page.editor.unpinNote") : t("page.editor.pinNote")}
-                    title={selectedNotePinned ? t("page.editor.unpinNote") : t("page.editor.pinNote")}
-                    className={`inline-flex h-8 w-8 items-center justify-center rounded-md text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
-                      selectedNotePinned
-                        ? "text-accent-link bg-accent-link/[0.09]"
-                        : "text-text-muted/80 hover:bg-bg-hover hover:text-text-primary"
-                    }`}
-                  >
-                    <i className="fa-solid fa-thumbtack" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleExportHtml()}
-                    aria-label={t("page.editor.exportHtml")}
-                    title={t("page.editor.exportHtmlHint")}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[13px] text-text-muted/80 transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25"
-                  >
-                    <i className="fa-solid fa-file-export" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteNote()}
-                    aria-label={t("page.editor.delete")}
-                    title={t("page.editor.delete")}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[13px] text-text-muted/70 transition-colors hover:bg-accent-error/[0.08] hover:text-accent-error focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-error/25"
-                  >
-                    <i className="fa-solid fa-trash-can" aria-hidden />
-                  </button>
-                </nav>
-
-                <NoteEditor
-                  key={editorSessionId}
-                  note={selectedNote}
-                  suggestions={index.suggestions}
-                  existingNormalizedTitles={Array.from(index.byNormalizedTitle.keys())}
-                  onSave={handleSaveNote}
-                  onSavedPathChange={setSelectedPath}
-                  onSaveStateChange={setSaveState}
-                  onLinkClick={handleLinkClick}
-                  onContentChange={handleDraftNoteChange}
-                  onImageDropError={setError}
-                  onAttachmentIndexUpdated={mergeAttachmentsFromHost}
-                  attachmentMaxBytes={snapshot.attachmentMaxBytes}
-                  initialViewState={
-                    getEditorViewStateFromCache(editorViewStateCacheRef.current, selectedNote.path) ?? null
-                  }
-                  onCaptureViewState={captureEditorViewState}
-                  getNoteViewScrollContainer={() => noteViewScrollContainerRef.current}
-                />
+                {selectedKanbanStatuses.length > 0 && (
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {selectedKanbanStatuses.map(({ board, column }) => (
+                      <button
+                        key={board.id}
+                        type="button"
+                        onClick={() => {
+                          void handleOpenKanban({
+                            boardId: board.id,
+                            columnId: column.id,
+                            notePath: selectedNote.path,
+                          });
+                        }}
+                        className="inline-flex items-center gap-1 rounded-full border border-accent-link/15 bg-bg-elevated px-3 py-1 text-2xs font-medium text-text-muted transition-colors hover:border-accent-link/35 hover:bg-bg-hover hover:text-text-primary"
+                        title={t("page.editor.kanbanStatus")}
+                      >
+                        <i className="fa-solid fa-table-columns text-[10px]" aria-hidden />
+                        {board.name} / {column.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div className="mt-6 border-t border-accent-link/10 pt-6">
+              <NoteOutlineNav
+                className="tb-note-outline-align-cm-line sticky top-4 z-20 col-start-1 row-start-2 self-start sm:top-6"
+                headings={noteHeadings}
+                open={outlineOpen}
+                onToggleOpen={handleToggleOutline}
+                onSelectHeading={(lineNumber) => noteEditorRef.current?.scrollToLine(lineNumber)}
+              />
+
+              <div className="relative col-start-2 row-start-2 w-full min-w-0">
+                  <nav
+                    className="absolute right-1 top-1 z-20 flex flex-col gap-0.5 rounded-lg border border-accent-link/[0.08] bg-bg-elevated/80 p-0.5 shadow-sm backdrop-blur-[6px] sm:right-2 sm:top-2"
+                    aria-label={t("page.editor.stickyNav")}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => void handleToggleNotePin(selectedNote.path, !selectedNotePinned)}
+                      aria-pressed={selectedNotePinned}
+                      aria-label={selectedNotePinned ? t("page.editor.unpinNote") : t("page.editor.pinNote")}
+                      title={selectedNotePinned ? t("page.editor.unpinNote") : t("page.editor.pinNote")}
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-md text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
+                        selectedNotePinned
+                          ? "text-accent-link bg-accent-link/[0.09]"
+                          : "text-text-muted/80 hover:bg-bg-hover hover:text-text-primary"
+                      }`}
+                    >
+                      <i className="fa-solid fa-thumbtack" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleExportHtml()}
+                      aria-label={t("page.editor.exportHtml")}
+                      title={t("page.editor.exportHtmlHint")}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[13px] text-text-muted/80 transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25"
+                    >
+                      <i className="fa-solid fa-file-export" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteNote()}
+                      aria-label={t("page.editor.delete")}
+                      title={t("page.editor.delete")}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[13px] text-text-muted/70 transition-colors hover:bg-accent-error/[0.08] hover:text-accent-error focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-error/25"
+                    >
+                      <i className="fa-solid fa-trash-can" aria-hidden />
+                    </button>
+                  </nav>
+
+                  <NoteEditor
+                    ref={noteEditorRef}
+                    key={editorSessionId}
+                    note={selectedNote}
+                    suggestions={index.suggestions}
+                    existingNormalizedTitles={Array.from(index.byNormalizedTitle.keys())}
+                    onSave={handleSaveNote}
+                    onSavedPathChange={setSelectedPath}
+                    onSaveStateChange={setSaveState}
+                    onLinkClick={handleLinkClick}
+                    onContentChange={handleDraftNoteChange}
+                    onImageDropError={setError}
+                    onAttachmentIndexUpdated={mergeAttachmentsFromHost}
+                    attachmentMaxBytes={snapshot.attachmentMaxBytes}
+                    initialViewState={
+                      getEditorViewStateFromCache(editorViewStateCacheRef.current, selectedNote.path) ?? null
+                    }
+                    onCaptureViewState={captureEditorViewState}
+                    getNoteViewScrollContainer={() => noteViewScrollContainerRef.current}
+                  />
+              </div>
+
+              <div className="col-start-2 row-start-3 mt-6 w-full min-w-0 border-t border-accent-link/10 pt-6">
                 <RelatedLinks
                   outgoing={selectedEntry?.outgoing ?? []}
                   backlinks={selectedEntry?.backlinks ?? []}

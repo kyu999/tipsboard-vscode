@@ -69,6 +69,7 @@ Supported features include:
 - KaTeX-style math rendering
 - internal link autocomplete
 - tags
+- collapsible **heading outline** navigation to the left of the editor (ATX headings only; click to jump)
 - image embeds and file attachments (`assets/files/`), plus an **Attachments** sidebar view to browse and search them
 
 ---
@@ -216,7 +217,7 @@ This is easy to miss: a normal drop is ignored so accidental file drops do not m
 
 Maximum size per dropped file is **`tipsboard-vscode.maxAttachmentBytes`** (default 10 MiB).
 
-Click **`assets/files/...`** links in the editor to open the file with your **operating system's default application**.
+Click **`assets/files/...`** links in the editor to open the file with your **operating system's default application** (including non-ASCII filenames on Windows).
 
 Use the **paperclip (Attachments)** control in the Tipsboard panel sidebar to open the **Attachments library**: search files under `assets/files/`, jump to notes that reference a file, copy absolute paths, and expand a row for path, size, and modified time.
 

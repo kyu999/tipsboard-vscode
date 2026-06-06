@@ -4,6 +4,16 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.7] - 2026-06-06
+
+### Added
+
+- **Heading outline navigation**: a collapsible ATX heading list (`#` through `######`) appears to the left of the note editor. Click a heading to scroll the editor to that line. Open/closed state is remembered in `localStorage`. Code-fence lines and Tipsboard tag lines (`#tag`) are excluded; heading labels strip inline Markdown decoration.
+
+### Fixed
+
+- **Windows attachment open**: clicking `assets/files/` links in the editor or using **Open** in the Attachments library no longer fails silently for non-ASCII filenames (for example Japanese). On Windows, `openVaultAsset` now launches the OS default app via `cmd start` instead of `vscode.env.openExternal`. Missing files and open failures show a VS Code error message.
+
 ## [0.3.6] - 2026-06-03
 
 ### Added

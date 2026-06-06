@@ -169,6 +169,10 @@ const ja = {
       rewriteInboundLinksConfirm: "書き換える",
       ambiguousLinkTitle: "リンク先を選択",
       ambiguousLinkMessage: "「{{title}}」というタイトルのノートが複数あります。開くノートを選んでください。",
+      outlineToggle: "見出しナビ",
+      outlineToggleClose: "見出しナビを閉じる",
+      outlineEmpty: "見出しがありません",
+      outlineNav: "見出しナビゲーション",
     },
   },
   kanban: {

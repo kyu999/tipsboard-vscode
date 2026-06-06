@@ -167,6 +167,10 @@ const en = {
       rewriteInboundLinksConfirm: "Rewrite links",
       ambiguousLinkTitle: "Choose a note",
       ambiguousLinkMessage: "Multiple notes are titled “{{title}}”. Choose where this link should open.",
+      outlineToggle: "Heading outline",
+      outlineToggleClose: "Close heading outline",
+      outlineEmpty: "No headings",
+      outlineNav: "Heading navigation",
     },
   },
   kanban: {

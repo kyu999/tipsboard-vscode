@@ -268,7 +268,7 @@ vault 未選択時、**`getSnapshot` を除き**概ね `Error: Vault folder is n
 | `importImages` | string[] | `ImportedImage[]` | サイズ上限は設定 `tipsboard-vscode.maxAttachmentBytes` |
 | `importAttachmentBuffers` | `{ entries: { name, data: number[] }[] }`（旧: 配列のみ） | `{ imported: ImportedImage[]; attachments: VaultAttachmentSummary[] }` | 添付一覧の即時更新用に **`attachments`** を同梱 |
 | `getAttachmentSummaries` | なし | `VaultAttachmentSummary[]` | `assets/files/` の列挙とノート本文からの参照抽出のみ（軽量）。保存後の一覧更新など |
-| `openVaultAsset` | string（vault 相対 **`assets/files/`** のみ） | undefined | **`vscode.env.openExternal`** で OS 既定アプリ |
+| `openVaultAsset` | string（vault 相対 **`assets/files/`** のみ） | undefined | 存在確認後、**Windows は `cmd start`**、それ以外は **`vscode.env.openExternal`** で OS 既定アプリ |
 | `resolveAssetUri` | string | string | 不正パスは `""` |
 | `resolveAssetUris` | `{ paths }` | `Record<string,string>` | |
 | `openExternal` | `{ uri }` | undefined | **http/https のみ** `openExternal` |
@@ -460,7 +460,8 @@ vault/
 - **ドロップ**: **Shift+ファイルドロップ**。`createLocalAttachmentDropExtension`（`tipsboard-image-drop.ts`）→ **`importAttachmentBuffers`** で Host に送り、返った Markdown を挿入。画像は PNG / JPEG / GIF / WebP。非画像は **`assets/files/`** へ保存され **`[label](assets/files/...)`** を挿入（実行系などブロック拡張子は Host / WebView でスキップ）。
 - **サイズ上限**: VS Code 設定 **`tipsboard-vscode.maxAttachmentBytes`**（`VaultSnapshot.attachmentMaxBytes` と整合）。Host 側でも検証し、超過時は **`TIPSBOARD_ATTACHMENT_TOO_LARGE`**。
 - **画像表示**: 本文中の `assets/images/...` は **`ensureVaultImageUrl` / `prefetchAssets`** で WebView URI に変換してから `<img>` に載せる。画像 alt 末尾の `|1l`〜`|10r` は表示用 alt と分離して、コンテナ幅比率（`1`=10%、`10`=100%）と配置（`l` / `c` / `r`）として解釈する。例: `![logo|5c](assets/images/logo.png)` は幅 50%・中央寄せ。普通の Markdown エディタでは標準画像として表示できることを優先し、サイズ指定が反映されなくてもよい。
-- **`assets/files/` リンク**: `tipsboard-links.ts` が **`openVaultAsset`** RPC を発行し、Host が **`vscode.env.openExternal`** で OS 既定アプリに委譲。
+- **`assets/files/` リンク**: `tipsboard-links.ts` が **`openVaultAsset`** RPC を発行し、Host が OS 既定アプリに委譲（**Windows + 非 ASCII パス**は `openPathWithOsDefaultApp` の `cmd start` 経由）。
+- **見出しナビ（`NoteOutlineNav`）**: ノート編集時、エディタ左に ATX 見出し一覧（折りたたみ可）。`extractAtxHeadings` で本文から抽出（コードブロック・`#tag` 除外）。クリックで `NoteEditor.scrollToLine`。開閉は `localStorage`（`tipsboard.noteOutlineOpen`）。
 - **装飾（`tipsboard-decorations.ts`）**: 非カーソル行では `[label](assets/files/...)` を **`cm-tipsboard-vault-attachment-link`** でラベル表示（クリップアイコンは CSS `::before`、テーブル内は DOM アイコン）。**カーソル行**は他記法と同様に生 Markdown。リンク範囲内にキャレット／選択があるときは **`isSyntaxActive`** により括弧・URL も表示（外部リンクと同じ切替）。
 - **添付ライブラリ（`AttachmentLibraryView`）**: `viewMode === "attachments"` のとき一覧表示。`snapshot.attachments`（`VaultAttachmentSummary[]`）を **`searchAttachments`** で絞り込み。行から **`openVaultAttachmentInHost`**（`assets/files/` の相対パス）・参照ノートへの遷移（内部リンクと同系のスタイル）・絶対パスコピー（`joinVaultAbsolutePath`）・行展開でパス／サイズ／更新日時を表示。未参照ファイルは行末に警告表示。初回・保存後は **`getAttachmentSummaries`**、`importAttachmentBuffers` 成功時は戻り値の **`attachments`** で一覧を更新。
 
@@ -508,7 +509,7 @@ vault/
 1. **パス traversal 禁止**（ノート・アセット URI とも）。
 2. **Bridge**: 想定外 `method` は例外 → RPC エラー応答。
 3. **外部 URL**: `openExternal` は **http/https のみ**（フィッシング対策の最低限）。
-4. **`openVaultAsset`**: **`assets/files/`** のみ許可（`vaultFileAttachmentOpenAllowed`）。検証後に **`vscode.env.openExternal`**。
+4. **`openVaultAsset`**: **`assets/files/`** のみ許可（`vaultFileAttachmentOpenAllowed`）。`toAssetDiskUri` + `stat` 後、`openPathWithOsDefaultApp`（win32: `cmd start`、他: `openExternal`）。失敗時は `showErrorMessage`。
 5. **CSP**: インラインスクリプトは nonce 付きのバンドルのみ。
 6. **WebView は Node を持たない**（`process-shim` はビルド互換用のスタブに留める）。
 
@@ -553,3 +554,4 @@ vault/
 | 2026-05-22 | 拡張 **v0.3.0**: **セマンティック検索**（wand モーダル、Host `semantic.ts`、RPC `semanticSearch` / `rebuildSemanticIndex`、`.tipsboard/semantic/` 索引、設定 `semanticSearch.*`、ビルド時 `copy-extension-deps`）。README・CHANGELOG・§1・§2・§3・§7・§8.1・§9.2・§12 追記。 |
 | 2026-05-21 | 拡張 **v0.2.9**: 非画像添付の保存名 **`{サニタイズ済み元名}_{8hex}{ext}`**（ノート名なし）。**添付ライブラリ** UI（`viewMode: attachments`、`AttachmentLibraryView`、サイドバー紙クリップ）。`importAttachmentBuffers` の戻り **`attachments`**、保存後の **`getAttachmentSummaries`**。README・CHANGELOG・§1・§9.2・§9.8 追記。 |
 | 2026-05-31 | 拡張 **v0.3.5**: Related 領域に **近傍ノート**（`semanticSearch(selectedNote.body)` のノート単位集約、スコア閾値、カード内の一致度・ヒット見出し・本文スニペット）と **リンク孤立通知**を追加。README・CHANGELOG・同梱ユーザーガイド・SEMANTIC_SEARCH・§3・§9.2・§9.3 を更新。 |
+| 2026-06-06 | 拡張 **v0.3.7**: **見出しナビ**（`NoteOutlineNav`、`atxHeadings.ts`、localStorage 開閉状態）。**Windows 日本語添付オープン**修正（`openOsDefaultApp.ts`、`openVaultAsset`）。README・CHANGELOG・同梱ユーザーガイド・§7・§9.8 を更新。 |

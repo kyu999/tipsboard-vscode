@@ -12,6 +12,9 @@
   /** Webview 全体を端から埋める（VS Code が body に入れる余白を相殺しやすくする） */
   html {
     @apply m-0 h-full w-full max-w-[100%] bg-bg-primary p-0;
+    --tb-cm-content-padding-top: 28px;
+    --tb-cm-line-padding-top: 1px;
+    --tb-editor-surface-border-width: 1px;
   }
 
   body {
@@ -66,7 +69,14 @@
   /** ノート編集の外周（単一ボーダー）。角丸は `.tb-card` と揃える */
   .tb-editor-surface {
     @apply rounded-2xl bg-bg-elevated;
-    border: 1px solid rgba(28, 25, 23, 0.12);
+    border: var(--tb-editor-surface-border-width) solid rgba(28, 25, 23, 0.12);
+  }
+
+  /** 見出しナビ上端を CodeMirror 先頭行（.cm-content > .cm-line:first-child）に揃える */
+  .tb-note-outline-align-cm-line {
+    margin-top: calc(
+      var(--tb-editor-surface-border-width) + var(--tb-cm-content-padding-top) + var(--tb-cm-line-padding-top)
+    );
   }
 
   .tb-btn {
@@ -109,7 +119,7 @@
 
   /** ユーザーガイドのスクロール枠：`NoteEditor` の `.cm-content` と同じ内側余白 */
   .tipsboard-user-guide.tb-editor-surface {
-    padding: 28px 32px 24px;
+    padding: var(--tb-cm-content-padding-top) 32px 24px;
   }
 
   .tipsboard-user-guide h1 {

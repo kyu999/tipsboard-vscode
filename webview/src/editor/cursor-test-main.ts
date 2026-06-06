@@ -7,14 +7,7 @@ import { type EditorView } from "@codemirror/view";
 
 import { createEditor } from "./index";
 import { COMPREHENSIVE_CURSOR_MARKDOWN } from "./cursor-test-fixtures";
-
-interface CursorTestApi {
-  mount: (doc?: string) => void;
-  setCursor: (lineNumber: number, column?: number) => void;
-  cursorLine: () => number;
-  cursorColumn: () => number;
-  docLine: (lineNumber: number) => string;
-}
+import type { CursorTestApi } from "./cursor-test-helpers";
 
 declare global {
   interface Window {
@@ -52,6 +45,15 @@ function getView(): EditorView {
   return view;
 }
 
+function lineCoords(lineNumber: number, column = 0): { x: number; y: number } | null {
+  const currentView = getView();
+  const line = currentView.state.doc.line(lineNumber);
+  const pos = line.from + Math.min(column, line.length);
+  const coords = currentView.coordsAtPos(pos);
+  if (!coords) return null;
+  return { x: coords.left + 2, y: coords.top + 2 };
+}
+
 window.__tipsboardCursorTest = {
   mount,
   setCursor(lineNumber, column = 0) {
@@ -75,6 +77,56 @@ window.__tipsboardCursorTest = {
   },
   docLine(lineNumber) {
     return getView().state.doc.line(lineNumber).text;
+  },
+  clickLine(lineNumber, column = 0) {
+    const currentView = getView();
+    const coords = lineCoords(lineNumber, column);
+    if (!coords) throw new Error(`Could not resolve coords for line ${lineNumber}`);
+    const target = document.elementFromPoint(coords.x, coords.y);
+    if (!target) throw new Error(`No element at line ${lineNumber}`);
+    const content = currentView.contentDOM;
+    content.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        clientX: coords.x,
+        clientY: coords.y,
+        button: 0,
+      }),
+    );
+    content.dispatchEvent(
+      new MouseEvent("mouseup", {
+        bubbles: true,
+        cancelable: true,
+        clientX: coords.x,
+        clientY: coords.y,
+        button: 0,
+      }),
+    );
+    content.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: coords.x,
+        clientY: coords.y,
+        button: 0,
+      }),
+    );
+    currentView.focus();
+  },
+  pressKey(key) {
+    const currentView = getView();
+    currentView.focus();
+    currentView.contentDOM.dispatchEvent(
+      new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+    );
+  },
+  cursorCoords() {
+    const currentView = getView();
+    const head = currentView.state.selection.main.head;
+    const coords = currentView.coordsAtPos(head);
+    if (!coords) return null;
+    return { x: coords.left, y: coords.top };
   },
 };
 

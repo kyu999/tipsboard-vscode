@@ -226,8 +226,8 @@ export function openExternalInHost(uri: string): void {
   void rpc("openExternal", { uri });
 }
 
-export function openVaultAttachmentInHost(relativePath: string): void {
-  void rpc("openVaultAsset", relativePath);
+export function openVaultAttachmentInHost(relativePath: string): Promise<void> {
+  return rpc("openVaultAsset", relativePath) as Promise<void>;
 }
 
 /** Drop resolved webview URLs when the vault root changes (paths may collide across vaults). */

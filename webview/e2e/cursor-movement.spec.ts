@@ -1,63 +1,34 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import {
+  BOUNDARY_ARROW_CASES,
+  BOUNDARY_BLOCKS_ANCHORS,
+  BOUNDARY_BLOCKS_LINE_COUNT,
+  BOUNDARY_BLOCKS_MARKDOWN,
   COMPREHENSIVE_CURSOR_ANCHORS,
   COMPREHENSIVE_CURSOR_LINE_COUNT,
   DECORATED_CURSOR_MARKDOWN,
   DISPLAY_MATH_CURSOR_MARKDOWN,
+  FENCED_MATH_BELOW_RENDERED_LINE_COUNT,
+  FENCED_MATH_BELOW_RENDERED_MARKDOWN,
+  FENCED_MATH_PROSE_BELOW_ANCHORS,
+  FENCED_MATH_PROSE_BELOW_MARKDOWN,
+  MATH_EXPRESSIONS_BULLETS_ANCHORS,
+  MATH_EXPRESSIONS_BULLETS_MARKDOWN,
+  MATH_EXPRESSIONS_MULTI_BLOCK_ANCHORS,
+  MATH_EXPRESSIONS_MULTI_BLOCK_MARKDOWN,
+  TALL_MATH_SPACER_ANCHORS,
+  TALL_MATH_SPACER_MARKDOWN,
+  WRAPPED_PARAGRAPH_ANCHORS,
+  WRAPPED_PARAGRAPH_MARKDOWN,
 } from "../src/editor/cursor-test-fixtures";
-
-type CursorTestApi = {
-  mount: (doc?: string) => void;
-  setCursor: (lineNumber: number, column?: number) => void;
-  cursorLine: () => number;
-  cursorColumn: () => number;
-  docLine: (lineNumber: number) => string;
-};
-
-declare global {
-  interface Window {
-    __tipsboardCursorTest: CursorTestApi;
-  }
-}
-
-async function setCursor(page: Page, lineNumber: number, column = 0) {
-  await page.evaluate(
-    ({ lineNumber: nextLineNumber, column: nextColumn }) => {
-      window.__tipsboardCursorTest.setCursor(nextLineNumber, nextColumn);
-    },
-    { lineNumber, column },
-  );
-}
-
-async function mountDoc(page: Page, doc: string) {
-  await page.evaluate((nextDoc) => {
-    window.__tipsboardCursorTest.mount(nextDoc);
-  }, doc);
-}
-
-async function expectCursorLine(page: Page, lineNumber: number) {
-  await expect
-    .poll(() => page.evaluate(() => window.__tipsboardCursorTest.cursorLine()))
-    .toBe(lineNumber);
-}
-
-async function expectCursorPosition(page: Page, lineNumber: number, column: number) {
-  await expect
-    .poll(() =>
-      page.evaluate(() => ({
-        line: window.__tipsboardCursorTest.cursorLine(),
-        column: window.__tipsboardCursorTest.cursorColumn(),
-      })),
-    )
-    .toEqual({ line: lineNumber, column });
-}
-
-async function cursorBox(page: Page) {
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
-  const box = await page.locator(".cm-cursor-primary").boundingBox();
-  if (!box) throw new Error("Primary cursor is not visible");
-  return box;
-}
+import {
+  cursorBox,
+  expectCursorLine,
+  expectCursorPosition,
+  mountDoc,
+  setCursor,
+  walkLogicalLines,
+} from "../src/editor/cursor-test-helpers";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/cursor-test.html");
@@ -82,27 +53,13 @@ test("comprehensive decorated markdown exposes every cursor-risk widget", async 
 test("ArrowDown and ArrowUp move one logical line through comprehensive decorated markdown", async ({
   page,
 }) => {
-  for (let lineNumber = 1; lineNumber < COMPREHENSIVE_CURSOR_LINE_COUNT; lineNumber += 1) {
-    if (lineNumber === COMPREHENSIVE_CURSOR_ANCHORS.wrappedParagraph) continue;
+  const skip = new Set([
+    COMPREHENSIVE_CURSOR_ANCHORS.wrappedParagraph,
+    COMPREHENSIVE_CURSOR_ANCHORS.wrappedParagraph + 1,
+  ]);
 
-    await setCursor(page, lineNumber, 0);
-    await page.keyboard.press("ArrowDown");
-    await expectCursorLine(page, lineNumber + 1);
-  }
-
-  for (let lineNumber = COMPREHENSIVE_CURSOR_LINE_COUNT; lineNumber > 1; lineNumber -= 1) {
-    if (
-      lineNumber === COMPREHENSIVE_CURSOR_LINE_COUNT ||
-      lineNumber === COMPREHENSIVE_CURSOR_ANCHORS.wrappedParagraph ||
-      lineNumber === COMPREHENSIVE_CURSOR_ANCHORS.wrappedParagraph + 1
-    ) {
-      continue;
-    }
-
-    await setCursor(page, lineNumber, 0);
-    await page.keyboard.press("ArrowUp");
-    await expectCursorLine(page, lineNumber - 1);
-  }
+  await walkLogicalLines(page, 1, COMPREHENSIVE_CURSOR_LINE_COUNT - 1, "down", skip);
+  await walkLogicalLines(page, COMPREHENSIVE_CURSOR_LINE_COUNT, 2, "up", skip);
 });
 
 test("ArrowDown and ArrowUp move one logical line through decorated markdown", async ({ page }) => {
@@ -110,13 +67,13 @@ test("ArrowDown and ArrowUp move one logical line through decorated markdown", a
   await setCursor(page, 3, 3);
 
   await page.keyboard.press("ArrowDown");
-  await expectCursorLine(page, 4);
+  await expectCursorPosition(page, 4, 3);
 
   await page.keyboard.press("ArrowDown");
-  await expectCursorLine(page, 5);
+  await expectCursorPosition(page, 5, 3);
 
   await page.keyboard.press("ArrowUp");
-  await expectCursorLine(page, 4);
+  await expectCursorPosition(page, 4, 3);
 });
 
 test("ArrowDown does not skip table rows", async ({ page }) => {
@@ -124,10 +81,10 @@ test("ArrowDown does not skip table rows", async ({ page }) => {
   await setCursor(page, 6, 2);
 
   await page.keyboard.press("ArrowDown");
-  await expectCursorLine(page, 7);
+  await expectCursorPosition(page, 7, 2);
 
   await page.keyboard.press("ArrowDown");
-  await expectCursorLine(page, 8);
+  await expectCursorPosition(page, 8, 2);
 });
 
 test("ArrowDown does not skip fenced block lines", async ({ page }) => {
@@ -157,7 +114,34 @@ test("ArrowDown walks visual lines before leaving a wrapped paragraph", async ({
   await expectCursorLine(page, 2);
 });
 
-test("entering a display math block restores markup editing and moves by line and character", async ({ page }) => {
+test("ArrowDown walks visual lines in wrapped paragraph fixture", async ({ page }) => {
+  await mountDoc(page, WRAPPED_PARAGRAPH_MARKDOWN);
+  await setCursor(page, WRAPPED_PARAGRAPH_ANCHORS.wrappedLine, 10);
+
+  await page.keyboard.press("ArrowDown");
+  await expectCursorLine(page, WRAPPED_PARAGRAPH_ANCHORS.wrappedLine);
+
+  await page.keyboard.press("ArrowDown");
+  await expectCursorLine(page, WRAPPED_PARAGRAPH_ANCHORS.wrappedLine);
+});
+
+for (const { from, to, key } of BOUNDARY_ARROW_CASES) {
+  test(`boundary ${key} from line ${from} to line ${to}`, async ({ page }) => {
+    await mountDoc(page, BOUNDARY_BLOCKS_MARKDOWN);
+    await setCursor(page, from, 0);
+    await page.keyboard.press(key);
+    await expectCursorLine(page, to);
+  });
+}
+
+test("ArrowDown walks boundary blocks fixture line-by-line", async ({ page }) => {
+  await mountDoc(page, BOUNDARY_BLOCKS_MARKDOWN);
+  await walkLogicalLines(page, 1, BOUNDARY_BLOCKS_LINE_COUNT - 1, "down");
+});
+
+test("entering a display math block restores markup editing and moves by line and character", async ({
+  page,
+}) => {
   await mountDoc(page, DISPLAY_MATH_CURSOR_MARKDOWN);
 
   const mathWidget = page.locator(".cm-tipsboard-katex-display");
@@ -250,157 +234,45 @@ test("ArrowDown enters a display math block without skipping its source lines", 
 test("ArrowUp moves one logical line from below tall display math with a blank spacer", async ({
   page,
 }) => {
-  const doc = [
-    "Untitled",
-    "##### Rendered result:",
-    "$$",
-    String.raw`\frac{\partial}{\partial t} \psi(\mathbf{x}, t)`,
-    "=",
-    String.raw`\left(`,
-    String.raw`-\frac{\hbar^2}{2m}\nabla^2`,
-    "+",
-    String.raw`V(\mathbf{x})`,
-    String.raw`\right)`,
-    String.raw`\psi(\mathbf{x}, t)`,
-    "$$",
-    "",
-    "- research notes",
-  ].join("\n");
-  await mountDoc(page, doc);
+  await mountDoc(page, TALL_MATH_SPACER_MARKDOWN);
 
   const mathWidget = page.locator(".cm-tipsboard-katex-display");
   await expect(mathWidget).toBeVisible();
 
-  await setCursor(page, 14, 0);
+  await setCursor(page, TALL_MATH_SPACER_ANCHORS.researchNotes, 0);
 
   await page.keyboard.press("ArrowUp");
-  await expectCursorPosition(page, 13, 0);
+  await expectCursorPosition(page, TALL_MATH_SPACER_ANCHORS.blankAfterMath, 0);
 
   await page.keyboard.press("ArrowUp");
-  await expectCursorPosition(page, 12, 0);
+  await expectCursorPosition(page, TALL_MATH_SPACER_ANCHORS.dollarMathOpen + 9, 0);
   await expect(mathWidget).toHaveCount(0);
 });
 
 test("ArrowUp stays near the active display math when multiple rendered math blocks exist", async ({
   page,
 }) => {
-  const doc = [
-    "Math Expressions",
-    "Tipsboard supports [KaTeX]-style mathematical expressions inside Markdown notes.",
-    "**You** can write both inline equations and block equations while keeping everything in plain Markdown files.",
-    "",
-    "**Block equation example:**",
-    "```md",
-    "$$",
-    String.raw`\hat{f}(\xi)`,
-    "=",
-    String.raw`\int_{-\infty}^{\infty}`,
-    String.raw`f(x)\,`,
-    String.raw`e^{-2\pi i x \xi}`,
-    String.raw`\,dx`,
-    "$$",
-    "```",
-    "",
-    "**Rendered result:**",
-    "",
-    "$$",
-    String.raw`\hat{f}(\xi)`,
-    "=",
-    String.raw`\int_{-\infty}^{\infty}`,
-    String.raw`f(x)\,`,
-    String.raw`e^{-2\pi i x \xi}`,
-    String.raw`\,dx`,
-    "$$",
-    "",
-    "---",
-    "",
-    "",
-    "**More advanced expressions are also supported:**",
-    "",
-    "```md",
-    "$$",
-    String.raw`\frac{\partial}{\partial t} \psi(\mathbf{x}, t)`,
-    "=",
-    String.raw`\left(`,
-    String.raw`-\frac{\hbar^2}{2m}\nabla^2`,
-    "+",
-    String.raw`V(\mathbf{x})`,
-    String.raw`\right)`,
-    String.raw`\psi(\mathbf{x}, t)`,
-    "$$",
-    "```",
-    "",
-    "##### Rendered result:",
-    "",
-    "$$",
-    String.raw`\frac{\partial}{\partial t} \psi(\mathbf{x}, t)`,
-    "=",
-    String.raw`\left(`,
-    String.raw`-\frac{\hbar^2}{2m}\nabla^2`,
-    "+",
-    String.raw`V(\mathbf{x})`,
-    String.raw`\right)`,
-    String.raw`\psi(\mathbf{x}, t)`,
-    "$$",
-    "",
-    "This makes Tipsboard suitable for:",
-    "",
-    "- research notes",
-  ].join("\n");
-  await mountDoc(page, doc);
+  await mountDoc(page, MATH_EXPRESSIONS_MULTI_BLOCK_MARKDOWN);
 
   const mathWidgets = page.locator(".cm-tipsboard-katex-display");
-  await setCursor(page, 61, 0);
+  await setCursor(page, MATH_EXPRESSIONS_MULTI_BLOCK_ANCHORS.multiBlockCursorLine, 0);
   await expect(mathWidgets).toHaveCount(2);
 
   await mathWidgets.nth(1).click();
-  await expectCursorPosition(page, 48, 0);
+  await expectCursorPosition(page, MATH_EXPRESSIONS_MULTI_BLOCK_ANCHORS.secondRenderedDollarOpen, 0);
   await expect(mathWidgets).toHaveCount(1);
 
   await page.keyboard.press("ArrowUp");
-  await expectCursorPosition(page, 47, 0);
+  await expectCursorPosition(page, MATH_EXPRESSIONS_MULTI_BLOCK_ANCHORS.secondRenderedDollarOpen - 1, 0);
 });
 
 test("ArrowUp moves line-by-line in a fenced block below rendered display math", async ({
   page,
 }) => {
-  const doc = [
-    "Untitled2",
-    "```md",
-    "$$",
-    String.raw`\hat{f}(\xi)`,
-    "=",
-    String.raw`\int_{-\infty}^{\infty}`,
-    String.raw`f(x)\,`,
-    String.raw`e^{-2\pi i x \xi}`,
-    String.raw`\,dx`,
-    "$$",
-    "```",
-    "$$",
-    String.raw`\hat{f}(\xi)`,
-    "=",
-    String.raw`\int_{-\infty}^{\infty}`,
-    String.raw`f(x)\,`,
-    String.raw`e^{-2\pi i x \xi}`,
-    String.raw`\,dx`,
-    "$$",
-    "```md",
-    "$$",
-    String.raw`\frac{\partial}{\partial t} \psi(\mathbf{x}, t)`,
-    "=",
-    String.raw`\left(`,
-    String.raw`-\frac{\hbar^2}{2m}\nabla^2`,
-    "+",
-    String.raw`V(\mathbf{x})`,
-    String.raw`\right)`,
-    String.raw`\psi(\mathbf{x}, t)`,
-    "$$",
-    "```",
-  ].join("\n");
-  await mountDoc(page, doc);
+  await mountDoc(page, FENCED_MATH_BELOW_RENDERED_MARKDOWN);
   await expect(page.locator(".cm-tipsboard-katex-display")).toHaveCount(1);
 
-  for (let lineNumber = 31; lineNumber > 20; lineNumber -= 1) {
+  for (let lineNumber = FENCED_MATH_BELOW_RENDERED_LINE_COUNT; lineNumber > 20; lineNumber -= 1) {
     await setCursor(page, lineNumber, 0);
     await page.keyboard.press("ArrowUp");
     await expectCursorPosition(page, lineNumber - 1, 0);
@@ -410,67 +282,29 @@ test("ArrowUp moves line-by-line in a fenced block below rendered display math",
 test("ArrowUp from prose below fenced math examples does not jump into an earlier block", async ({
   page,
 }) => {
-  const doc = [
-    "Untitled2",
-    "```md",
-    "$$",
-    String.raw`\hat{f}(\xi)`,
-    "=",
-    String.raw`\int_{-\infty}^{\infty}`,
-    String.raw`f(x)\,`,
-    String.raw`e^{-2\pi i x \xi}`,
-    String.raw`\,dx`,
-    "$$",
-    "```",
-    "$$",
-    String.raw`\hat{f}(\xi)`,
-    "=",
-    String.raw`\int_{-\infty}^{\infty}`,
-    String.raw`f(x)\,`,
-    String.raw`e^{-2\pi i x \xi}`,
-    String.raw`\,dx`,
-    "$$",
-    "```md",
-    "$$",
-    String.raw`\frac{\partial}{\partial t} \psi(\mathbf{x}, t)`,
-    "=",
-    String.raw`\left(`,
-    String.raw`-\frac{\hbar^2}{2m}\nabla^2`,
-    "+",
-    String.raw`V(\mathbf{x})`,
-    String.raw`\right)`,
-    String.raw`\psi(\mathbf{x}, t)`,
-    "$$",
-    "```",
-    "",
-    "# Document with Mermaid (for testing)",
-    "",
-    "Normal prose before the diagrams.",
-    "",
-  ].join("\n");
-  await mountDoc(page, doc);
+  await mountDoc(page, FENCED_MATH_PROSE_BELOW_MARKDOWN);
   await expect(page.locator(".cm-tipsboard-katex-display")).toHaveCount(1);
 
-  await setCursor(page, 35, 0);
+  await setCursor(page, FENCED_MATH_PROSE_BELOW_ANCHORS.proseCursorLine, 0);
   const proseCursor = await cursorBox(page);
 
   await page.keyboard.press("ArrowUp");
-  await expectCursorPosition(page, 34, 0);
+  await expectCursorPosition(page, FENCED_MATH_PROSE_BELOW_ANCHORS.proseCursorLine - 1, 0);
   const blankCursor = await cursorBox(page);
   expect(blankCursor.y).toBeLessThan(proseCursor.y - 10);
 
   await page.keyboard.press("ArrowUp");
-  await expectCursorPosition(page, 33, 0);
+  await expectCursorPosition(page, FENCED_MATH_PROSE_BELOW_ANCHORS.heading, 0);
   const headingCursor = await cursorBox(page);
   expect(headingCursor.y).toBeLessThan(blankCursor.y - 10);
 
   await page.keyboard.press("ArrowUp");
-  await expectCursorPosition(page, 32, 0);
+  await expectCursorPosition(page, FENCED_MATH_PROSE_BELOW_ANCHORS.blankBeforeHeading, 0);
   const spacerCursor = await cursorBox(page);
   expect(spacerCursor.y).toBeLessThan(headingCursor.y - 10);
 
   await page.keyboard.press("ArrowUp");
-  await expectCursorPosition(page, 31, 0);
+  await expectCursorPosition(page, FENCED_MATH_PROSE_BELOW_ANCHORS.fenceCloseLine, 0);
   const fenceCloseCursor = await cursorBox(page);
   expect(fenceCloseCursor.y).toBeLessThan(spacerCursor.y - 10);
 });
@@ -478,80 +312,31 @@ test("ArrowUp from prose below fenced math examples does not jump into an earlie
 test("ArrowUp from the bottom of math expression bullets walks list and prose lines", async ({
   page,
 }) => {
-  const doc = [
-    "Math Expressions",
-    "Tipsboard supports [KaTeX]-style mathematical expressions inside Markdown notes.",
-    "**You** can write both inline equations and block equations while keeping everything in plain Markdown files.",
-    "",
-    "**Block equation example:**",
-    "```md",
-    "$$",
-    String.raw`\hat{f}(\xi)`,
-    "=",
-    String.raw`\int_{-\infty}^{\infty}`,
-    String.raw`f(x)\,`,
-    String.raw`e^{-2\pi i x \xi}`,
-    String.raw`\,dx`,
-    "$$",
-    "```",
-    "",
-    "**Rendered result:**",
-    "",
-    "$$",
-    String.raw`\hat{f}(\xi)`,
-    "=",
-    String.raw`\int_{-\infty}^{\infty}`,
-    String.raw`f(x)\,`,
-    String.raw`e^{-2\pi i x \xi}`,
-    String.raw`\,dx`,
-    "$$",
-    "",
-    "---",
-    "",
-    "",
-    "**More advanced expressions are also supported:**",
-    "",
-    "```md",
-    "$$",
-    String.raw`\frac{\partial}{\partial t} \psi(\mathbf{x}, t)`,
-    "=",
-    String.raw`\left(`,
-    String.raw`-\frac{\hbar^2}{2m}\nabla^2`,
-    "+",
-    String.raw`V(\mathbf{x})`,
-    String.raw`\right)`,
-    String.raw`\psi(\mathbf{x}, t)`,
-    "$$",
-    "```",
-    "",
-    "##### Rendered result:",
-    "",
-    "$$",
-    String.raw`\frac{\partial}{\partial t} \psi(\mathbf{x}, t)`,
-    "=",
-    String.raw`\left(`,
-    String.raw`-\frac{\hbar^2}{2m}\nabla^2`,
-    "+",
-    String.raw`V(\mathbf{x})`,
-    String.raw`\right)`,
-    String.raw`\psi(\mathbf{x}, t)`,
-    "$$",
-    "",
-    "This makes Tipsboard suitable for:",
-    "",
-    "- research notes",
-    "- engineering documentation",
-    "- mathematics",
-    "- physics",
-    "- technical writing",
-    "- academic knowledge bases",
-  ].join("\n");
-  await mountDoc(page, doc);
+  await mountDoc(page, MATH_EXPRESSIONS_BULLETS_MARKDOWN);
   await expect(page.locator(".cm-tipsboard-katex-display")).toBeVisible();
 
-  for (let lineNumber = 66; lineNumber > 57; lineNumber -= 1) {
+  const lastBullet = MATH_EXPRESSIONS_BULLETS_ANCHORS.lastBullet;
+  const firstBullet = MATH_EXPRESSIONS_BULLETS_ANCHORS.firstBullet;
+
+  for (let lineNumber = lastBullet; lineNumber > firstBullet; lineNumber -= 1) {
     await setCursor(page, lineNumber, 0);
     await page.keyboard.press("ArrowUp");
     await expectCursorPosition(page, lineNumber - 1, 0);
   }
+});
+
+test("[known-bug] ArrowUp from blank after tall math does not jump past display math block", async ({
+  page,
+}) => {
+  await mountDoc(page, TALL_MATH_SPACER_MARKDOWN);
+  await setCursor(page, TALL_MATH_SPACER_ANCHORS.researchNotes, 0);
+
+  await page.keyboard.press("ArrowUp");
+  await expectCursorPosition(page, TALL_MATH_SPACER_ANCHORS.blankAfterMath, 0);
+
+  const blankCursor = await cursorBox(page);
+  await page.keyboard.press("ArrowUp");
+  await expectCursorPosition(page, 12, 0);
+  const closingCursor = await cursorBox(page);
+  expect(Math.abs(closingCursor.y - blankCursor.y)).toBeLessThan(40);
 });

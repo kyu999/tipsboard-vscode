@@ -35,6 +35,7 @@ import {
   toAssetWebviewUri,
   vaultFileAttachmentOpenAllowed,
 } from "../host/assetUri.js";
+import { openPathWithOsDefaultApp } from "../host/openOsDefaultApp.js";
 import {
   rebuildSemanticIndex,
   semanticSearch,
@@ -528,10 +529,24 @@ export async function handleRpcInbound(
         if (!vaultFileAttachmentOpenAllowed(relRaw)) {
           throw new Error("Invalid attachment path");
         }
-        const vu = vscode.Uri.file(vaultPath);
-        const segments = relRaw.split("/").filter((s) => s.length > 0);
-        const target = vscode.Uri.joinPath(vu, ...segments);
-        await vscode.env.openExternal(target);
+        const disk = toAssetDiskUri(vscode.Uri.file(vaultPath), relRaw);
+        if (!disk) {
+          throw new Error("Invalid attachment path");
+        }
+        try {
+          await vscode.workspace.fs.stat(disk);
+        } catch {
+          const label = path.basename(disk.fsPath);
+          void vscode.window.showErrorMessage(`Attachment not found: ${label}`);
+          throw new Error("ATTACHMENT_NOT_FOUND");
+        }
+        try {
+          await openPathWithOsDefaultApp(disk.fsPath);
+        } catch {
+          const label = path.basename(disk.fsPath);
+          void vscode.window.showErrorMessage(`Could not open attachment: ${label}`);
+          throw new Error("ATTACHMENT_OPEN_FAILED");
+        }
         reply({ ok: true, result: undefined });
         return;
       }

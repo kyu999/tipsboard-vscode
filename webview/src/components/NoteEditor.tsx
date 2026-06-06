@@ -1,10 +1,16 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
+import { EditorSelection } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import { findNext, findPrevious, openSearchPanel } from "@codemirror/search";
 import { createEditor } from "@/editor";
 import { setExistingLinkTitlesEffect } from "@/editor/tipsboard-decorations";
 import type { EditorViewState } from "@/lib/editorViewState";
 import type { LinkSuggestion, NoteSummary, SaveState, VaultAttachmentSummary } from "@/types";
 import { DEFAULT_ATTACHMENT_MAX_BYTES } from "@/shared/attachmentConstants";
+
+export interface NoteEditorHandle {
+  scrollToLine(lineNumber: number): void;
+}
 
 interface NoteEditorProps {
   note: NoteSummary;
@@ -24,22 +30,25 @@ interface NoteEditorProps {
   getNoteViewScrollContainer?: () => HTMLElement | null;
 }
 
-export function NoteEditor({
-  note,
-  suggestions,
-  existingNormalizedTitles,
-  onSave,
-  onSavedPathChange,
-  onSaveStateChange,
-  onLinkClick,
-  onContentChange,
-  onImageDropError,
-  onAttachmentIndexUpdated,
-  attachmentMaxBytes,
-  initialViewState,
-  onCaptureViewState,
-  getNoteViewScrollContainer,
-}: NoteEditorProps) {
+export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEditor(
+  {
+    note,
+    suggestions,
+    existingNormalizedTitles,
+    onSave,
+    onSavedPathChange,
+    onSaveStateChange,
+    onLinkClick,
+    onContentChange,
+    onImageDropError,
+    onAttachmentIndexUpdated,
+    attachmentMaxBytes,
+    initialViewState,
+    onCaptureViewState,
+    getNoteViewScrollContainer,
+  },
+  ref,
+) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<ReturnType<typeof createEditor> | null>(null);
   const noteRef = useRef(note);
@@ -71,6 +80,24 @@ export function NoteEditor({
   initialViewStateRef.current = initialViewState;
   onCaptureViewStateRef.current = onCaptureViewState;
   getNoteViewScrollContainerRef.current = getNoteViewScrollContainer;
+
+  useImperativeHandle(ref, () => ({
+    scrollToLine(lineNumber: number) {
+      const view = viewRef.current;
+      if (!view) return;
+      const doc = view.state.doc;
+      if (lineNumber < 1 || lineNumber > doc.lines) return;
+      const line = doc.line(lineNumber);
+      const lineText = line.text;
+      const hashMatch = /^(\s{0,3})(#{1,6})\s/.exec(lineText);
+      const cursorPos = hashMatch ? line.from + hashMatch[0].length : line.from;
+      view.dispatch({
+        effects: EditorView.scrollIntoView(line.from, { y: "center" }),
+        selection: EditorSelection.cursor(cursorPos),
+      });
+      view.focus();
+    },
+  }));
 
   useEffect(() => {
     viewRef.current?.dispatch({
@@ -147,4 +174,4 @@ export function NoteEditor({
       <div ref={editorRef} className="min-h-36 bg-bg-elevated" />
     </div>
   );
-}
+});

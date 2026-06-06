@@ -32,7 +32,7 @@ const notebookTheme = EditorView.theme(
     },
     ".cm-content": {
       caretColor: accent.link,
-      padding: "28px 32px 24px",
+      padding: "var(--tb-cm-content-padding-top, 28px) 32px 24px",
       minHeight: "9rem",
     },
     ".cm-scroller": {
