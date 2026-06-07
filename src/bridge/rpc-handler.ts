@@ -18,6 +18,13 @@ import {
   type ImageBufferInput,
 } from "../host/vault.js";
 import {
+  createCanvas,
+  deleteCanvas,
+  listCanvasSummaries,
+  loadCanvas,
+  saveCanvas,
+} from "../host/canvas.js";
+import {
   createKanbanBoard,
   deleteKanbanBoard,
   deleteKanbanColumn,
@@ -27,6 +34,7 @@ import {
   createKanbanColumn,
   reorderKanbanColumns,
 } from "../host/kanban.js";
+import type { CanvasDocument } from "../types/editor.js";
 import { resolveVault, resolveVaultFsPath } from "../host/vaultRoot.js";
 import { readAttachmentMaxBytes } from "../host/attachmentSettings.js";
 import {
@@ -381,6 +389,43 @@ export async function handleRpcInbound(
         return;
       }
 
+      case "getCanvas": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const payload = raw.payload as { relativePath?: string };
+        const doc = await loadCanvas(vaultPath, payload.relativePath ?? "");
+        reply({ ok: true, result: doc });
+        return;
+      }
+
+      case "saveCanvas": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const payload = raw.payload as { relativePath?: string; document?: CanvasDocument };
+        const relativePath = payload.relativePath ?? "";
+        await saveCanvas(vaultPath, relativePath, payload.document ?? { version: 1, nodes: [], edges: [], viewport: { zoom: 1, panX: 0, panY: 0 } });
+        panel.recordSelfWrites([relativePath.replace(/\\/g, "/")]);
+        reply({ ok: true, result: await listCanvasSummaries(vaultPath) });
+        return;
+      }
+
+      case "createCanvas": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const payload = raw.payload as { name?: string };
+        const created = await createCanvas(vaultPath, payload.name ?? "Untitled");
+        panel.recordSelfWrites([created.relativePath]);
+        reply({ ok: true, result: await listCanvasSummaries(vaultPath) });
+        return;
+      }
+
+      case "deleteCanvas": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const payload = raw.payload as { relativePath?: string };
+        const relativePath = payload.relativePath ?? "";
+        await deleteCanvas(vaultPath, relativePath);
+        panel.recordSelfWrites([relativePath.replace(/\\/g, "/")]);
+        reply({ ok: true, result: await listCanvasSummaries(vaultPath) });
+        return;
+      }
+
       case "exportJson": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
         const baseName = path.basename(vaultPath);
@@ -646,6 +691,12 @@ export async function handleRpcInbound(
         await vscode.workspace.fs.createDirectory(cacheUri);
         await vscode.commands.executeCommand("revealFileInOS", cacheUri);
         reply({ ok: true, result: cacheDir });
+        return;
+      }
+
+      case "toggleFullScreen": {
+        await vscode.commands.executeCommand("workbench.action.toggleFullScreen");
+        reply({ ok: true, result: undefined });
         return;
       }
 

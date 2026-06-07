@@ -6,6 +6,7 @@ import { rewriteInboundWikiTitles, wouldRewriteInboundWikiTitles } from "@/domai
 import { normalizeTitle } from "@/domain/title/title";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { KanbanBoardView } from "@/components/KanbanBoardView";
+import { CanvasView } from "@/components/canvas/CanvasView";
 import { AttachmentLibraryView } from "@/components/AttachmentLibraryView";
 import { OrganizeInboxView } from "@/components/OrganizeInboxView";
 import { NoteEditor, type NoteEditorHandle } from "@/components/NoteEditor";
@@ -106,11 +107,12 @@ export function App() {
     attachments: [],
     pins: [],
     kanban: { version: 1, boards: [] },
+    canvases: [],
   });
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [openTabs, setOpenTabs] = useState<EditorTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "kanban" | "attachments" | "organize">("list");
+  const [viewMode, setViewMode] = useState<"list" | "kanban" | "canvas" | "attachments" | "organize">("list");
   const [kanbanFocus, setKanbanFocus] = useState<{
     boardId: string | null;
     columnId: string | null;
@@ -216,6 +218,7 @@ export function App() {
       const merged: VaultSnapshot = {
         ...next,
         attachments: next.attachments ?? prev.attachments,
+        canvases: next.canvases ?? prev.canvases,
         attachmentMaxBytes: next.attachmentMaxBytes ?? prev.attachmentMaxBytes,
         workspacePreferences: next.workspacePreferences ?? prev.workspacePreferences,
       };
@@ -1253,6 +1256,19 @@ export function App() {
     setUserGuideOpen(false);
   }, [confirmDiscardChanges]);
 
+  const handleOpenCanvas = useCallback(async () => {
+    if (!(await confirmDiscardChanges())) return;
+    pushNavHistory();
+    setSelectedPath(null);
+    setViewMode("canvas");
+    setListSearchFilter(null);
+    setKanbanFocus({ boardId: null, columnId: null, notePath: null });
+    setSaveState("idle");
+    setLocalMenuOpen(false);
+    setUserGuideOpen(false);
+    setShowSearchResults(false);
+  }, [confirmDiscardChanges]);
+
   const handleOpenOrganize = useCallback(async () => {
     if (!(await confirmDiscardChanges())) return;
     pushNavHistory();
@@ -1414,6 +1430,12 @@ export function App() {
         void handleOpenKanban();
         return;
       }
+      if (mod && event.shiftKey && event.key.toLowerCase() === "c") {
+        if (inNativeField) return;
+        event.preventDefault();
+        void handleOpenCanvas();
+        return;
+      }
 
       const navAllowed = canUseTipsboardNavInput(dialogOpen, event.target);
 
@@ -1475,6 +1497,7 @@ export function App() {
     handleNavigateForward,
     handleOpenCardView,
     handleOpenKanban,
+    handleOpenCanvas,
   ]);
 
   useEffect(() => {
@@ -1611,6 +1634,23 @@ export function App() {
             aria-label={t("layout.kanban")}
           >
             <i className="fa-solid fa-table-columns" aria-hidden />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void handleOpenCanvas();
+              setLocalMenuOpen(false);
+            }}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25 ${
+              viewMode === "canvas"
+                ? "bg-accent-link/12 text-accent-link shadow-[inset_0_0_0_1px_rgba(8,127,54,0.18)]"
+                : "text-text-muted hover:bg-bg-hover hover:text-text-primary"
+            }`}
+            aria-pressed={viewMode === "canvas"}
+            title={`${t("layout.canvas")} — ${t("layout.shortcutCanvas")}`}
+            aria-label={t("layout.canvas")}
+          >
+            <i className="fa-solid fa-border-all" aria-hidden />
           </button>
           <button
             type="button"
@@ -1877,7 +1917,7 @@ export function App() {
                           const trimmed = query.trim();
                           setShowSearchResults(false);
                           const needsNavigateAway =
-                            selectedNote !== null || userGuideOpen || viewMode === "kanban" || viewMode === "attachments" || viewMode === "organize";
+                            selectedNote !== null || userGuideOpen || viewMode === "kanban" || viewMode === "canvas" || viewMode === "attachments" || viewMode === "organize";
                           if (needsNavigateAway) {
                             if (!(await confirmDiscardChanges())) {
                               return;
@@ -2325,6 +2365,19 @@ export function App() {
                 void handleSelectNote(path);
               }}
               onFocusConsumed={() => setKanbanFocus({ boardId: null, columnId: null, notePath: null })}
+              onError={setError}
+            />
+          </div>
+        ) : viewMode === "canvas" ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <CanvasView
+              snapshot={snapshot}
+              onCanvasesChange={(canvases) => {
+                setSnapshot((prev) => ({ ...prev, canvases }));
+              }}
+              onSelectNote={(path) => {
+                void handleSelectNote(path);
+              }}
               onError={setError}
             />
           </div>

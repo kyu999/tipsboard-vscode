@@ -1,6 +1,8 @@
 import type {
   BulkMoveNotesResponse,
   BulkOrganizeSuggestionsResponse,
+  CanvasDocument,
+  CanvasSummary,
   ImportedImage,
   ImportAttachmentBuffersResult,
   NoteSummary,
@@ -42,6 +44,10 @@ declare global {
         toColumnId: string | null,
         position?: number,
       ) => Promise<VaultSnapshot>;
+      getCanvas: (relativePath: string) => Promise<CanvasDocument>;
+      saveCanvas: (relativePath: string, document: CanvasDocument) => Promise<CanvasSummary[]>;
+      createCanvas: (name: string) => Promise<CanvasSummary[]>;
+      deleteCanvas: (relativePath: string) => Promise<CanvasSummary[]>;
       exportJson: () => Promise<boolean>;
       /** Save ダイアログで保存した場合のみ `true`（キャンセルは `false`）。 */
       exportHtml: (payload: { html: string; suggestedFileName: string }) => Promise<boolean>;
@@ -84,6 +90,7 @@ declare global {
       prefetchAssets: (paths: string[]) => Promise<void>;
       getPathForFile: (file: File) => string;
       resolveAssetUrl: (relativePath: string) => string;
+      toggleFullScreen: () => Promise<void>;
       onOpenFind: (callback: () => void) => () => void;
       onFindNext: (callback: () => void) => () => void;
       onFindPrevious: (callback: () => void) => () => void;

@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {
@@ -47,6 +47,9 @@
     "vault",
     "tags",
     "kanban",
+    "canvas",
+    "visual board",
+    "whiteboard",
     "mermaid",
     "latex",
     "katex",

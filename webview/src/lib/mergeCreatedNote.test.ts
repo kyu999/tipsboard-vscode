@@ -22,6 +22,7 @@ describe("mergeCreatedNoteIntoSnapshot", () => {
     attachments: [],
     pins: [],
     kanban: { version: 1, boards: [] },
+    canvases: [],
   };
 
   it("adds a new note and sorts by updatedAt among unpinned", () => {

@@ -4,6 +4,20 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.9] - 2026-06-07
+
+### Added
+
+- **Canvas boards**: arrange notes and ideas on an infinite visual board from the sidebar **Canvas** view (`Ctrl+Shift+C` / `⌘⇧C`). Canvases are stored as JSON under `.tipsboard/canvas/*.canvas`.
+- **Canvas node types**: **text**, **note** (vault Markdown with click-to-open), **image** (`assets/images/...`), **link** (external URL), and **group** frames. Connect nodes with edges; drag, resize, and reconnect handles on each side.
+- **Canvas controls**: zoom in/out, fit all nodes, and toggle VS Code full screen. Hold **Space** and drag to pan the board. Edits autosave with debounced writes to disk.
+- **Canvas lifecycle with notes**: renaming or deleting a note updates or removes matching **note** nodes across all canvases; invalid note paths are pruned on vault snapshot refresh.
+
+### Changed
+
+- **File watcher**: external changes to `.tipsboard/canvas/*.canvas` trigger vault resync like other core Tipsboard files.
+- **Documentation**: README, bundled user guide, and `docs_wiki/SPEC.md` describe Canvas storage, UI, shortcuts, and RPC.
+
 ## [0.3.8] - 2026-06-06
 
 ### Changed

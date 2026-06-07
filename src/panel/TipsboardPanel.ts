@@ -115,7 +115,7 @@ export class TipsboardPanel {
     if (!vaultFsPath) return;
 
     const vaultRoot = vscode.Uri.file(vaultFsPath);
-    const patterns = ["**/*.md", ".tipsboard/kanban.json", ".tipsboard/pins.json"];
+    const patterns = ["**/*.md", ".tipsboard/kanban.json", ".tipsboard/pins.json", ".tipsboard/canvas/*.canvas"];
     for (const pattern of patterns) {
       const watcher = vscode.workspace.createFileSystemWatcher(
         new vscode.RelativePattern(vaultRoot, pattern),

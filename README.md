@@ -24,6 +24,7 @@ Tipsboard combines:
 - backlinks and two-hop discovery
 - rich Markdown editing
 - Kanban organization
+- visual **Canvas** boards for arranging notes and ideas
 - image embedding and preview
 - optional local semantic search for finding notes by meaning
 - English and Japanese UI
@@ -135,6 +136,7 @@ assets/images/*
 assets/files/*
 .tipsboard/kanban.json
 .tipsboard/pins.json
+.tipsboard/canvas/*.canvas
 .tipsboard/semantic/   (generated; semantic search index)
 ```
 
@@ -148,7 +150,7 @@ Works naturally with:
 
 No lock-in or proprietary storage format.
 
-While the Tipsboard panel is open, changes made **outside** Tipsboard (another editor, Git, or a sync tool) to Markdown files under the vault, `.tipsboard/kanban.json`, or `.tipsboard/pins.json` are picked up automatically. The panel refreshes from disk when you have **no unsaved edits** in the Tipsboard editor. If you do have unsaved edits, a notice appears with **Reload**; choosing it asks to discard unsaved changes, then reloads.
+While the Tipsboard panel is open, changes made **outside** Tipsboard (another editor, Git, or a sync tool) to Markdown files under the vault, `.tipsboard/kanban.json`, `.tipsboard/pins.json`, or `.tipsboard/canvas/*.canvas` are picked up automatically. The panel refreshes from disk when you have **no unsaved edits** in the Tipsboard editor. If you do have unsaved edits, a notice appears with **Reload**; choosing it asks to discard unsaved changes, then reloads.
 
 ---
 
@@ -159,6 +161,16 @@ While the Tipsboard panel is open, changes made **outside** Tipsboard (another e
 In **list** view, a tab strip under the header holds open **notes** and **tag searches** (`#tag`). **Cmd/Ctrl-click** links, tags, or list/search hits opens another tab without the unsaved-changes prompt; normal clicks still confirm when needed. Duplicate note paths or tags share one tab; the last tab cannot be closed.
 
 **NavMemory** (Tipsboard-only back/forward—not VS Code editor history) restores tabs, view mode, and search state. See **[Keyboard Shortcuts](#keyboard-shortcuts)** and **Commands** for keys, mouse thumb buttons, and **Tipsboard: Close active tab**.
+
+---
+
+### Canvas Boards
+
+Arrange notes, text, images, links, and groups on an infinite board. Open **Canvas** from the left sidebar or press **`Ctrl+Shift+C`** (**mac:** `⌘⇧C`).
+
+Each canvas is a plain JSON file under `.tipsboard/canvas/` (for example `.tipsboard/canvas/Project Map.canvas`). You can create multiple canvases, switch between them from the toolbar, and connect nodes with edges. **Note** nodes open the underlying Markdown note when clicked. Hold **Space** and drag to pan; use the on-board controls to zoom or fit all nodes.
+
+Canvas edits autosave to disk. When you rename or delete a note, Tipsboard updates or removes the matching **note** nodes on every canvas.
 
 ---
 
@@ -261,6 +273,7 @@ assets/images/*
 assets/files/*
 .tipsboard/kanban.json
 .tipsboard/pins.json
+.tipsboard/canvas/*.canvas
 .tipsboard/semantic/   (generated; semantic search index)
 ```
 
@@ -271,6 +284,7 @@ assets/files/*
 | `assets/images/*` | Embedded images |
 | `assets/files/*` | Attached files (linked from Markdown) |
 | `.tipsboard/kanban.json` | Kanban board state |
+| `.tipsboard/canvas/*.canvas` | Visual canvas boards (nodes, edges, viewport) |
 | `.tipsboard/pins.json` | Pinned note order for the card grid |
 | `.tipsboard/semantic/` | Local semantic search index (created when you use semantic search) |
 
@@ -284,6 +298,7 @@ Tipsboard ignores Markdown inside `.tipsboard/`, `.git/`, `node_modules/`, `dist
 |---|---|
 | `Ctrl+Shift+L` | Open note grid |
 | `Ctrl+Shift+K` | Open Kanban |
+| `Ctrl+Shift+C` (**mac:** `Cmd+Shift+C`) | Open Canvas |
 | `Ctrl+N` (**mac:** `Cmd+N`) | Create note (while the Tipsboard panel is focused; otherwise VS Code keeps this for New File). The sidebar **+** button does the same. |
 | `Alt+←` / `Ctrl+[` (**mac:** `⌥←` / `⌘[` ) | Navigate **back** in Tipsboard (**NavMemory**; skips native inputs and discard dialogs). |
 | `Alt+→` / `Ctrl+]` (**mac:** `⌥→` / `⌘]` ) | Navigate **forward** in Tipsboard when available; **may conflict** with IDE indent elsewhere—override in Keyboard Shortcuts if needed. |

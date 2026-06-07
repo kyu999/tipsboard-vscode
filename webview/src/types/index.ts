@@ -38,6 +38,7 @@ export interface VaultSnapshot {
   attachments: VaultAttachmentSummary[];
   pins: string[];
   kanban: KanbanState;
+  canvases: CanvasSummary[];
   attachmentMaxBytes?: number;
   workspacePreferences?: WorkspacePreferences;
 }
@@ -74,6 +75,51 @@ export interface KanbanBoard {
 export interface KanbanState {
   version: 1;
   boards: KanbanBoard[];
+}
+
+export type CanvasSide = "top" | "right" | "bottom" | "left";
+
+export interface CanvasViewport {
+  zoom: number;
+  panX: number;
+  panY: number;
+}
+
+interface CanvasNodeBase {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  parentId?: string;
+}
+
+export type CanvasNode =
+  | (CanvasNodeBase & { type: "text"; text: string })
+  | (CanvasNodeBase & { type: "note"; path: string })
+  | (CanvasNodeBase & { type: "image"; path: string })
+  | (CanvasNodeBase & { type: "link"; url: string })
+  | (CanvasNodeBase & { type: "group"; label: string });
+
+export interface CanvasEdge {
+  id: string;
+  fromNode: string;
+  toNode: string;
+  fromSide: CanvasSide;
+  toSide: CanvasSide;
+}
+
+export interface CanvasDocument {
+  version: 1;
+  nodes: CanvasNode[];
+  edges: CanvasEdge[];
+  viewport: CanvasViewport;
+}
+
+export interface CanvasSummary {
+  relativePath: string;
+  name: string;
+  updatedAt: number;
 }
 
 export interface ImportedImage {

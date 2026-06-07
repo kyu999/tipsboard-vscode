@@ -217,4 +217,35 @@
   .tipsboard-user-guide .contains-task-list {
     @apply pl-1;
   }
+
+  .tb-canvas-flow {
+    @apply h-full w-full bg-bg-primary;
+  }
+
+  .tb-canvas-flow--pan-mode .react-flow__pane {
+    cursor: grab;
+  }
+
+  .tb-canvas-flow--pan-mode .react-flow__pane:active {
+    cursor: grabbing;
+  }
+
+  .tb-canvas-node {
+    @apply box-border;
+  }
+
+  /** Group: React Flow の .react-flow__node-group 既定枠（黒実線）を上書きし、点線 1 本に統一 */
+  .tb-canvas-flow .react-flow__node-group {
+    @apply rounded-2xl border-2 border-dashed border-accent-link/45 bg-accent-link/5 p-0 shadow-none;
+  }
+
+  .tb-canvas-flow .react-flow__node-group.selectable.selected,
+  .tb-canvas-flow .react-flow__node-group.selectable:focus,
+  .tb-canvas-flow .react-flow__node-group.selectable:focus-visible {
+    @apply border-accent-link/65 shadow-none;
+  }
+
+  .tb-canvas-flow .react-flow__edge.selected .react-flow__edgeupdater {
+    cursor: grab;
+  }
 }
