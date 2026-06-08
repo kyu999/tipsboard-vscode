@@ -4,6 +4,12 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.10] - 2026-06-08
+
+### Fixed
+
+- **External-change banner on slow vaults**: editing a note on network shares, file servers, or other high-latency storage no longer spams “changed elsewhere — Reload” while you type. Tipsboard now masks self-writes from the file watcher starting when `saveNote` begins (not only after it finishes), extends the base mask from 1s to 3s, and lengthens it further when the save itself is slow (`save duration + 2s`).
+
 ## [0.3.9] - 2026-06-07
 
 ### Added

@@ -1,11 +1,14 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  computePostSaveSelfWriteMaskMs,
   filterExternalChangePaths,
   fsPathToVaultRelative,
   isWatchedVaultPath,
   normalizeVaultRelativePath,
   pruneExpiredSelfWrites,
+  SELF_WRITE_MASK_MS,
+  SELF_WRITE_WATCHER_LAG_BUFFER_MS,
 } from "./vaultFileWatchHelpers.js";
 
 describe("normalizeVaultRelativePath", () => {
@@ -65,6 +68,16 @@ describe("self-write mask + external paths", () => {
     ]);
     pruneExpiredSelfWrites(map, now);
     expect([...map.keys()].sort()).toEqual(["b"]);
+  });
+});
+
+describe("computePostSaveSelfWriteMaskMs", () => {
+  it("uses base mask for fast saves", () => {
+    expect(computePostSaveSelfWriteMaskMs(20)).toBe(SELF_WRITE_MASK_MS);
+  });
+
+  it("extends mask when save duration plus watcher buffer exceeds base", () => {
+    expect(computePostSaveSelfWriteMaskMs(1500)).toBe(1500 + SELF_WRITE_WATCHER_LAG_BUFFER_MS);
   });
 });
 

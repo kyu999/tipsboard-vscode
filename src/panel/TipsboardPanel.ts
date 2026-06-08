@@ -6,11 +6,10 @@ import {
   fsPathToVaultRelative,
   isWatchedVaultPath,
   normalizeVaultRelativePath,
+  SELF_WRITE_MASK_MS,
 } from "./vaultFileWatchHelpers.js";
 
 const VAULT_CHANGE_DEBOUNCE_MS = 250;
-/** Paths written via Tipsboard RPC are masked from conflict detection briefly (watcher can lag). */
-const SELF_WRITE_MASK_MS = 1000;
 /** After JSON import, many page files may change; suppress vault-file notifications briefly. */
 const BULK_SELF_WRITE_MASK_MS = 2000;
 
@@ -75,12 +74,13 @@ export class TipsboardPanel {
    * Register vault-relative paths recently written by Tipsboard (via RPC).
    * Watcher events for these paths are omitted from `vault-files-changed` while the mask is active.
    */
-  recordSelfWrites(relativePaths: readonly string[]): void {
-    const until = Date.now() + SELF_WRITE_MASK_MS;
+  recordSelfWrites(relativePaths: readonly string[], durationMs: number = SELF_WRITE_MASK_MS): void {
+    const until = Date.now() + durationMs;
     for (const raw of relativePaths) {
       const p = normalizeVaultRelativePath(String(raw ?? ""));
       if (!p) continue;
-      this.selfWrittenUntil.set(p, until);
+      const prev = this.selfWrittenUntil.get(p);
+      this.selfWrittenUntil.set(p, prev !== undefined ? Math.max(prev, until) : until);
     }
   }
 

@@ -24,6 +24,7 @@ import {
   loadCanvas,
   saveCanvas,
 } from "../host/canvas.js";
+import { computePostSaveSelfWriteMaskMs } from "../panel/vaultFileWatchHelpers.js";
 import {
   createKanbanBoard,
   deleteKanbanBoard,
@@ -153,13 +154,16 @@ export async function handleRpcInbound(
         if (!vaultPath) throw new Error("Vault folder is not selected");
         const p = raw.payload as { path: string; body: string };
         const beforePath = p.path.replace(/\\/g, "/");
+        const saveStartedAt = Date.now();
+        panel.recordSelfWrites([beforePath]);
         const note = await saveNote(vaultPath, p.path, p.body);
+        const saveDurationMs = Date.now() - saveStartedAt;
         const afterPath = note.path.replace(/\\/g, "/");
         const selfPaths = [beforePath, afterPath];
         if (beforePath !== afterPath) {
           selfPaths.push(".tipsboard/kanban.json", ".tipsboard/pins.json");
         }
-        panel.recordSelfWrites(selfPaths);
+        panel.recordSelfWrites(selfPaths, computePostSaveSelfWriteMaskMs(saveDurationMs));
         reply({ ok: true, result: { notePath: note.path, note } });
         return;
       }

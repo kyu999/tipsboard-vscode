@@ -1,5 +1,14 @@
 import path from "node:path";
 
+/** Paths written via Tipsboard RPC are masked from conflict detection briefly (watcher can lag). */
+export const SELF_WRITE_MASK_MS = 3000;
+/** Extra mask after save completes to absorb delayed watcher events on network shares. */
+export const SELF_WRITE_WATCHER_LAG_BUFFER_MS = 2000;
+
+export function computePostSaveSelfWriteMaskMs(saveDurationMs: number): number {
+  return Math.max(SELF_WRITE_MASK_MS, saveDurationMs + SELF_WRITE_WATCHER_LAG_BUFFER_MS);
+}
+
 export function normalizeVaultRelativePath(rel: string): string {
   return rel.replace(/\\/g, "/").replace(/^\.\//, "");
 }
