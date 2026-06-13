@@ -223,10 +223,10 @@
     "@types/node": "^20.17.14",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^3.9.1",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.1",
     "jsdom": "^25.0.1",
     "typescript": "^5.7.0",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.8"
   },
   "private": true,
   "optionalDependencies": {
