@@ -25,7 +25,14 @@ import {
   savePinsState,
 } from "./pins.js";
 import { listInboxDirCandidates } from "../shared/inboxPath.js";
+import { mapPool } from "../shared/asyncPool.js";
+import {
+  extractVaultFileAttachmentLinks,
+  type ExtractedVaultAttachmentLink,
+} from "../shared/vaultFileAttachmentLinks.js";
 import { loadWorkspacePreferences } from "./workspacePreferences.js";
+
+const VAULT_STAT_NOTE_CONCURRENCY = 24;
 
 const PAGES_PREFIX = "pages";
 const EXCLUDED_MARKDOWN_DIRS = new Set([".tipsboard", ".git", "node_modules", "dist", "build", "out"]);
@@ -189,18 +196,40 @@ async function statNote(vaultPath: string, relativePath: string): Promise<NoteSu
   const abs = path.join(vaultPath, safeRelativePath);
   const raw = await fs.readFile(abs, "utf8");
   const stats = await fs.stat(abs);
-  const title = extractTitle(raw);
-  const normalizedTitle = normalizeTitle(title);
+  return noteSummaryFromSavedBody(vaultPath, safeRelativePath, raw, stats);
+}
+
+export function noteSummaryFromSavedBody(
+  vaultPath: string,
+  relativePath: string,
+  body: string,
+  stats: import("node:fs").Stats,
+  createdAtOverride?: number,
+): NoteSummary {
+  void vaultPath;
+  const safeRelativePath = normalizeSafeRelativeMarkdownPath(relativePath);
+  const title = extractTitle(body);
   return {
     path: safeRelativePath,
     filename: path.basename(safeRelativePath),
     title,
-    normalizedTitle,
-    body: raw,
-    preview: buildPreview(raw),
+    normalizedTitle: normalizeTitle(title),
+    body,
+    preview: buildPreview(body),
     updatedAt: stats.mtimeMs,
-    createdAt: stats.birthtimeMs || stats.ctimeMs,
+    createdAt: createdAtOverride ?? (stats.birthtimeMs || stats.ctimeMs),
   };
+}
+
+async function loadNoteSummaries(vaultPath: string, relPaths: string[]): Promise<NoteSummary[]> {
+  const results = await mapPool(relPaths, VAULT_STAT_NOTE_CONCURRENCY, async (relativePath) => {
+    try {
+      return await statNote(vaultPath, relativePath);
+    } catch {
+      return null;
+    }
+  });
+  return results.filter((note): note is NoteSummary => note !== null);
 }
 
 export async function listNotePaths(vaultPath: string): Promise<string[]> {
@@ -232,45 +261,8 @@ export async function listNotePaths(vaultPath: string): Promise<string[]> {
   return out.sort((a, b) => a.localeCompare(b));
 }
 
-export interface ExtractedVaultAttachmentLink {
-  relativePath: string;
-  label: string;
-}
-
-const VAULT_FILE_ATTACHMENT_LINK_RE = /!?\[([^\]\n]*)\]\(\s*(assets[/\\]files[/\\][^) \t\n\r]+)\s*(?:\"[^\"]*\")?\)/g;
-
-function normalizeVaultFileAttachmentPath(raw: string): string | null {
-  const normalized = path.normalize(raw.trim()).replace(/\\/g, "/");
-  if (!normalized || path.isAbsolute(normalized)) return null;
-  if (normalized === ".." || normalized.startsWith("../") || normalized.includes("/../")) return null;
-  return normalized.startsWith("assets/files/") ? normalized : null;
-}
-
-export function extractVaultFileAttachmentLinks(body: string): ExtractedVaultAttachmentLink[] {
-  const out: ExtractedVaultAttachmentLink[] = [];
-  let inCodeBlock = false;
-
-  for (const line of body.split("\n")) {
-    if (/^\s*```/.test(line)) {
-      inCodeBlock = !inCodeBlock;
-      continue;
-    }
-    if (inCodeBlock) continue;
-
-    VAULT_FILE_ATTACHMENT_LINK_RE.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = VAULT_FILE_ATTACHMENT_LINK_RE.exec(line)) !== null) {
-      const relativePath = normalizeVaultFileAttachmentPath(match[2] ?? "");
-      if (!relativePath) continue;
-      out.push({
-        relativePath,
-        label: (match[1] ?? "").trim(),
-      });
-    }
-  }
-
-  return out;
-}
+export type { ExtractedVaultAttachmentLink };
+export { extractVaultFileAttachmentLinks };
 
 async function buildAttachmentSummaries(vaultPath: string, notes: NoteSummary[]): Promise<VaultAttachmentSummary[]> {
   const filesDir = path.join(vaultPath, "assets", "files");
@@ -358,14 +350,7 @@ export async function readVault(vaultPath: string | null): Promise<VaultSnapshot
   let pinsLoaded = await loadPinsState(vaultPath);
 
   const relPathsRaw = await listNotePaths(vaultPath);
-  const notes: NoteSummary[] = [];
-  for (const rp of relPathsRaw) {
-    try {
-      notes.push(await statNote(vaultPath, rp));
-    } catch {
-      // skip unreadable entries
-    }
-  }
+  const notes = await loadNoteSummaries(vaultPath, relPathsRaw);
 
   notes.sort((a, b) => {
     const d = b.updatedAt - a.updatedAt;
@@ -408,14 +393,7 @@ export async function readVault(vaultPath: string | null): Promise<VaultSnapshot
  */
 export async function readVaultAttachmentSummaries(vaultPath: string): Promise<VaultAttachmentSummary[]> {
   const relPathsRaw = await listNotePaths(vaultPath);
-  const notes: NoteSummary[] = [];
-  for (const rp of relPathsRaw) {
-    try {
-      notes.push(await statNote(vaultPath, rp));
-    } catch {
-      // skip unreadable entries
-    }
-  }
+  const notes = await loadNoteSummaries(vaultPath, relPathsRaw);
   notes.sort((a, b) => {
     const d = b.updatedAt - a.updatedAt;
     if (d !== 0) return d;
@@ -514,7 +492,15 @@ export async function saveNote(vaultPath: string, relativePath: string, body: st
     await fs.mkdir(path.dirname(absNew), { recursive: true });
     const oldStillThere = await pathExists(absOld);
     if (oldStillThere) {
+      const oldStats = await fs.stat(absOld);
+      const createdAt = oldStats.birthtimeMs || oldStats.ctimeMs;
       await fs.rename(absOld, absNew);
+      await patchKanbanNotePaths(vaultPath, safeRelativePath, finalRelative);
+      await patchCanvasNotePaths(vaultPath, safeRelativePath, finalRelative);
+      await patchPinsNotePaths(vaultPath, safeRelativePath, finalRelative);
+      await fs.writeFile(absNew, body, "utf8");
+      const stats = await fs.stat(absNew);
+      return noteSummaryFromSavedBody(vaultPath, finalRelative, body, stats, createdAt);
     }
     /** §8.2: if source missing treat as recreate */
     else {
@@ -522,18 +508,15 @@ export async function saveNote(vaultPath: string, relativePath: string, body: st
       await patchKanbanNotePaths(vaultPath, safeRelativePath, finalRelative);
       await patchCanvasNotePaths(vaultPath, safeRelativePath, finalRelative);
       await patchPinsNotePaths(vaultPath, safeRelativePath, finalRelative);
-      return statNote(vaultPath, finalRelative);
+      const stats = await fs.stat(absNew);
+      return noteSummaryFromSavedBody(vaultPath, finalRelative, body, stats);
     }
-
-    await patchKanbanNotePaths(vaultPath, safeRelativePath, finalRelative);
-    await patchCanvasNotePaths(vaultPath, safeRelativePath, finalRelative);
-    await patchPinsNotePaths(vaultPath, safeRelativePath, finalRelative);
   }
 
   const abs = path.join(vaultPath, finalRelative);
   await fs.writeFile(abs, body, "utf8");
-
-  return statNote(vaultPath, finalRelative);
+  const stats = await fs.stat(abs);
+  return noteSummaryFromSavedBody(vaultPath, finalRelative, body, stats);
 }
 
 export async function moveNoteToFolder(

@@ -4,6 +4,17 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.12] - 2026-06-13
+
+### Added
+
+- **Performance evaluation (`eval:perf`)**: local-only benchmarks for `saveNote`, `readVault`, and WebView note-index updates at 100–10,000 note scales. Reports land in `eval/.cache/reports/perf-eval-latest.json`.
+- **`findInboundWikiLinks` RPC**: host-side wiki link index for title-change flows without a full `getSnapshot()` scan.
+
+### Changed
+
+- **Large-vault save performance**: WebView now patches the note link index incrementally on save/draft edits instead of rebuilding it for every note. Host `saveNote` skips re-reading the file after write, `readVault` loads notes in parallel, title renames use the in-memory snapshot plus the link index, and attachment references patch locally when a save touches `assets/files/` links.
+
 ## [0.3.11] - 2026-06-13
 
 ### Added

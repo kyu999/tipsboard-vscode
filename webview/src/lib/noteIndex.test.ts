@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildNoteIndex, isLinkIsolated, searchNotes } from "./noteIndex";
+import { buildNoteIndex, isLinkIsolated, patchNoteIndex, searchNotes } from "./noteIndex";
 import type { NoteSummary } from "@/types";
 
 function note(partial: Partial<NoteSummary> & Pick<NoteSummary, "path" | "title">): NoteSummary {
@@ -91,6 +91,36 @@ describe("noteIndex", () => {
       expect(isLinkIsolated(idx.entries.get("pages/isolated.md"))).toBe(true);
       expect(isLinkIsolated(idx.entries.get("pages/linked.md"))).toBe(false);
       expect(isLinkIsolated(idx.entries.get("pages/target.md"))).toBe(false);
+    });
+
+    it("patchNoteIndex matches full rebuild after body edit", () => {
+      const a = note({ path: "pages/a.md", title: "Alpha", body: "Alpha\n\n[Bravo]\n", normalizedTitle: "alpha" });
+      const b = note({ path: "pages/b.md", title: "Bravo", body: "Bravo\n", normalizedTitle: "bravo" });
+      const c = note({ path: "pages/c.md", title: "Charlie", body: "Charlie\n\n[Bravo]\n", normalizedTitle: "charlie" });
+      const notes = [a, b, c];
+      const index = buildNoteIndex(notes);
+      const nextA = { ...a, body: "Alpha\n\n[Charlie]\n" };
+      const merged = [nextA, b, c];
+      const patched = patchNoteIndex(index, merged, a, nextA);
+      const rebuilt = buildNoteIndex(merged);
+      expect(patched).toEqual(rebuilt);
+    });
+
+    it("patchNoteIndex matches full rebuild after title change", () => {
+      const a = note({ path: "pages/a.md", title: "Alpha", body: "Alpha\n", normalizedTitle: "alpha" });
+      const b = note({ path: "pages/b.md", title: "Beta", body: "Beta\n\n[Alpha]\n", normalizedTitle: "beta" });
+      const notes = [a, b];
+      const index = buildNoteIndex(notes);
+      const nextA = {
+        ...a,
+        title: "Aleph",
+        normalizedTitle: "aleph",
+        body: "Aleph\n",
+      };
+      const merged = [nextA, b];
+      const patched = patchNoteIndex(index, merged, a, nextA);
+      const rebuilt = buildNoteIndex(merged);
+      expect(patched).toEqual(rebuilt);
     });
   });
 

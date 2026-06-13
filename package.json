@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {
@@ -199,7 +199,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile && npm run build:extension && npm run build:webview",
-    "compile": "tsc --noEmit -p ./tsconfig.extension.json && tsc --noEmit -p ./tsconfig.semantic-eval.json",
+    "compile": "tsc --noEmit -p ./tsconfig.extension.json && tsc --noEmit -p ./tsconfig.semantic-eval.json && tsc --noEmit -p ./tsconfig.perf-eval.json",
     "build:extension": "node scripts/build-extension.cjs",
     "build:extension:fast": "TIPSBOARD_SKIP_SEMANTIC_COPY=1 node scripts/build-extension.cjs",
     "prepare:semantic-pack": "node scripts/prepare-semantic-pack.cjs",
@@ -213,6 +213,8 @@
     "eval:semantic": "node scripts/eval-semantic.cjs",
     "eval:semantic:mldr": "node scripts/eval-semantic.cjs --dataset mldr",
     "eval:semantic:models": "node scripts/eval-semantic-models.cjs",
+    "eval:perf": "node scripts/eval-performance.cjs",
+    "eval:perf:smoke": "node scripts/eval-performance.cjs --sizes 100,1000",
     "test:webview:e2e": "playwright test --config playwright.config.ts",
     "package": "node scripts/package-vsix.cjs"
   },

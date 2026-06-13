@@ -21,6 +21,7 @@ declare global {
   interface Window {
     tipsboardDesktop: {
       getSnapshot: () => Promise<VaultSnapshot>;
+      findInboundWikiLinks: (normalizedTitle: string) => Promise<string[]>;
       createNote: (title: string) => Promise<{ notePath: string; note: NoteSummary }>;
       saveNote: (
         path: string,

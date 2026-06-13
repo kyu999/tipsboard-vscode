@@ -70,6 +70,8 @@ function wireDesktop(): typeof window.tipsboardDesktop {
   return {
     getSnapshot: () => rpc("getSnapshot") as Promise<VaultSnapshot>,
 
+    findInboundWikiLinks: (normalizedTitle: string) =>
+      rpc("findInboundWikiLinks", { normalizedTitle }) as Promise<string[]>,
 
     createNote: (title: string) =>
       rpc("createNote", title) as Promise<{ notePath: string; note: NoteSummary }>,

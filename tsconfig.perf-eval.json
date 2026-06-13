@@ -6,7 +6,11 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["node", "vitest"]
+    "types": ["node", "vitest"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["webview/src/*"]
+    }
   },
-  "include": ["eval/semantic/**/*.ts"]
+  "include": ["eval/performance/**/*.ts"]
 }

@@ -76,6 +76,23 @@ npm test
 
 Runs Vitest for extension-host vault I/O, WebView domain logic, and lightweight editor fixtures.
 
+- **External file sync**: removed the “changed elsewhere — Reload” banner while editing a note with unsaved changes. Changes to other vault files (Kanban, pins, other notes, canvases) still auto-refresh in the background; disk changes to the **open** note are skipped until you save or navigate away (unsaved-change prompts unchanged).
+
+### Performance evaluation
+
+```bash
+npm run eval:perf
+npm run eval:perf:smoke
+npm run eval:perf -- --sizes 100,1000,5000,10000
+npm run eval:perf -- --refresh
+```
+
+Local-only vault I/O and WebView index benchmarks (not part of CI). Seeds synthetic vaults under `eval/.cache/vaults/perf-<n>/`, measures `saveNote`, `readVault`, attachment-index rebuild, and `buildNoteIndex` / `patchNoteIndex` latency with p50/p95 reporting.
+
+Use `eval:perf:smoke` for a quick 100/1,000-note run. Full 10,000-note seeding can take several minutes on first run; cached vaults are reused unless `--refresh` is passed.
+
+Reports are written to `eval/.cache/reports/perf-eval-<timestamp>.json` and `eval/.cache/reports/perf-eval-latest.json`. Override the path with `TIPSBOARD_PERF_EVAL_REPORT_PATH` if needed.
+
 ### Semantic search evaluation
 
 仕様と評価方式の詳細は [`docs_wiki/SEMANTIC_SEARCH.md`](docs_wiki/SEMANTIC_SEARCH.md) を参照。

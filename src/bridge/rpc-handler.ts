@@ -1,4 +1,5 @@
 import path from "node:path";
+import { promises as fs } from "node:fs";
 import { Buffer } from "node:buffer";
 import * as vscode from "vscode";
 import type { RpcInbound, RpcOutbound, RpcProgressOutbound } from "./protocol.js";
@@ -17,6 +18,7 @@ import {
   setNotePinned,
   type ImageBufferInput,
 } from "../host/vault.js";
+import { findInboundNotePaths } from "../host/noteLinkIndex.js";
 import {
   createCanvas,
   deleteCanvas,
@@ -133,7 +135,17 @@ export async function handleRpcInbound(
     switch (raw.method) {
       case "getSnapshot": {
         panel.setVaultRoots(vaultPath);
-        reply({ ok: true, result: await vaultSnapshotPayload() });
+        const snapshot = await vaultSnapshotPayload();
+        panel.rebuildNoteLinkIndex(snapshot.notes);
+        reply({ ok: true, result: snapshot });
+        return;
+      }
+
+      case "findInboundWikiLinks": {
+        const normalizedTitle = String(
+          (raw.payload as { normalizedTitle?: string } | undefined)?.normalizedTitle ?? "",
+        );
+        reply({ ok: true, result: findInboundNotePaths(panel.getNoteLinkIndex(), normalizedTitle) });
         return;
       }
 
@@ -156,9 +168,17 @@ export async function handleRpcInbound(
         const beforePath = p.path.replace(/\\/g, "/");
         const saveStartedAt = Date.now();
         panel.recordSelfWrites([beforePath]);
+        let oldNoteForIndex: { path: string; body: string } | null = null;
+        try {
+          const previousBody = await fs.readFile(path.join(vaultPath, beforePath), "utf8");
+          oldNoteForIndex = { path: beforePath, body: previousBody };
+        } catch {
+          oldNoteForIndex = null;
+        }
         const note = await saveNote(vaultPath, p.path, p.body);
         const saveDurationMs = Date.now() - saveStartedAt;
         const afterPath = note.path.replace(/\\/g, "/");
+        panel.patchNoteLinkIndex(oldNoteForIndex, { path: afterPath, body: p.body });
         const selfPaths = [beforePath, afterPath];
         if (beforePath !== afterPath) {
           selfPaths.push(".tipsboard/kanban.json", ".tipsboard/pins.json");

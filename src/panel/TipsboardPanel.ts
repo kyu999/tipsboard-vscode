@@ -2,6 +2,11 @@ import * as vscode from "vscode";
 import type { RpcInbound } from "../bridge/protocol.js";
 import { handleRpcInbound } from "../bridge/rpc-handler.js";
 import {
+  buildNoteLinkIndex,
+  patchNoteLinkIndex,
+  type NoteLinkIndex,
+} from "../host/noteLinkIndex.js";
+import {
   filterExternalChangePaths,
   fsPathToVaultRelative,
   isWatchedVaultPath,
@@ -36,6 +41,7 @@ export class TipsboardPanel {
   /** Relative path -> expiry timestamp (ms). */
   private readonly selfWrittenUntil = new Map<string, number>();
   private selfWriteBulkUntil = 0;
+  private noteLinkIndex: NoteLinkIndex = { inboundByNormalizedTitle: new Map() };
 
   private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
     this.panel = panel;
@@ -100,6 +106,21 @@ export class TipsboardPanel {
   extensionVersion(): string {
     const packageJson = this.context.extension.packageJSON as { version?: string };
     return packageJson.version ?? "dev";
+  }
+
+  rebuildNoteLinkIndex(notes: Array<{ path: string; body: string }>): void {
+    this.noteLinkIndex = buildNoteLinkIndex(notes);
+  }
+
+  patchNoteLinkIndex(
+    oldNote: { path: string; body: string } | null,
+    newNote: { path: string; body: string } | null,
+  ): void {
+    this.noteLinkIndex = patchNoteLinkIndex(this.noteLinkIndex, oldNote, newNote);
+  }
+
+  getNoteLinkIndex(): NoteLinkIndex {
+    return this.noteLinkIndex;
   }
 
   extensionPath(): string {

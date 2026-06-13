@@ -18,7 +18,11 @@ import { SaveStatus } from "@/components/SaveStatus";
 import { buildStandalonePageHtml } from "@/export/buildPageHtml";
 import { UserGuideView } from "@/user-guide/UserGuideView";
 import { collectVaultMarkdownImagePaths, sanitizeExportFilename } from "@/export/exportMarkdownPreprocess";
-import { buildNoteIndex, isLinkIsolated, searchNotes, type TwoHopLink } from "@/lib/noteIndex";
+import { buildNoteIndex, isLinkIsolated, patchNoteIndex, searchNotes, type NoteIndex, type TwoHopLink } from "@/lib/noteIndex";
+import {
+  noteBodyReferencesVaultFiles,
+  patchAttachmentSummariesForSavedNote,
+} from "@/lib/patchAttachmentSummaries";
 import { aggregateNearNotes, nearNotesEqual, type NearNote } from "@/lib/nearNotes";
 import {
   deleteEditorViewStateFromCache,
@@ -155,6 +159,8 @@ export function App() {
   const createNoteInFlightRef = useRef(false);
   const prevVaultPathRef = useRef<string | null | undefined>(undefined);
   const snapshotRef = useRef(snapshot);
+  const noteIndexRef = useRef<NoteIndex>(buildNoteIndex([]));
+  const [noteIndexEpoch, bumpNoteIndexEpoch] = useState(0);
   const selectedPathRef = useRef(selectedPath);
   const openTabsRef = useRef(openTabs);
   const activeTabIdRef = useRef(activeTabId);
@@ -222,16 +228,20 @@ export function App() {
         workspacePreferences: next.workspacePreferences ?? prev.workspacePreferences,
       };
       rebuildDiskCommittedTitles(merged, diskCommittedTitleRef);
+      noteIndexRef.current = buildNoteIndex(merged.notes);
       return merged;
     });
+    bumpNoteIndexEpoch((value) => value + 1);
   }, []);
 
   const mergeNoteCreatedFromHost = useCallback((note: NoteSummary) => {
     setSnapshot((prev) => {
       const merged = mergeCreatedNoteIntoSnapshot(prev, note);
       rebuildDiskCommittedTitles(merged, diskCommittedTitleRef);
+      noteIndexRef.current = buildNoteIndex(merged.notes);
       return merged;
     });
+    bumpNoteIndexEpoch((value) => value + 1);
   }, []);
 
   const mergeAttachmentsFromHost = useCallback((attachments: VaultAttachmentSummary[]) => {
@@ -334,7 +344,10 @@ export function App() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const index = useMemo(() => buildNoteIndex(snapshot.notes), [snapshot.notes]);
+  const index = useMemo(() => {
+    void noteIndexEpoch;
+    return noteIndexRef.current;
+  }, [noteIndexEpoch]);
   const notesByPath = useMemo(() => {
     const m = new Map<string, NoteSummary>();
     for (const n of snapshot.notes) {
@@ -455,7 +468,7 @@ export function App() {
     }
 
     const snapshotNow = snapshotRef.current;
-    const noteIndex = buildNoteIndex(snapshotNow.notes);
+    const noteIndex = noteIndexRef.current;
     const entry = noteIndex.entries.get(selectedPath);
     const linkedPaths = new Set<string>();
     for (const linked of entry?.outgoing ?? []) linkedPaths.add(linked.path);
@@ -864,12 +877,23 @@ export function App() {
       let inboundRewriteConfirmed = false;
       const pathNorm = normalizeVaultNotePath(path);
       const oldCommittedTitle = diskCommittedTitleRef.current.get(pathNorm);
+      const oldNote =
+        snapshotRef.current.notes.find((note) => normalizeVaultNotePath(note.path) === pathNorm) ?? null;
       const result = await window.tipsboardDesktop.saveNote(path, body);
-      let mergedNotes: NoteSummary[] = [];
       setSnapshot((current) => {
-        mergedNotes = upsertSavedNote(current.notes, path, result.note);
-        return { ...current, notes: mergedNotes };
+        const mergedNotes = upsertSavedNote(current.notes, path, result.note);
+        if (oldNote) {
+          noteIndexRef.current = patchNoteIndex(noteIndexRef.current, mergedNotes, oldNote, result.note);
+        } else {
+          noteIndexRef.current = buildNoteIndex(mergedNotes);
+        }
+        const next: VaultSnapshot = { ...current, notes: mergedNotes };
+        if (noteBodyReferencesVaultFiles(body)) {
+          next.attachments = patchAttachmentSummariesForSavedNote(current.attachments, result.note, path);
+        }
+        return next;
       });
+      bumpNoteIndexEpoch((value) => value + 1);
       const resultPathNorm = normalizeVaultNotePath(result.note.path);
       if (pathNorm !== resultPathNorm) diskCommittedTitleRef.current.delete(pathNorm);
       diskCommittedTitleRef.current.set(resultPathNorm, result.note.title);
@@ -887,26 +911,22 @@ export function App() {
         moveEditorViewStateInCache(editorViewStateCacheRef.current, pathNorm, resultPathNorm);
       }
 
-      const refreshDiskAttachments = () => {
-        void window.tipsboardDesktop.getAttachmentSummaries().then((attachments) => {
-          setSnapshot((current) => ({ ...current, attachments }));
-        });
-      };
-
-      if (body.includes("assets/files/")) {
-        refreshDiskAttachments();
-      }
-
       if (oldCommittedTitle === undefined) return result.notePath;
 
       const oldNorm = normalizeTitle(oldCommittedTitle);
       const newTitle = result.note.title;
       if (oldNorm === normalizeTitle(newTitle)) return result.notePath;
 
-      /** Disc-based bodies: in-memory snapshot can lag (e.g. deferred refresh while Tipsboard editor is dirty). */
-      const freshSnapshot = await window.tipsboardDesktop.getSnapshot();
-      const scannedNotes = freshSnapshot.notes.map((n) =>
-        normalizeVaultNotePath(n.path) === resultPathNorm ? result.note : n,
+      const inboundPaths = await window.tipsboardDesktop.findInboundWikiLinks(oldNorm);
+      const inboundPathSet = new Set(inboundPaths.map((notePath) => normalizeVaultNotePath(notePath)));
+      const candidateNotes =
+        inboundPathSet.size > 0
+          ? snapshotRef.current.notes.filter((note) =>
+              inboundPathSet.has(normalizeVaultNotePath(note.path)),
+            )
+          : snapshotRef.current.notes;
+      const scannedNotes = candidateNotes.map((note) =>
+        normalizeVaultNotePath(note.path) === resultPathNorm ? result.note : note,
       );
 
       const targets: { path: string; nextBody: string }[] = [];
@@ -934,17 +954,38 @@ export function App() {
       inboundRewriteConfirmed = true;
 
       const selfPath = result.note.path;
-      const others = targets.filter((t) => t.path !== selfPath);
-      const selfTarget = targets.find((t) => t.path === selfPath);
+      const others = targets.filter((target) => target.path !== selfPath);
+      const selfTarget = targets.find((target) => target.path === selfPath);
+
+      const applySecondarySave = (targetPath: string, saved: NoteSummary) => {
+        setSnapshot((current) => {
+          const previous =
+            current.notes.find((note) => normalizeVaultNotePath(note.path) === normalizeVaultNotePath(targetPath)) ??
+            null;
+          const mergedNotes = upsertSavedNote(current.notes, targetPath, saved);
+          if (previous) {
+            noteIndexRef.current = patchNoteIndex(noteIndexRef.current, mergedNotes, previous, saved);
+          } else {
+            noteIndexRef.current = buildNoteIndex(mergedNotes);
+          }
+          const next: VaultSnapshot = { ...current, notes: mergedNotes };
+          if (noteBodyReferencesVaultFiles(saved.body)) {
+            next.attachments = patchAttachmentSummariesForSavedNote(
+              current.attachments,
+              saved,
+              targetPath,
+            );
+          }
+          return next;
+        });
+        bumpNoteIndexEpoch((value) => value + 1);
+        diskCommittedTitleRef.current.set(saved.path, saved.title);
+      };
 
       for (const { path: targetPath, nextBody } of others) {
         try {
           const r2 = await window.tipsboardDesktop.saveNote(targetPath, nextBody);
-          setSnapshot((current) => ({
-            ...current,
-            notes: upsertSavedNote(current.notes, targetPath, r2.note),
-          }));
-          diskCommittedTitleRef.current.set(r2.note.path, r2.note.title);
+          applySecondarySave(targetPath, r2.note);
         } catch (caught) {
           setError(messageForError(caught));
           break;
@@ -954,19 +995,27 @@ export function App() {
       if (selfTarget) {
         try {
           const r2 = await window.tipsboardDesktop.saveNote(selfPath, selfTarget.nextBody);
-          setSnapshot((current) => ({
-            ...current,
-            notes: upsertSavedNote(current.notes, selfPath, r2.note),
-          }));
-          diskCommittedTitleRef.current.set(r2.note.path, r2.note.title);
-          setEditorSessionId((c) => c + 1);
+          applySecondarySave(selfPath, r2.note);
+          setEditorSessionId((current) => current + 1);
         } catch (caught) {
           setError(messageForError(caught));
         }
       }
 
       if (inboundRewriteConfirmed) {
-        refreshDiskAttachments();
+        setSnapshot((current) => {
+          let attachments = current.attachments;
+          for (const target of targets) {
+            if (!noteBodyReferencesVaultFiles(target.nextBody)) continue;
+            const note =
+              current.notes.find(
+                (item) => normalizeVaultNotePath(item.path) === normalizeVaultNotePath(target.path),
+              ) ?? null;
+            if (!note) continue;
+            attachments = patchAttachmentSummariesForSavedNote(attachments, note, target.path);
+          }
+          return attachments === current.attachments ? current : { ...current, attachments };
+        });
       }
 
       return result.notePath;
@@ -975,9 +1024,9 @@ export function App() {
   );
 
   const handleDraftNoteChange = useCallback((path: string, body: string) => {
-    setSnapshot((current) => ({
-      ...current,
-      notes: current.notes.map((note) => {
+    setSnapshot((current) => {
+      const oldNote = current.notes.find((note) => note.path === path) ?? null;
+      const notes = current.notes.map((note) => {
         if (note.path !== path) return note;
         const title = extractDraftTitle(body, note.title);
         return {
@@ -987,8 +1036,14 @@ export function App() {
           body,
           preview: extractDraftPreview(body, note.filename),
         };
-      }),
-    }));
+      });
+      const newNote = notes.find((note) => note.path === path);
+      if (oldNote && newNote) {
+        noteIndexRef.current = patchNoteIndex(noteIndexRef.current, notes, oldNote, newNote);
+      }
+      return { ...current, notes };
+    });
+    bumpNoteIndexEpoch((value) => value + 1);
   }, []);
 
   const handleExportHtml = useCallback(async () => {
