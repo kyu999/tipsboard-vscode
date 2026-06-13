@@ -31,6 +31,10 @@ function isCanvasSide(value: unknown): value is CanvasDocument["edges"][number][
   return value === "top" || value === "right" || value === "bottom" || value === "left";
 }
 
+function isCanvasEdgeEnd(value: unknown): value is NonNullable<CanvasDocument["edges"][number]["fromEnd"]> {
+  return value === "none" || value === "arrow";
+}
+
 function sanitizeNode(raw: unknown): CanvasNode | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
@@ -80,7 +84,20 @@ export function sanitizeCanvasDocument(input: unknown): CanvasDocument {
       if (!id || !fromNode || !toNode || !nodeIds.has(fromNode) || !nodeIds.has(toNode)) return null;
       const fromSide = isCanvasSide(e.fromSide) ? e.fromSide : "right";
       const toSide = isCanvasSide(e.toSide) ? e.toSide : "left";
-      return { id, fromNode, toNode, fromSide, toSide };
+      const fromEnd = isCanvasEdgeEnd(e.fromEnd) ? e.fromEnd : "none";
+      const toEnd = isCanvasEdgeEnd(e.toEnd) ? e.toEnd : "arrow";
+      const label = typeof e.label === "string" ? e.label : undefined;
+      const edge: CanvasDocument["edges"][number] = {
+        id,
+        fromNode,
+        toNode,
+        fromSide,
+        toSide,
+      };
+      if (label !== undefined && label.length > 0) edge.label = label;
+      if (fromEnd !== "none") edge.fromEnd = fromEnd;
+      if (toEnd !== "arrow") edge.toEnd = toEnd;
+      return edge;
     })
     .filter((e): e is CanvasDocument["edges"][number] => e !== null);
 

@@ -1,7 +1,8 @@
-export type VaultFilesChangedAction = "refresh" | "banner";
+export type VaultFilesChangedAction = "refresh" | "ignore";
 
 /**
  * Decide WebView handling for Host `vault-files-changed` (matches `App.tsx` policy).
+ * When the selected note has unsaved edits, skip refresh to avoid overwriting the editor.
  */
 export function resolveVaultFilesChangedAction(input: {
   paths?: string[];
@@ -21,5 +22,5 @@ export function resolveVaultFilesChangedAction(input: {
     }
   }
 
-  return hasUnsavedChanges ? "banner" : "refresh";
+  return hasUnsavedChanges ? "ignore" : "refresh";
 }

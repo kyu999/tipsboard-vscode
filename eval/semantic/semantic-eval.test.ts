@@ -19,9 +19,7 @@ interface QueryEvaluation extends SemanticEvalQueryResult {}
 const TOP_K = readPositiveInteger("TIPSBOARD_SEMANTIC_EVAL_TOP_K", 10);
 
 describe("semantic search evaluation", () => {
-  it(
-    "retrieves public dataset qrels from a seeded Tipsboard vault",
-    async () => {
+  it("retrieves public dataset qrels from a seeded Tipsboard vault", { timeout: 0 }, async () => {
     const root = process.cwd();
     const datasetId = readSemanticEvalDatasetId(process.env.TIPSBOARD_SEMANTIC_EVAL_DATASET);
     const cacheDir = path.join(root, "eval", ".cache");
@@ -136,9 +134,7 @@ describe("semantic search evaluation", () => {
     } finally {
       await seeded.cleanup();
     }
-    },
-    { timeout: 0 },
-  );
+  });
 });
 
 function evaluateQuery(query: SemanticEvalQuery, rankedDocIds: string[], latencyMs: number): QueryEvaluation {

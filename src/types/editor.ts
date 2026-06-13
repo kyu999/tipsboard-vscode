@@ -106,12 +106,17 @@ export type CanvasNode =
   | (CanvasNodeBase & { type: "link"; url: string })
   | (CanvasNodeBase & { type: "group"; label: string });
 
+export type CanvasEdgeEnd = "none" | "arrow";
+
 export interface CanvasEdge {
   id: string;
   fromNode: string;
   toNode: string;
   fromSide: CanvasSide;
   toSide: CanvasSide;
+  label?: string;
+  fromEnd?: CanvasEdgeEnd;
+  toEnd?: CanvasEdgeEnd;
 }
 
 export interface CanvasDocument {

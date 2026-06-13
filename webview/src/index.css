@@ -248,4 +248,62 @@
   .tb-canvas-flow .react-flow__edge.selected .react-flow__edgeupdater {
     cursor: grab;
   }
+
+  /** 選択中エッジの太いヒット領域を無効化し、HTML コントロールのクリックを通す */
+  .tb-canvas-flow .react-flow__edge.selectable.selected {
+    pointer-events: none;
+  }
+
+  .tb-canvas-flow .react-flow__edge.selectable.selected .react-flow__edgeupdater {
+    pointer-events: all;
+  }
+
+  .tb-canvas-flow .react-flow__edgelabel-renderer {
+    @apply pointer-events-none;
+    z-index: 5;
+  }
+
+  .tb-canvas-edge-control {
+    pointer-events: all;
+  }
+
+  .tb-canvas-edge-label {
+    @apply max-w-[200px] truncate rounded-lg border border-stone-300/70 bg-bg-card px-2 py-0.5 text-xs text-text-primary shadow-sm;
+  }
+
+  .tb-canvas-edge-label--placeholder {
+    @apply border-dashed text-text-muted;
+  }
+
+  .tb-canvas-edge-label-input {
+    @apply min-w-[120px] max-w-[200px] rounded-lg border border-accent-link/40 bg-bg-card px-2 py-0.5 text-xs text-text-primary outline-none;
+  }
+
+  .tb-canvas-edge-end-toggle {
+    @apply absolute flex h-7 w-7 items-center justify-center rounded-full border border-stone-300/80 bg-bg-card text-[10px] text-text-muted shadow-sm transition-colors;
+  }
+
+  .tb-canvas-edge-end-toggle:hover {
+    @apply border-accent-link/40 bg-bg-hover text-text-primary;
+  }
+
+  .tb-canvas-edge-end-toggle--active {
+    @apply border-accent-link bg-accent-link text-white shadow-md;
+  }
+
+  .tb-canvas-edge-end-toggle--active:hover {
+    @apply border-accent-link bg-accent-link text-white;
+  }
+
+  .tb-canvas-edge-end-toggle__icon {
+    @apply inline-flex leading-none;
+  }
+
+  .tb-canvas-flow .react-flow__edge-path {
+    @apply stroke-stone-400;
+  }
+
+  .tb-canvas-flow .react-flow__edge.selected .react-flow__edge-path {
+    @apply stroke-accent-link;
+  }
 }

@@ -141,7 +141,6 @@ export function App() {
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const hasUnsavedChanges = saveState === "unsaved" || saveState === "error";
   const [error, setError] = useState<string | null>(null);
-  const [externalChangesPending, setExternalChangesPending] = useState(false);
   const [localMenuOpen, setLocalMenuOpen] = useState(false);
   const [userGuideOpen, setUserGuideOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
@@ -256,7 +255,6 @@ export function App() {
       }
 
       mergeVaultSnapshotFromHost(next);
-      setExternalChangesPending(false);
 
       const pathSet = new Set(next.notes.map((n) => normalizeVaultNotePath(n.path)));
       const tabSync = dropTabsForMissingPaths(openTabsRef.current, activeTabIdRef.current, pathSet);
@@ -294,7 +292,6 @@ export function App() {
         return;
       }
       if (d.event === "vault-root-changed") {
-        setExternalChangesPending(false);
         void refreshSnapshot();
         return;
       }
@@ -305,10 +302,7 @@ export function App() {
           selectedPath: selectedPathRef.current,
           hasUnsavedChanges,
         });
-        if (action === "banner") {
-          setExternalChangesPending(true);
-          return;
-        }
+        if (action === "ignore") return;
         void refreshSnapshot();
       }
     }
@@ -794,12 +788,6 @@ export function App() {
       clearTimeout(exportHtmlBannerTimer.current);
     };
   }, []);
-
-  const handleApplyExternalChanges = useCallback(async () => {
-    if (!(await confirmDiscardChanges())) return;
-    setSaveState("idle");
-    await refreshSnapshot();
-  }, [confirmDiscardChanges, refreshSnapshot]);
 
   const handleCreateNote = useCallback(
     async (initialTitle?: string, options?: { openInNewTab?: boolean }) => {
@@ -2126,21 +2114,6 @@ export function App() {
           <div className="tb-shell pt-4">
             <div className="rounded-xl border border-accent-error/25 bg-accent-error/10 px-4 py-3 text-sm text-accent-error">
               {error}
-            </div>
-          </div>
-        )}
-
-        {externalChangesPending && (
-          <div className="tb-shell pt-4">
-            <div className="flex flex-col gap-3 rounded-xl border border-accent-link/20 bg-accent-link/10 px-4 py-3 text-sm text-text-primary sm:flex-row sm:items-center sm:justify-between">
-              <p>{t("sync.externalChangesPending")}</p>
-              <button
-                type="button"
-                className="tb-btn-secondary self-start sm:self-auto"
-                onClick={() => void handleApplyExternalChanges()}
-              >
-                {t("sync.reload")}
-              </button>
             </div>
           </div>
         )}

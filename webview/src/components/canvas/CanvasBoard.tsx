@@ -21,19 +21,22 @@ import {
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { CanvasBoardContext } from "@/components/canvas/canvasContext";
 import { CanvasFlowControls } from "@/components/canvas/CanvasFlowControls";
+import { canvasEdgeTypes } from "@/components/canvas/canvasEdgeTypes";
 import { canvasNodeTypes } from "@/components/canvas/canvasNodeTypes";
 import { useCanvasPanMode } from "@/components/canvas/useCanvasPanMode";
 import {
   canvasDocumentToFlow,
   createCanvasEdgeId,
+  createDefaultFlowEdge,
   flowToCanvasDocument,
   isConnectStartOnSelectedEdgeEndpoint,
   isConnectionTouchingSelectedEdgeEndpoint,
+  patchFlowEdge,
   sideToSourceHandle,
   sideToTargetHandle,
   type CanvasFlowNode,
 } from "@/lib/canvas/flowAdapter";
-import type { CanvasDocument, NoteSummary } from "@/types";
+import type { CanvasDocument, CanvasEdge, NoteSummary } from "@/types";
 
 interface CanvasBoardInnerProps {
   document: CanvasDocument;
@@ -124,11 +127,15 @@ function CanvasBoardInner({
         return;
       }
       setEdges((current) => {
+        const handles = withDefaultHandles(connection);
         const next = addEdge(
-          {
-            ...withDefaultHandles(connection),
+          createDefaultFlowEdge({
             id: createCanvasEdgeId(),
-          },
+            source: handles.source!,
+            target: handles.target!,
+            sourceHandle: handles.sourceHandle,
+            targetHandle: handles.targetHandle,
+          }),
           current,
         );
         emitDocument(nodesRef.current, next);
@@ -175,6 +182,17 @@ function CanvasBoardInner({
       });
     },
     [emitDocument, setNodes],
+  );
+
+  const updateEdge = useCallback(
+    (edgeId: string, patch: Partial<Pick<CanvasEdge, "label" | "fromEnd" | "toEnd">>) => {
+      setEdges((current) => {
+        const next = current.map((edge) => (edge.id === edgeId ? patchFlowEdge(edge, patch) : edge));
+        emitDocument(nodesRef.current, next);
+        return next;
+      });
+    },
+    [emitDocument, setEdges],
   );
 
   const addNode = useCallback(
@@ -245,8 +263,9 @@ function CanvasBoardInner({
       notesByPath,
       onSelectNote,
       updateNodeData,
+      updateEdge,
     }),
-    [notesByPath, onSelectNote, updateNodeData],
+    [notesByPath, onSelectNote, updateEdge, updateNodeData],
   );
 
   return (
@@ -255,6 +274,8 @@ function CanvasBoardInner({
         nodes={nodes}
         edges={edges}
         nodeTypes={canvasNodeTypes}
+        edgeTypes={canvasEdgeTypes}
+        defaultEdgeOptions={{ type: "canvasLabeled" }}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}

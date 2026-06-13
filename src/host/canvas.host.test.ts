@@ -11,6 +11,7 @@ import {
   loadCanvas,
   patchCanvasNotePaths,
   pruneCanvasNoteNodes,
+  sanitizeCanvasDocument,
   saveCanvas,
 } from "./canvas.js";
 
@@ -78,5 +79,51 @@ describe("canvas host", () => {
     const removed = pruneCanvasNoteNodes(sampleDoc, new Set<string>());
     expect(removed.nodes.some((n) => n.type === "note")).toBe(false);
     expect(removed.edges).toHaveLength(0);
+  });
+
+  it("sanitizes edge label and arrow ends", () => {
+    const sanitized = sanitizeCanvasDocument({
+      version: 1,
+      nodes: sampleDoc.nodes,
+      edges: [
+        {
+          id: "e1",
+          fromNode: "t1",
+          toNode: "n1",
+          fromSide: "right",
+          toSide: "left",
+          label: "leads to",
+          fromEnd: "arrow",
+          toEnd: "none",
+        },
+        {
+          id: "e2",
+          fromNode: "t1",
+          toNode: "n1",
+          fromEnd: "invalid",
+          toEnd: "arrow",
+          label: "",
+        },
+      ],
+      viewport: { zoom: 1, panX: 0, panY: 0 },
+    });
+
+    expect(sanitized.edges[0]).toEqual({
+      id: "e1",
+      fromNode: "t1",
+      toNode: "n1",
+      fromSide: "right",
+      toSide: "left",
+      label: "leads to",
+      fromEnd: "arrow",
+      toEnd: "none",
+    });
+    expect(sanitized.edges[1]).toEqual({
+      id: "e2",
+      fromNode: "t1",
+      toNode: "n1",
+      fromSide: "right",
+      toSide: "left",
+    });
   });
 });

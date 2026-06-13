@@ -12,14 +12,14 @@ describe("resolveVaultFilesChangedAction", () => {
     ).toBe("refresh");
   });
 
-  it("banners when selected note path matches and editor is dirty", () => {
+  it("ignores refresh when selected note path matches and editor is dirty", () => {
     expect(
       resolveVaultFilesChangedAction({
         paths: ["pages/x.md", ".tipsboard/pins.json"],
         selectedPath: "pages/x.md",
         hasUnsavedChanges: true,
       }),
-    ).toBe("banner");
+    ).toBe("ignore");
   });
 
   it("refreshes when selected note matches but editor is clean", () => {
@@ -39,7 +39,7 @@ describe("resolveVaultFilesChangedAction", () => {
         selectedPath: "pages/x.md",
         hasUnsavedChanges: true,
       }),
-    ).toBe("banner");
+    ).toBe("ignore");
   });
 
   it("legacy: no paths uses dirty flag only", () => {
@@ -48,7 +48,7 @@ describe("resolveVaultFilesChangedAction", () => {
         selectedPath: "pages/x.md",
         hasUnsavedChanges: true,
       }),
-    ).toBe("banner");
+    ).toBe("ignore");
     expect(
       resolveVaultFilesChangedAction({
         selectedPath: "pages/x.md",
@@ -63,10 +63,10 @@ describe("resolveVaultFilesChangedAction", () => {
         selectedPath: null,
         hasUnsavedChanges: true,
       }),
-    ).toBe("banner");
+    ).toBe("ignore");
   });
 
-  it("with paths and no selection, never banners", () => {
+  it("with paths and no selection, never ignores", () => {
     expect(
       resolveVaultFilesChangedAction({
         paths: ["pages/x.md"],

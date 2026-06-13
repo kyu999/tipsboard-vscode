@@ -1,10 +1,11 @@
 import { createContext, useContext } from "react";
-import type { NoteSummary } from "@/types";
+import type { CanvasEdge, NoteSummary } from "@/types";
 
 export interface CanvasBoardContextValue {
   notesByPath: Map<string, NoteSummary>;
   onSelectNote: (path: string) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
+  updateEdge: (edgeId: string, patch: Partial<Pick<CanvasEdge, "label" | "fromEnd" | "toEnd">>) => void;
 }
 
 export const CanvasBoardContext = createContext<CanvasBoardContextValue | null>(null);

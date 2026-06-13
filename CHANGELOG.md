@@ -4,6 +4,16 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.11] - 2026-06-13
+
+### Added
+
+- **Canvas edge labels and arrows**: click an edge midpoint to add or edit a label; toggle arrowheads at the start and end of each connection. Values persist in `.tipsboard/canvas/*.canvas` as `label`, `fromEnd`, and `toEnd`.
+
+### Changed
+
+- **External file sync**: removed the “changed elsewhere — Reload” banner while editing a note with unsaved changes. Changes to other vault files (Kanban, pins, other notes, canvases) still auto-refresh in the background; disk changes to the **open** note are skipped until you save or navigate away (unsaved-change prompts unchanged).
+
 ## [0.3.10] - 2026-06-08
 
 ### Fixed

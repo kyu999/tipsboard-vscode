@@ -283,6 +283,11 @@ const en = {
       fitView: "Fit all nodes in view",
       fullScreen: "Toggle VS Code full screen",
     },
+    edges: {
+      addLabel: "Add label",
+      arrowFrom: "Arrow at start",
+      arrowTo: "Arrow at end",
+    },
   },
   attachments: {
     eyebrow: "Vault attachments",
@@ -331,11 +336,6 @@ const en = {
     saving: "Saving…",
     saved: "Saved",
     error: "Save failed",
-  },
-  sync: {
-    externalChangesPending:
-      "This note was changed elsewhere. Review your unsaved edits before reloading.",
-    reload: "Reload",
   },
   editor: {
     clickToEnlargeImage: "Click to enlarge — scroll/pinch or +/- keys to zoom",

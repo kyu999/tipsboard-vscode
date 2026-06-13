@@ -150,7 +150,7 @@ Works naturally with:
 
 No lock-in or proprietary storage format.
 
-While the Tipsboard panel is open, changes made **outside** Tipsboard (another editor, Git, or a sync tool) to Markdown files under the vault, `.tipsboard/kanban.json`, `.tipsboard/pins.json`, or `.tipsboard/canvas/*.canvas` are picked up automatically. The panel refreshes from disk when you have **no unsaved edits** in the Tipsboard editor. If you do have unsaved edits, a notice appears with **Reload**; choosing it asks to discard unsaved changes, then reloads.
+While the Tipsboard panel is open, changes made **outside** Tipsboard (another editor, Git, or a sync tool) to Markdown files under the vault, `.tipsboard/kanban.json`, `.tipsboard/pins.json`, or `.tipsboard/canvas/*.canvas` are picked up automatically when you have **no unsaved edits** in the open note. Other files refresh in the background even while you edit. If the **open** note changes on disk while you have unsaved edits, Tipsboard keeps your in-panel draft and does not show a reload banner.
 
 ---
 
@@ -168,7 +168,7 @@ In **list** view, a tab strip under the header holds open **notes** and **tag se
 
 Arrange notes, text, images, links, and groups on an infinite board. Open **Canvas** from the left sidebar or press **`Ctrl+Shift+C`** (**mac:** `⌘⇧C`).
 
-Each canvas is a plain JSON file under `.tipsboard/canvas/` (for example `.tipsboard/canvas/Project Map.canvas`). You can create multiple canvases, switch between them from the toolbar, and connect nodes with edges. **Note** nodes open the underlying Markdown note when clicked. Hold **Space** and drag to pan; use the on-board controls to zoom or fit all nodes.
+Each canvas is a plain JSON file under `.tipsboard/canvas/` (for example `.tipsboard/canvas/Project Map.canvas`). You can create multiple canvases, switch between them from the toolbar, and connect nodes with edges. Click an edge to add a label or toggle arrowheads at either end. **Note** nodes open the underlying Markdown note when clicked. Hold **Space** and drag to pan; use the on-board controls to zoom or fit all nodes.
 
 Canvas edits autosave to disk. When you rename or delete a note, Tipsboard updates or removes the matching **note** nodes on every canvas.
 

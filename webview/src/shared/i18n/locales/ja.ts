@@ -285,6 +285,11 @@ const ja = {
       fitView: "すべてのノードを表示",
       fullScreen: "VS Code を全画面表示",
     },
+    edges: {
+      addLabel: "ラベルを追加",
+      arrowFrom: "開始側の矢印",
+      arrowTo: "終了側の矢印",
+    },
   },
   attachments: {
     eyebrow: "Vault attachments",
@@ -333,11 +338,6 @@ const ja = {
     saving: "保存中…",
     saved: "保存済み",
     error: "保存に失敗しました",
-  },
-  sync: {
-    externalChangesPending:
-      "このノートが別の場所で変更されました。再読み込みする前に未保存の編集を確認してください。",
-    reload: "更新",
   },
   editor: {
     clickToEnlargeImage: "クリックで拡大 · ホイール・トラックパッドまたは ± キーでズーム",

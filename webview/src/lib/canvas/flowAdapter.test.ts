@@ -19,7 +19,15 @@ const sampleDoc: CanvasDocument = {
     { id: "t2", type: "text", text: "Inside", x: 20, y: 40, width: 200, height: 80, parentId: "g1" },
   ],
   edges: [
-    { id: "e1", fromNode: "t1", toNode: "n1", fromSide: "right", toSide: "left" },
+    {
+      id: "e1",
+      fromNode: "t1",
+      toNode: "n1",
+      fromSide: "right",
+      toSide: "left",
+      label: "connects",
+      fromEnd: "arrow",
+    },
   ],
 };
 
@@ -41,6 +49,10 @@ describe("flowAdapter", () => {
     const edge = flow.edges[0];
     expect(edge?.sourceHandle).toBe("source-right");
     expect(edge?.targetHandle).toBe("target-left");
+    expect(edge?.type).toBe("canvasLabeled");
+    expect(edge?.data).toEqual({ label: "connects", fromEnd: "arrow", toEnd: "arrow" }); // toEnd resolved to default
+    expect(edge?.markerStart).toEqual({ type: "arrowclosed" });
+    expect(edge?.markerEnd).toEqual({ type: "arrowclosed" });
 
     const restored = flowToCanvasDocument(flow.nodes, flow.edges, flow.viewport);
     expect(restored).toEqual(sampleDoc);

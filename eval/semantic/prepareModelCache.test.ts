@@ -11,9 +11,7 @@ import { SEMANTIC_SEARCH_MODEL_IDS } from "../../src/host/semanticSettings.js";
  * Requires network on the machine running this script.
  */
 describe("prepare semantic model cache for deployment", () => {
-  it(
-    "downloads embedding weights into dist/semantic-model-cache",
-    async () => {
+  it("downloads embedding weights into dist/semantic-model-cache", { timeout: 0 }, async () => {
       const root = process.cwd();
       const cacheDir =
         process.env.TIPSBOARD_SEMANTIC_MODEL_CACHE_OUT?.trim() ||
@@ -41,7 +39,5 @@ describe("prepare semantic model cache for deployment", () => {
       }
 
       console.log(`[prepare-model-cache] done: ${cacheDir}`);
-    },
-    { timeout: 0 },
-  );
+  });
 });

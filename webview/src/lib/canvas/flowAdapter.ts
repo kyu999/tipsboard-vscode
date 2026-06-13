@@ -1,5 +1,41 @@
-import type { Edge, Node, Viewport } from "@xyflow/react";
-import type { CanvasDocument, CanvasEdge, CanvasNode, CanvasSide, CanvasViewport } from "@/types";
+import { MarkerType, type Edge, type Node, type Viewport } from "@xyflow/react";
+import type {
+  CanvasDocument,
+  CanvasEdge,
+  CanvasEdgeEnd,
+  CanvasNode,
+  CanvasSide,
+  CanvasViewport,
+} from "@/types";
+
+export type CanvasFlowEdgeData = {
+  label?: string;
+  fromEnd?: CanvasEdgeEnd;
+  toEnd?: CanvasEdgeEnd;
+};
+
+export const DEFAULT_EDGE_FROM_END: CanvasEdgeEnd = "none";
+export const DEFAULT_EDGE_TO_END: CanvasEdgeEnd = "arrow";
+
+export function resolveEdgeFromEnd(value: CanvasEdgeEnd | undefined): CanvasEdgeEnd {
+  return value ?? DEFAULT_EDGE_FROM_END;
+}
+
+export function resolveEdgeToEnd(value: CanvasEdgeEnd | undefined): CanvasEdgeEnd {
+  return value ?? DEFAULT_EDGE_TO_END;
+}
+
+function edgeEndToMarker(end: CanvasEdgeEnd | undefined): Edge["markerEnd"] {
+  return resolveEdgeToEnd(end) === "arrow" ? { type: MarkerType.ArrowClosed } : undefined;
+}
+
+function edgeEndToMarkerStart(end: CanvasEdgeEnd | undefined): Edge["markerStart"] {
+  return resolveEdgeFromEnd(end) === "arrow" ? { type: MarkerType.ArrowClosed } : undefined;
+}
+
+function markerToEdgeEnd(marker: Edge["markerEnd"] | Edge["markerStart"]): CanvasEdgeEnd {
+  return marker ? "arrow" : "none";
+}
 
 export type CanvasFlowNodeData = {
   text?: string;
@@ -190,24 +226,76 @@ export function isConnectionTouchingSelectedEdgeEndpoint(
 }
 
 function edgeToFlow(edge: CanvasEdge): Edge {
+  const fromEnd = resolveEdgeFromEnd(edge.fromEnd);
+  const toEnd = resolveEdgeToEnd(edge.toEnd);
+  const label = edge.label;
   return {
     id: edge.id,
+    type: "canvasLabeled",
     source: edge.fromNode,
     target: edge.toNode,
     sourceHandle: sideToSourceHandle(edge.fromSide),
     targetHandle: sideToTargetHandle(edge.toSide),
+    markerStart: edgeEndToMarkerStart(fromEnd),
+    markerEnd: edgeEndToMarker(toEnd),
+    ...(label ? { label } : {}),
+    data: { label, fromEnd, toEnd },
   };
 }
 
 function flowEdgeToCanvas(edge: Edge): CanvasEdge | null {
   if (!edge.source || !edge.target) return null;
+  const data = (edge.data ?? {}) as CanvasFlowEdgeData;
+  const fromEnd = data.fromEnd ?? markerToEdgeEnd(edge.markerStart);
+  const toEnd = data.toEnd ?? markerToEdgeEnd(edge.markerEnd);
+  const label = typeof data.label === "string" ? data.label : typeof edge.label === "string" ? edge.label : undefined;
   return {
     id: edge.id,
     fromNode: edge.source,
     toNode: edge.target,
     fromSide: handleToSide(edge.sourceHandle, "right"),
     toSide: handleToSide(edge.targetHandle, "left"),
+    ...(label && label.length > 0 ? { label } : {}),
+    ...(fromEnd !== DEFAULT_EDGE_FROM_END ? { fromEnd } : {}),
+    ...(toEnd !== DEFAULT_EDGE_TO_END ? { toEnd } : {}),
   };
+}
+
+export function patchFlowEdge(
+  edge: Edge,
+  patch: Partial<Pick<CanvasEdge, "label" | "fromEnd" | "toEnd">>,
+): Edge {
+  const canvas = flowEdgeToCanvas(edge);
+  if (!canvas) return edge;
+
+  const merged: CanvasEdge = { ...canvas };
+  if ("label" in patch) {
+    const nextLabel = patch.label?.trim();
+    if (nextLabel) merged.label = nextLabel;
+    else delete merged.label;
+  }
+  if (patch.fromEnd !== undefined) merged.fromEnd = patch.fromEnd;
+  if (patch.toEnd !== undefined) merged.toEnd = patch.toEnd;
+
+  return edgeToFlow(merged);
+}
+
+export function createDefaultFlowEdge(connection: {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+}): Edge {
+  return edgeToFlow({
+    id: connection.id,
+    fromNode: connection.source,
+    toNode: connection.target,
+    fromSide: handleToSide(connection.sourceHandle, "right"),
+    toSide: handleToSide(connection.targetHandle, "left"),
+    fromEnd: DEFAULT_EDGE_FROM_END,
+    toEnd: DEFAULT_EDGE_TO_END,
+  });
 }
 
 export function canvasViewportToFlow(viewport: CanvasViewport): Viewport {
