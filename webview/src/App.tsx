@@ -1690,8 +1690,8 @@ export function App() {
                 : "text-text-muted hover:bg-bg-hover hover:text-text-primary"
             }`}
             aria-pressed={viewMode === "canvas"}
-            title={`${t("layout.canvas")} — ${t("layout.shortcutCanvas")}`}
-            aria-label={t("layout.canvas")}
+            title={`${t("layout.canvasExperimental")} — ${t("layout.shortcutCanvas")}`}
+            aria-label={t("layout.canvasExperimental")}
           >
             <i className="fa-solid fa-border-all" aria-hidden />
           </button>
@@ -2402,9 +2402,6 @@ export function App() {
               snapshot={snapshot}
               onCanvasesChange={(canvases) => {
                 setSnapshot((prev) => ({ ...prev, canvases }));
-              }}
-              onSelectNote={(path) => {
-                void handleSelectNote(path);
               }}
               onError={setError}
             />

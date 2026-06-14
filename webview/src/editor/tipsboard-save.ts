@@ -2,7 +2,9 @@ import { type Extension } from "@codemirror/state";
 import { EditorView, keymap, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { SaveState } from "@/types";
 
-const DEFAULT_AUTOSAVE_DELAY_MS = 700;
+import { NOTE_AUTOSAVE_DELAY_MS } from "@/shared/autosaveDelays";
+
+const DEFAULT_AUTOSAVE_DELAY_MS = NOTE_AUTOSAVE_DELAY_MS;
 
 export interface ManualSaveConfig {
   initialContent: string;

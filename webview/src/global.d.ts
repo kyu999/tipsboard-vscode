@@ -2,6 +2,7 @@ import type {
   BulkMoveNotesResponse,
   BulkOrganizeSuggestionsResponse,
   CanvasDocument,
+  CanvasLoadResult,
   CanvasSummary,
   ImportedImage,
   ImportAttachmentBuffersResult,
@@ -45,10 +46,11 @@ declare global {
         toColumnId: string | null,
         position?: number,
       ) => Promise<VaultSnapshot>;
-      getCanvas: (relativePath: string) => Promise<CanvasDocument>;
+      getCanvas: (relativePath: string) => Promise<CanvasLoadResult>;
       saveCanvas: (relativePath: string, document: CanvasDocument) => Promise<CanvasSummary[]>;
       createCanvas: (name: string) => Promise<CanvasSummary[]>;
       deleteCanvas: (relativePath: string) => Promise<CanvasSummary[]>;
+      openCanvasInEditor: (relativePath: string) => Promise<null>;
       exportJson: () => Promise<boolean>;
       /** Save ダイアログで保存した場合のみ `true`（キャンセルは `false`）。 */
       exportHtml: (payload: { html: string; suggestedFileName: string }) => Promise<boolean>;

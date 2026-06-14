@@ -27,7 +27,8 @@ export function isWatchedMarkdownPath(rel: string): boolean {
 
 export function isWatchedVaultMetadataPath(rel: string): boolean {
   const normalized = normalizeVaultRelativePath(rel);
-  return normalized === ".tipsboard/kanban.json" || normalized === ".tipsboard/pins.json";
+  if (normalized === ".tipsboard/kanban.json" || normalized === ".tipsboard/pins.json") return true;
+  return normalized.startsWith(".tipsboard/canvas/") && normalized.endsWith(".canvas");
 }
 
 export function isWatchedVaultPath(rel: string): boolean {

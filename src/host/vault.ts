@@ -9,12 +9,7 @@ import type {
   VaultAttachmentSummary,
   VaultSnapshot,
 } from "../types/editor.js";
-import {
-  cleanupCanvasAfterNoteDelete,
-  listCanvasSummaries,
-  patchCanvasNotePaths,
-  pruneAllCanvasNoteNodes,
-} from "./canvas.js";
+import { listCanvasSummaries } from "./canvas.js";
 import { cleanupKanbanAfterNoteDelete, loadKanbanState, patchKanbanNotePaths, saveKanbanState } from "./kanban.js";
 import {
   cleanupPinsAfterNoteDelete,
@@ -373,7 +368,6 @@ export async function readVault(vaultPath: string | null): Promise<VaultSnapshot
 
   const notesOrdered = reorderNotesWithPins(notes, pinsPruned.paths);
   const workspacePreferences = await loadWorkspacePreferences(vaultPath);
-  await pruneAllCanvasNoteNodes(vaultPath, pathSet);
   const canvases = await listCanvasSummaries(vaultPath);
 
   return {
@@ -496,7 +490,6 @@ export async function saveNote(vaultPath: string, relativePath: string, body: st
       const createdAt = oldStats.birthtimeMs || oldStats.ctimeMs;
       await fs.rename(absOld, absNew);
       await patchKanbanNotePaths(vaultPath, safeRelativePath, finalRelative);
-      await patchCanvasNotePaths(vaultPath, safeRelativePath, finalRelative);
       await patchPinsNotePaths(vaultPath, safeRelativePath, finalRelative);
       await fs.writeFile(absNew, body, "utf8");
       const stats = await fs.stat(absNew);
@@ -506,7 +499,6 @@ export async function saveNote(vaultPath: string, relativePath: string, body: st
     else {
       await fs.writeFile(absNew, body, "utf8");
       await patchKanbanNotePaths(vaultPath, safeRelativePath, finalRelative);
-      await patchCanvasNotePaths(vaultPath, safeRelativePath, finalRelative);
       await patchPinsNotePaths(vaultPath, safeRelativePath, finalRelative);
       const stats = await fs.stat(absNew);
       return noteSummaryFromSavedBody(vaultPath, finalRelative, body, stats);
@@ -549,7 +541,6 @@ export async function moveNoteToFolder(
 
   await fs.rename(absOld, absNew);
   await patchKanbanNotePaths(vaultPath, safeRelativePath, finalRelative);
-  await patchCanvasNotePaths(vaultPath, safeRelativePath, finalRelative);
   await patchPinsNotePaths(vaultPath, safeRelativePath, finalRelative);
   return statNote(vaultPath, finalRelative);
 }
@@ -582,7 +573,6 @@ export async function deleteNote(vaultPath: string, relativePath: string): Promi
   const kanban = await loadKanbanState(vaultPath);
   const nextKanban = cleanupKanbanAfterNoteDelete(kanban, safeRelativePath);
   await saveKanbanState(vaultPath, nextKanban);
-  await cleanupCanvasAfterNoteDelete(vaultPath, safeRelativePath);
   const pins = await loadPinsState(vaultPath);
   await savePinsState(vaultPath, cleanupPinsAfterNoteDelete(pins, safeRelativePath));
 }

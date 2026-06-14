@@ -20,6 +20,7 @@ import {
 } from "../host/vault.js";
 import { findInboundNotePaths } from "../host/noteLinkIndex.js";
 import {
+  canvasAbsPath,
   createCanvas,
   deleteCanvas,
   listCanvasSummaries,
@@ -416,8 +417,8 @@ export async function handleRpcInbound(
       case "getCanvas": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
         const payload = raw.payload as { relativePath?: string };
-        const doc = await loadCanvas(vaultPath, payload.relativePath ?? "");
-        reply({ ok: true, result: doc });
+        const result = await loadCanvas(vaultPath, payload.relativePath ?? "");
+        reply({ ok: true, result });
         return;
       }
 
@@ -425,7 +426,7 @@ export async function handleRpcInbound(
         if (!vaultPath) throw new Error("Vault folder is not selected");
         const payload = raw.payload as { relativePath?: string; document?: CanvasDocument };
         const relativePath = payload.relativePath ?? "";
-        await saveCanvas(vaultPath, relativePath, payload.document ?? { version: 1, nodes: [], edges: [], viewport: { zoom: 1, panX: 0, panY: 0 } });
+        await saveCanvas(vaultPath, relativePath, payload.document ?? { version: 1, nodes: [], edges: [] });
         panel.recordSelfWrites([relativePath.replace(/\\/g, "/")]);
         reply({ ok: true, result: await listCanvasSummaries(vaultPath) });
         return;
@@ -447,6 +448,18 @@ export async function handleRpcInbound(
         await deleteCanvas(vaultPath, relativePath);
         panel.recordSelfWrites([relativePath.replace(/\\/g, "/")]);
         reply({ ok: true, result: await listCanvasSummaries(vaultPath) });
+        return;
+      }
+
+      case "openCanvasInEditor": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const payload = raw.payload as { relativePath?: string };
+        const relativePath = payload.relativePath ?? "";
+        const abs = canvasAbsPath(vaultPath, relativePath);
+        const uri = vscode.Uri.file(abs);
+        const doc = await vscode.workspace.openTextDocument(uri);
+        await vscode.window.showTextDocument(doc, { preview: false });
+        reply({ ok: true, result: null });
         return;
       }
 

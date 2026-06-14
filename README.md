@@ -24,7 +24,7 @@ Tipsboard combines:
 - backlinks and two-hop discovery
 - rich Markdown editing
 - Kanban organization
-- visual **Canvas** boards for arranging notes and ideas
+- **Canvas (experimental)** problem-structure graph editor for causes and solutions
 - image embedding and preview
 - optional local semantic search for finding notes by meaning
 - English and Japanese UI
@@ -164,13 +164,15 @@ In **list** view, a tab strip under the header holds open **notes** and **tag se
 
 ---
 
-### Canvas Boards
+### Canvas (experimental)
 
-Arrange notes, text, images, links, and groups on an infinite board. Open **Canvas** from the left sidebar or press **`Ctrl+Shift+C`** (**mac:** `⌘⇧C`).
+Explore problems, causes, and solutions in a structured **experimental** graph editor. Open **Canvas** from the left sidebar or press **`Ctrl+Shift+C`** (**mac:** `⌘⇧C`).
 
-Each canvas is a plain JSON file under `.tipsboard/canvas/` (for example `.tipsboard/canvas/Project Map.canvas`). You can create multiple canvases, switch between them from the toolbar, and connect nodes with edges. Click an edge to add a label or toggle arrowheads at either end. **Note** nodes open the underlying Markdown note when clicked. Hold **Space** and drag to pan; use the on-board controls to zoom or fit all nodes.
+Each canvas is a Mermaid text file under `.tipsboard/canvas/` (for example `.tipsboard/canvas/Product Issues.canvas`). The **graph** fills the main area; click a node to open a **detail** pane (description and status). Click the background or press Escape to close it. Edits autosave. Use the header **file-code** icon (or **⋯ → Open in editor**) to edit the raw Mermaid in VS Code or an external AI tool.
 
-Canvas edits autosave to disk. When you rename or delete a note, Tipsboard updates or removes the matching **note** nodes on every canvas.
+Problem nodes can be deepened with **Why?** links; leaf problems accept **solution** links. Mark root-cause candidates with status when you stop digging deeper.
+
+**Compatibility:** `.canvas` files created in **v0.3.12 and earlier** (JSON boards from v0.3.9–v0.3.11 and other pre–v0.4.0 formats) **cannot be loaded in v0.4.0 and later**. Create a new canvas or migrate the Mermaid source manually. JSON legacy files are hidden from the canvas list.
 
 ---
 
@@ -284,7 +286,7 @@ assets/files/*
 | `assets/images/*` | Embedded images |
 | `assets/files/*` | Attached files (linked from Markdown) |
 | `.tipsboard/kanban.json` | Kanban board state |
-| `.tipsboard/canvas/*.canvas` | Visual canvas boards (nodes, edges, viewport) |
+| `.tipsboard/canvas/*.canvas` | Problem-structure canvas (experimental; Mermaid text) |
 | `.tipsboard/pins.json` | Pinned note order for the card grid |
 | `.tipsboard/semantic/` | Local semantic search index (created when you use semantic search) |
 
@@ -298,7 +300,7 @@ Tipsboard ignores Markdown inside `.tipsboard/`, `.git/`, `node_modules/`, `dist
 |---|---|
 | `Ctrl+Shift+L` | Open note grid |
 | `Ctrl+Shift+K` | Open Kanban |
-| `Ctrl+Shift+C` (**mac:** `Cmd+Shift+C`) | Open Canvas |
+| `Ctrl+Shift+C` (**mac:** `Cmd+Shift+C`) | Open Canvas (experimental) |
 | `Ctrl+N` (**mac:** `Cmd+N`) | Create note (while the Tipsboard panel is focused; otherwise VS Code keeps this for New File). The sidebar **+** button does the same. |
 | `Alt+←` / `Ctrl+[` (**mac:** `⌥←` / `⌘[` ) | Navigate **back** in Tipsboard (**NavMemory**; skips native inputs and discard dialogs). |
 | `Alt+→` / `Ctrl+]` (**mac:** `⌥→` / `⌘]` ) | Navigate **forward** in Tipsboard when available; **may conflict** with IDE indent elsewhere—override in Keyboard Shortcuts if needed. |

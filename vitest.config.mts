@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.join(root, "webview/src"),
+      "@tipsboard/shared": path.join(root, "src/shared"),
     },
   },
   test: {

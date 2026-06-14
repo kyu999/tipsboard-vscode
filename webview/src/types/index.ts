@@ -77,54 +77,69 @@ export interface KanbanState {
   boards: KanbanBoard[];
 }
 
-export type CanvasSide = "top" | "right" | "bottom" | "left";
+export type CanvasNodeType = "problem" | "solution";
+export type CanvasEdgeType = "because" | "solved_by";
 
-export interface CanvasViewport {
-  zoom: number;
-  panX: number;
-  panY: number;
-}
+export type CanvasProblemStatus =
+  | "open"
+  | "needs_deeper_analysis"
+  | "root_cause_candidate"
+  | "covered";
 
-interface CanvasNodeBase {
+export type CanvasSolutionDecision =
+  | "undecided"
+  | "accepted"
+  | "rejected"
+  | "deferred"
+  | "experiment";
+
+export type CanvasRatingLevel = "low" | "medium" | "high";
+
+export interface CanvasNode {
   id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  parentId?: string;
+  type: CanvasNodeType;
+  title: string;
+  description?: string;
+  status?: CanvasProblemStatus;
+  decision?: CanvasSolutionDecision;
+  impact?: CanvasRatingLevel;
+  effort?: CanvasRatingLevel;
+  confidence?: CanvasRatingLevel;
 }
-
-export type CanvasNode =
-  | (CanvasNodeBase & { type: "text"; text: string })
-  | (CanvasNodeBase & { type: "note"; path: string })
-  | (CanvasNodeBase & { type: "image"; path: string })
-  | (CanvasNodeBase & { type: "link"; url: string })
-  | (CanvasNodeBase & { type: "group"; label: string });
-
-export type CanvasEdgeEnd = "none" | "arrow";
 
 export interface CanvasEdge {
   id: string;
-  fromNode: string;
-  toNode: string;
-  fromSide: CanvasSide;
-  toSide: CanvasSide;
-  label?: string;
-  fromEnd?: CanvasEdgeEnd;
-  toEnd?: CanvasEdgeEnd;
+  from: string;
+  to: string;
+  type: CanvasEdgeType;
 }
 
 export interface CanvasDocument {
   version: 1;
   nodes: CanvasNode[];
   edges: CanvasEdge[];
-  viewport: CanvasViewport;
 }
 
 export interface CanvasSummary {
   relativePath: string;
   name: string;
   updatedAt: number;
+}
+
+export interface CanvasParseError {
+  line: number;
+  message: string;
+}
+
+export interface CanvasParseWarning {
+  line?: number;
+  message: string;
+}
+
+export interface CanvasLoadResult {
+  document: CanvasDocument;
+  warnings: CanvasParseWarning[];
+  errors: CanvasParseError[];
 }
 
 export interface ImportedImage {

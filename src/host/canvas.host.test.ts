@@ -3,15 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { CanvasDocument } from "../types/editor.js";
+import { sanitizeCanvasDocument } from "../shared/canvasMermaid.js";
+import { CANVAS_MERMAID_HEADER } from "../shared/canvasTypes.js";
 import {
-  cleanupCanvasAfterNoteDelete,
   createCanvas,
   deleteCanvas,
   listCanvasSummaries,
   loadCanvas,
-  patchCanvasNotePaths,
-  pruneCanvasNoteNodes,
-  sanitizeCanvasDocument,
   saveCanvas,
 } from "./canvas.js";
 
@@ -26,25 +24,36 @@ async function withVault(run: (vaultPath: string) => Promise<void>): Promise<voi
 
 const sampleDoc: CanvasDocument = {
   version: 1,
-  viewport: { zoom: 1, panX: 0, panY: 0 },
   nodes: [
-    { id: "n1", type: "note", path: "docs/a.md", x: 0, y: 0, width: 200, height: 120 },
-    { id: "t1", type: "text", text: "Hello", x: 100, y: 100, width: 200, height: 80 },
+    { id: "p1", type: "problem", title: "売上が低い", description: "目標未達" },
+    { id: "p2", type: "problem", title: "新規顧客が少ない" },
+    { id: "s1", type: "solution", title: "記事を増やす" },
   ],
-  edges: [{ id: "e1", fromNode: "t1", toNode: "n1", fromSide: "right", toSide: "left" }],
+  edges: [
+    { id: "e1", from: "p1", to: "p2", type: "because" },
+    { id: "e2", from: "p2", to: "s1", type: "solved_by" },
+  ],
 };
 
 describe("canvas host", () => {
-  it("creates, loads, saves, lists, and deletes canvas files", async () => {
+  it("creates, loads, saves, lists, and deletes mermaid canvas files", async () => {
     await withVault(async (vaultPath) => {
       const created = await createCanvas(vaultPath, "agent");
       expect(created.name).toBe("agent");
       expect(created.relativePath).toBe(".tipsboard/canvas/agent.canvas");
 
+      const empty = await loadCanvas(vaultPath, created.relativePath);
+      expect(empty.errors).toEqual([]);
+      expect(empty.document.nodes).toEqual([]);
+
       await saveCanvas(vaultPath, created.relativePath, sampleDoc);
       const loaded = await loadCanvas(vaultPath, created.relativePath);
-      expect(loaded.nodes).toHaveLength(2);
-      expect(loaded.edges).toHaveLength(1);
+      expect(loaded.errors).toEqual([]);
+      expect(loaded.document.nodes).toHaveLength(3);
+      expect(loaded.document.edges).toHaveLength(2);
+
+      const raw = await fs.readFile(path.join(vaultPath, created.relativePath), "utf8");
+      expect(raw).toContain(CANVAS_MERMAID_HEADER);
 
       const summaries = await listCanvasSummaries(vaultPath);
       expect(summaries).toHaveLength(1);
@@ -55,75 +64,36 @@ describe("canvas host", () => {
     });
   });
 
-  it("patches note paths and removes deleted notes", async () => {
+  it("excludes legacy JSON canvas files from summaries", async () => {
     await withVault(async (vaultPath) => {
-      const created = await createCanvas(vaultPath, "map");
-      await saveCanvas(vaultPath, created.relativePath, sampleDoc);
-
-      await patchCanvasNotePaths(vaultPath, "docs/a.md", "docs/b.md");
-      const patched = await loadCanvas(vaultPath, created.relativePath);
-      const noteNode = patched.nodes.find((n) => n.type === "note");
-      expect(noteNode?.type === "note" ? noteNode.path : "").toBe("docs/b.md");
-
-      await cleanupCanvasAfterNoteDelete(vaultPath, "docs/b.md");
-      const cleaned = await loadCanvas(vaultPath, created.relativePath);
-      expect(cleaned.nodes.some((n) => n.type === "note")).toBe(false);
-      expect(cleaned.edges).toHaveLength(0);
+      const dir = path.join(vaultPath, ".tipsboard", "canvas");
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(
+        path.join(dir, "legacy.canvas"),
+        JSON.stringify({ version: 1, nodes: [], edges: [] }),
+        "utf8",
+      );
+      await createCanvas(vaultPath, "new");
+      const summaries = await listCanvasSummaries(vaultPath);
+      expect(summaries).toHaveLength(1);
+      expect(summaries[0]?.name).toBe("new");
     });
   });
 
-  it("prunes missing note nodes", () => {
-    const pruned = pruneCanvasNoteNodes(sampleDoc, new Set(["docs/a.md"]));
-    expect(pruned.nodes.filter((n) => n.type === "note")).toHaveLength(1);
-
-    const removed = pruneCanvasNoteNodes(sampleDoc, new Set<string>());
-    expect(removed.nodes.some((n) => n.type === "note")).toBe(false);
-    expect(removed.edges).toHaveLength(0);
-  });
-
-  it("sanitizes edge label and arrow ends", () => {
+  it("sanitizes invalid nodes and edges", () => {
     const sanitized = sanitizeCanvasDocument({
       version: 1,
-      nodes: sampleDoc.nodes,
-      edges: [
-        {
-          id: "e1",
-          fromNode: "t1",
-          toNode: "n1",
-          fromSide: "right",
-          toSide: "left",
-          label: "leads to",
-          fromEnd: "arrow",
-          toEnd: "none",
-        },
-        {
-          id: "e2",
-          fromNode: "t1",
-          toNode: "n1",
-          fromEnd: "invalid",
-          toEnd: "arrow",
-          label: "",
-        },
+      nodes: [
+        { id: "p1", type: "problem", title: "OK" },
+        { id: "", type: "problem", title: "bad" },
+        { id: "x1", type: "invalid", title: "bad type" },
       ],
-      viewport: { zoom: 1, panX: 0, panY: 0 },
+      edges: [
+        { id: "e1", from: "p1", to: "missing", type: "because" },
+        { id: "e2", from: "p1", to: "p1", type: "because" },
+      ],
     });
-
-    expect(sanitized.edges[0]).toEqual({
-      id: "e1",
-      fromNode: "t1",
-      toNode: "n1",
-      fromSide: "right",
-      toSide: "left",
-      label: "leads to",
-      fromEnd: "arrow",
-      toEnd: "none",
-    });
-    expect(sanitized.edges[1]).toEqual({
-      id: "e2",
-      fromNode: "t1",
-      toNode: "n1",
-      fromSide: "right",
-      toSide: "left",
-    });
+    expect(sanitized.nodes).toHaveLength(1);
+    expect(sanitized.edges).toHaveLength(1);
   });
 });

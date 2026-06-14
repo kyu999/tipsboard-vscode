@@ -4,6 +4,28 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] - 2026-06-14
+
+### Added
+
+- **Canvas (experimental)**: problem-structure graph editor with Mermaid persistence under `.tipsboard/canvas/*.canvas`.
+- **Canvas nodes and edges**: `problem` / `solution` nodes; `because` (deeper cause) and `solved_by` (countermeasure) edges.
+- **Canvas detail pane**: opens when a node is selected — edit title, description, problem `status`, and related parent/child lists. Close with Escape, background click, or the pane header button.
+- **Canvas graph UX**: depth lanes (D0, D1, …), focus highlighting on the selected neighborhood, distributed edge ports, orthogonal routing, pan/zoom, inline title edit (double-click), and link mode for manual connections.
+- **Canvas metadata**: Mermaid `%% status:` on problems; optional `%% impact:` / `effort:` / `confidence:` on solutions (schema only; no rating UI yet).
+- **Canvas rule validation**: warnings for solutions on non-leaf problems and uncovered leaf problems.
+
+### Changed
+
+- **Canvas (experimental)**: replaced the v0.3.9–v0.3.11 JSON infinite board (`@xyflow/react`, text/note/image/link/group nodes) with the problem-structure editor above.
+- **Canvas solutions**: any linked solution counts as coverage; there is no decision picker in the UI (written countermeasures are treated as adopted).
+- **Canvas layout**: graph uses the full main area; the detail pane appears only while a node is selected.
+
+### Removed
+
+- **Legacy Canvas formats**: `.canvas` files created in **v0.3.12 and earlier** (JSON infinite boards from v0.3.9–v0.3.11 and other pre–v0.4.0 formats) **cannot be loaded in v0.4.0+**. They are omitted from the canvas list (JSON) or show a parse error (unsupported legacy). Create a new canvas or migrate the Mermaid source manually.
+- **Canvas infinite-board UI**: free placement, node resize, edge labels/arrowheads, note/image/link/group node types, and note-rename canvas sync from the JSON era.
+
 ## [0.3.12] - 2026-06-13
 
 ### Added

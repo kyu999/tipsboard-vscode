@@ -2,6 +2,7 @@ import type {
   BulkMoveNotesResponse,
   BulkOrganizeSuggestionsResponse,
   CanvasDocument,
+  CanvasLoadResult,
   CanvasSummary,
   ImportedImage,
   ImportAttachmentBuffersResult,
@@ -114,7 +115,7 @@ function wireDesktop(): typeof window.tipsboardDesktop {
       rpc("moveKanbanNote", { boardId, notePath, toColumnId, position: position ?? 0 }) as Promise<VaultSnapshot>,
 
     getCanvas: (relativePath: string) =>
-      rpc("getCanvas", { relativePath }) as Promise<CanvasDocument>,
+      rpc("getCanvas", { relativePath }) as Promise<CanvasLoadResult>,
 
     saveCanvas: (relativePath: string, document: CanvasDocument) =>
       rpc("saveCanvas", { relativePath, document }) as Promise<CanvasSummary[]>,
@@ -123,6 +124,9 @@ function wireDesktop(): typeof window.tipsboardDesktop {
 
     deleteCanvas: (relativePath: string) =>
       rpc("deleteCanvas", { relativePath }) as Promise<CanvasSummary[]>,
+
+    openCanvasInEditor: (relativePath: string) =>
+      rpc("openCanvasInEditor", { relativePath }) as Promise<null>,
 
     exportJson: () => rpc("exportJson") as Promise<boolean>,
     exportHtml: (payload: { html: string; suggestedFileName: string }) =>
