@@ -6,12 +6,12 @@
     <title>Tipsboard — Markdown wiki for VS Code</title>
     <meta
       name="description"
-      content="A Markdown wiki and PKM workspace for VS Code. Wikilinks, backlinks, nearby notes, Kanban, pins, and plain files on disk."
+      content="A Markdown wiki and PKM workspace for VS Code. Wikilinks, backlinks, nearby notes, Kanban, Canvas, pins, and plain files on disk."
     />
     <meta property="og:title" content="Tipsboard — Markdown wiki for VS Code" />
     <meta
       property="og:description"
-      content="Connected notes, backlinks, nearby-note discovery, Kanban, and rich Markdown in VS Code. Plain files, no sign-in."
+      content="Connected notes, backlinks, nearby-note discovery, Kanban, Canvas, and rich Markdown in VS Code. Plain files, no sign-in."
     />
     <meta property="og:type" content="website" />
     <meta
@@ -65,7 +65,7 @@
             <span class="eyebrow">VS Code extension</span>
             <h1 id="hero-title">Your Markdown wiki, inside the editor you already use.</h1>
             <p class="lead">
-              Tipsboard is a personal knowledge workspace: wiki-style <code style="font-family: var(--mono, monospace); font-size: 0.95em">[ … ]</code> links, backlinks, tags, Kanban, and rich Markdown — all backed by plain <code style="font-family: var(--mono, monospace); font-size: 0.95em">.md</code> files you own. Use the same vault folder as the desktop Tipsboard editor if you like. No sign-in. No proprietary database.
+              Tipsboard is a personal knowledge workspace: wiki-style <code style="font-family: var(--mono, monospace); font-size: 0.95em">[ … ]</code> links, backlinks, tags, Kanban, Canvas, and rich Markdown — all backed by plain <code style="font-family: var(--mono, monospace); font-size: 0.95em">.md</code> files you own. Use the same vault folder as the desktop Tipsboard editor if you like. No sign-in. No proprietary database.
             </p>
             <div class="hero-ctas">
               <a
@@ -202,6 +202,24 @@
                 <h3>Kanban boards</h3>
                 <p>
                   Organize work visually. Board state and pin order live in <code style="font-family: var(--mono, monospace); font-size: 0.9em">.tipsboard/kanban.json</code> and <code style="font-family: var(--mono, monospace); font-size: 0.9em">.tipsboard/pins.json</code> without mutating note bodies.
+                </p>
+              </div>
+            </article>
+            <article class="card">
+              <figure class="card-figure">
+                <img
+                  src="https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/canvas_board.png"
+                  width="640"
+                  height="360"
+                  alt="Canvas problem-structure editor with graph and detail pane in Tipsboard."
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <div class="card-body">
+                <h3>Canvas (experimental)</h3>
+                <p>
+                  Map problems, deeper causes, and solutions on a graph backed by Mermaid text under <code style="font-family: var(--mono, monospace); font-size: 0.9em">.tipsboard/canvas/</code>. Select a node to edit description and status in the detail pane.
                 </p>
               </div>
             </article>

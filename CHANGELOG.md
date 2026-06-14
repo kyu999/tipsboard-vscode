@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - **Canvas (experimental)**: problem-structure graph editor with Mermaid persistence under `.tipsboard/canvas/*.canvas`.
+- **Documentation**: Canvas screenshot in README, project site, and wiki specs (`canvas_board.png`).
 - **Canvas nodes and edges**: `problem` / `solution` nodes; `because` (deeper cause) and `solved_by` (countermeasure) edges.
 - **Canvas detail pane**: opens when a node is selected — edit title, description, problem `status`, and related parent/child lists. Close with Escape, background click, or the pane header button.
 - **Canvas graph UX**: depth lanes (D0, D1, …), focus highlighting on the selected neighborhood, distributed edge ports, orthogonal routing, pan/zoom, inline title edit (double-click), and link mode for manual connections.

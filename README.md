@@ -166,6 +166,8 @@ In **list** view, a tab strip under the header holds open **notes** and **tag se
 
 ### Canvas (experimental)
 
+![Canvas problem-structure editor](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/canvas_board.png)
+
 Explore problems, causes, and solutions in a structured **experimental** graph editor. Open **Canvas** from the left sidebar or press **`Ctrl+Shift+C`** (**mac:** `⌘⇧C`).
 
 Each canvas is a Mermaid text file under `.tipsboard/canvas/` (for example `.tipsboard/canvas/Product Issues.canvas`). The **graph** fills the main area; click a node to open a **detail** pane (description and status). Click the background or press Escape to close it. Edits autosave. Use the header **file-code** icon (or **⋯ → Open in editor**) to edit the raw Mermaid in VS Code or an external AI tool.

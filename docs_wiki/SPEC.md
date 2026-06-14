@@ -510,6 +510,10 @@ vault/
 - **保存形式**: vault 相対 `.tipsboard/canvas/<name>.canvas` の Mermaid テキスト（`%% tipsboard-canvas-version: 1` ヘッダ必須）。`parseCanvasMermaid` / `serializeCanvasMermaid`（`src/shared/canvasMermaid.ts`）で内部 `CanvasDocument` と相互変換。
 - **ノード種別**: `problem`（課題）、`solution`（対策）。Cause はノード種別ではなく `because` エッジで表現。
 - **UI**: 中央がグラフ（パン/ズーム、深さレーン、フォーカス強調、インラインタイトル編集、エッジ付け替え・削除）。ノード選択時のみ右に **詳細ペイン**（説明・`status`・親子一覧）。Mermaid ソースはヘッダーのファイルアイコンまたは `openCanvasInEditor` RPC で VS Code を開く。
+
+![](../assets/vscode/marketplace/canvas_board.png)
+
+*図: Canvas 画面（グラフ + ノード選択時の詳細ペイン）。*
 - **カバー判定**: 末端 Problem に Solution が 1 つでもあればカバー済み（意思決定 UI なし・記載した打ち手は採用前提）。
 - **永続化**: WebView 側 debounce 保存（`saveCanvas` RPC）。
 - **キャンバス管理**: ツールバーから作成・切替・削除。構造ルール警告バッジ。`getSnapshot` の `canvases: CanvasSummary[]` で一覧を保持。
