@@ -32,7 +32,9 @@ import {
   createKanbanBoard,
   deleteKanbanBoard,
   deleteKanbanColumn,
+  loadKanbanState,
   moveKanbanNote,
+  moveKanbanNotes,
   updateKanbanBoard,
   updateKanbanColumn,
   createKanbanColumn,
@@ -101,6 +103,10 @@ async function vaultSnapshotPayload(): Promise<Awaited<ReturnType<typeof readVau
     attachmentMaxBytes: readAttachmentMaxBytes(),
     vaultResolution: resolution.status,
   };
+}
+
+async function kanbanRpcPayload(vaultPath: string) {
+  return { kanban: await loadKanbanState(vaultPath) };
 }
 
 export async function handleRpcInbound(
@@ -331,11 +337,17 @@ export async function handleRpcInbound(
         return;
       }
 
+      case "getKanban": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        reply({ ok: true, result: await kanbanRpcPayload(vaultPath) });
+        return;
+      }
+
       case "createKanbanBoard": {
         if (!vaultPath) throw new Error("Vault folder is not selected");
         await createKanbanBoard(vaultPath, String(raw.payload ?? ""));
         panel.recordSelfWrites([".tipsboard/kanban.json"]);
-        reply({ ok: true, result: await readVault(vaultPath) });
+        reply({ ok: true, result: await kanbanRpcPayload(vaultPath) });
         return;
       }
 
@@ -344,7 +356,7 @@ export async function handleRpcInbound(
         const payload = raw.payload as { boardId?: string; name?: string };
         await updateKanbanBoard(vaultPath, payload.boardId ?? "", { name: payload.name });
         panel.recordSelfWrites([".tipsboard/kanban.json"]);
-        reply({ ok: true, result: await readVault(vaultPath) });
+        reply({ ok: true, result: await kanbanRpcPayload(vaultPath) });
         return;
       }
 
@@ -352,7 +364,7 @@ export async function handleRpcInbound(
         if (!vaultPath) throw new Error("Vault folder is not selected");
         await deleteKanbanBoard(vaultPath, String(raw.payload ?? ""));
         panel.recordSelfWrites([".tipsboard/kanban.json"]);
-        reply({ ok: true, result: await readVault(vaultPath) });
+        reply({ ok: true, result: await kanbanRpcPayload(vaultPath) });
         return;
       }
 
@@ -361,7 +373,7 @@ export async function handleRpcInbound(
         const payload = raw.payload as { boardId?: string; name?: string };
         await createKanbanColumn(vaultPath, payload.boardId ?? "", payload.name ?? "");
         panel.recordSelfWrites([".tipsboard/kanban.json"]);
-        reply({ ok: true, result: await readVault(vaultPath) });
+        reply({ ok: true, result: await kanbanRpcPayload(vaultPath) });
         return;
       }
 
@@ -373,7 +385,7 @@ export async function handleRpcInbound(
           position: payload.position,
         });
         panel.recordSelfWrites([".tipsboard/kanban.json"]);
-        reply({ ok: true, result: await readVault(vaultPath) });
+        reply({ ok: true, result: await kanbanRpcPayload(vaultPath) });
         return;
       }
 
@@ -381,7 +393,7 @@ export async function handleRpcInbound(
         if (!vaultPath) throw new Error("Vault folder is not selected");
         await deleteKanbanColumn(vaultPath, String(raw.payload ?? ""));
         panel.recordSelfWrites([".tipsboard/kanban.json"]);
-        reply({ ok: true, result: await readVault(vaultPath) });
+        reply({ ok: true, result: await kanbanRpcPayload(vaultPath) });
         return;
       }
 
@@ -390,7 +402,7 @@ export async function handleRpcInbound(
         const payload = raw.payload as { boardId?: string; columnIds?: string[] };
         await reorderKanbanColumns(vaultPath, payload.boardId ?? "", payload.columnIds ?? []);
         panel.recordSelfWrites([".tipsboard/kanban.json"]);
-        reply({ ok: true, result: await readVault(vaultPath) });
+        reply({ ok: true, result: await kanbanRpcPayload(vaultPath) });
         return;
       }
 
@@ -410,7 +422,19 @@ export async function handleRpcInbound(
           payload.position ?? 0,
         );
         panel.recordSelfWrites([".tipsboard/kanban.json"]);
-        reply({ ok: true, result: await readVault(vaultPath) });
+        reply({ ok: true, result: await kanbanRpcPayload(vaultPath) });
+        return;
+      }
+
+      case "moveKanbanNotes": {
+        if (!vaultPath) throw new Error("Vault folder is not selected");
+        const payload = raw.payload as {
+          boardId?: string;
+          moves?: Array<{ notePath: string; toColumnId: string | null; position: number }>;
+        };
+        await moveKanbanNotes(vaultPath, payload.boardId ?? "", payload.moves ?? []);
+        panel.recordSelfWrites([".tipsboard/kanban.json"]);
+        reply({ ok: true, result: await kanbanRpcPayload(vaultPath) });
         return;
       }
 

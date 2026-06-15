@@ -4,6 +4,23 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.1] - 2026-06-15
+
+### Added
+
+- **Canvas graph**: inline **Why?** / **Solution** actions on nodes (on hover or selection); link handles for drawing `because` / `solved_by` edges without the detail pane.
+- **Canvas edges**: separate **reassign parent** and **reassign target** actions on the edge toolbar (`reassignEdgeSource` in graph utilities).
+- **Kanban performance**: optimistic UI updates for card moves and column reorder; debounced persistence (`400ms`); `getKanban` and `moveKanbanNotes` (batch) RPCs that return `{ kanban }` instead of a full `VaultSnapshot`; partial resync when only `.tipsboard/kanban.json` changes while Kanban is open.
+
+### Changed
+
+- **Canvas**: removed the right-hand detail pane and problem **status** selector from the UI (status metadata in Mermaid remains readable/writable); graph uses the full main area.
+- **Kanban layout**: board uses full panel width (`tb-kanban-shell`); columns are slightly narrower; column headers are a single row (grip, title, **+**, menu) with no card-count badge.
+
+### Fixed
+
+- **Kanban new card**: creating a card from a column’s **+** button could increase the column count while the card stayed invisible (note and kanban state were applied in separate snapshot updates).
+
 ## [0.4.0] - 2026-06-14
 
 ### Added

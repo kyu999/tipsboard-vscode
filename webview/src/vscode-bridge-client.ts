@@ -6,6 +6,7 @@ import type {
   CanvasSummary,
   ImportedImage,
   ImportAttachmentBuffersResult,
+  KanbanRpcResult,
   NoteSummary,
   OrganizeSuggestionsResponse,
   SemanticIndexProgress,
@@ -85,26 +86,26 @@ function wireDesktop(): typeof window.tipsboardDesktop {
     setNotePinned: (notePath: string, pinned: boolean) =>
       rpc("setNotePinned", { path: notePath, pinned }) as Promise<VaultSnapshot>,
 
-    createKanbanBoard: (name: string) => rpc("createKanbanBoard", name) as Promise<VaultSnapshot>,
+    createKanbanBoard: (name: string) => rpc("createKanbanBoard", name) as Promise<KanbanRpcResult>,
 
     updateKanbanBoard: (boardId: string, data: { name?: string }) =>
-      rpc("updateKanbanBoard", { boardId, ...data }) as Promise<VaultSnapshot>,
+      rpc("updateKanbanBoard", { boardId, ...data }) as Promise<KanbanRpcResult>,
 
-    deleteKanbanBoard: (boardId: string) => rpc("deleteKanbanBoard", boardId) as Promise<VaultSnapshot>,
+    deleteKanbanBoard: (boardId: string) => rpc("deleteKanbanBoard", boardId) as Promise<KanbanRpcResult>,
 
     createKanbanColumn: (boardId: string, name: string) =>
-      rpc("createKanbanColumn", { boardId, name }) as Promise<VaultSnapshot>,
+      rpc("createKanbanColumn", { boardId, name }) as Promise<KanbanRpcResult>,
 
     updateKanbanColumn: (
       columnId: string,
       data: { name?: string; position?: number },
-    ) => rpc("updateKanbanColumn", { columnId, ...data }) as Promise<VaultSnapshot>,
+    ) => rpc("updateKanbanColumn", { columnId, ...data }) as Promise<KanbanRpcResult>,
 
     deleteKanbanColumn: (columnId: string) =>
-      rpc("deleteKanbanColumn", columnId) as Promise<VaultSnapshot>,
+      rpc("deleteKanbanColumn", columnId) as Promise<KanbanRpcResult>,
 
     reorderKanbanColumns: (boardId: string, columnIds: string[]) =>
-      rpc("reorderKanbanColumns", { boardId, columnIds }) as Promise<VaultSnapshot>,
+      rpc("reorderKanbanColumns", { boardId, columnIds }) as Promise<KanbanRpcResult>,
 
     moveKanbanNote: (
       boardId: string,
@@ -112,7 +113,14 @@ function wireDesktop(): typeof window.tipsboardDesktop {
       toColumnId: string | null,
       position?: number,
     ) =>
-      rpc("moveKanbanNote", { boardId, notePath, toColumnId, position: position ?? 0 }) as Promise<VaultSnapshot>,
+      rpc("moveKanbanNote", { boardId, notePath, toColumnId, position: position ?? 0 }) as Promise<KanbanRpcResult>,
+
+    moveKanbanNotes: (
+      boardId: string,
+      moves: Array<{ notePath: string; toColumnId: string | null; position: number }>,
+    ) => rpc("moveKanbanNotes", { boardId, moves }) as Promise<KanbanRpcResult>,
+
+    getKanban: () => rpc("getKanban") as Promise<KanbanRpcResult>,
 
     getCanvas: (relativePath: string) =>
       rpc("getCanvas", { relativePath }) as Promise<CanvasLoadResult>,

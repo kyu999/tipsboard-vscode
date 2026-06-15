@@ -211,28 +211,24 @@ function renumberColumn(board: KanbanBoard, columnId: string | null): void {
   });
 }
 
-export async function moveKanbanNote(
-  vaultPath: string,
-  boardId: string,
+function applyMoveToBoard(
+  board: KanbanBoard,
   notePath: string,
   toColumnId: string | null,
   position: number,
-): Promise<void> {
-  const state = await loadKanbanState(vaultPath);
-  const b = state.boards.find((br) => br.id === boardId);
-  if (!b) throw new Error("Board not found");
+): void {
   const np = notePath.replace(/\\/g, "/");
 
-  let card = b.cards.find((c) => c.note_path.replace(/\\/g, "/") === np);
+  let card = board.cards.find((c) => c.note_path.replace(/\\/g, "/") === np);
   if (!card) {
     card = { note_path: np, column_id: toColumnId, position: 0 };
-    b.cards.push(card);
+    board.cards.push(card);
   }
 
   const fromCol = card.column_id;
   card.column_id = toColumnId;
 
-  const targetPeers = b.cards
+  const targetPeers = board.cards
     .filter((c) => c !== card && (toColumnId === null ? c.column_id === null : c.column_id === toColumnId))
     .sort((a, c) => a.position - c.position);
 
@@ -243,9 +239,37 @@ export async function moveKanbanNote(
   });
 
   if (fromCol !== toColumnId) {
-    renumberColumn(b, fromCol ?? null);
+    renumberColumn(board, fromCol ?? null);
   }
+}
 
+export async function moveKanbanNote(
+  vaultPath: string,
+  boardId: string,
+  notePath: string,
+  toColumnId: string | null,
+  position: number,
+): Promise<void> {
+  const state = await loadKanbanState(vaultPath);
+  const b = state.boards.find((br) => br.id === boardId);
+  if (!b) throw new Error("Board not found");
+  applyMoveToBoard(b, notePath, toColumnId, position);
+  b.updated_at = nowIso();
+  await saveKanbanState(vaultPath, state);
+}
+
+export async function moveKanbanNotes(
+  vaultPath: string,
+  boardId: string,
+  moves: ReadonlyArray<{ notePath: string; toColumnId: string | null; position: number }>,
+): Promise<void> {
+  if (moves.length === 0) return;
+  const state = await loadKanbanState(vaultPath);
+  const b = state.boards.find((br) => br.id === boardId);
+  if (!b) throw new Error("Board not found");
+  for (const move of moves) {
+    applyMoveToBoard(b, move.notePath, move.toColumnId, move.position);
+  }
   b.updated_at = nowIso();
   await saveKanbanState(vaultPath, state);
 }

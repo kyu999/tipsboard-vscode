@@ -5,13 +5,15 @@ export function CanvasEdgeToolbar({
   x,
   y,
   edgeType,
-  onReassign,
+  onReassignTarget,
+  onReassignSource,
   onDelete,
 }: {
   x: number;
   y: number;
   edgeType: CanvasEdge["type"];
-  onReassign: () => void;
+  onReassignTarget: () => void;
+  onReassignSource: () => void;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
@@ -34,10 +36,21 @@ export function CanvasEdgeToolbar({
         className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-2xs font-medium text-text-primary hover:bg-bg-hover"
         onClick={(e) => {
           e.stopPropagation();
-          onReassign();
+          onReassignSource();
         }}
       >
-        <i className="fa-solid fa-arrow-right-arrow-left text-[10px]" aria-hidden />
+        <i className="fa-solid fa-arrow-up text-[10px]" aria-hidden />
+        {t("canvas.actions.reassignSource")}
+      </button>
+      <button
+        type="button"
+        className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-2xs font-medium text-text-primary hover:bg-bg-hover"
+        onClick={(e) => {
+          e.stopPropagation();
+          onReassignTarget();
+        }}
+      >
+        <i className="fa-solid fa-arrow-down text-[10px]" aria-hidden />
         {t("canvas.actions.reassignEdge")}
       </button>
       <button

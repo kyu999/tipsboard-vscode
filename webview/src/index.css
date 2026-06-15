@@ -57,6 +57,10 @@
     @apply mx-auto w-full min-w-0 max-w-6xl px-4 sm:px-6 lg:px-8;
   }
 
+  .tb-kanban-shell {
+    @apply mx-auto w-full min-w-0 max-w-none px-3 sm:px-4;
+  }
+
   .tb-card {
     @apply rounded-2xl border border-accent-link/10 bg-bg-card shadow-card;
   }

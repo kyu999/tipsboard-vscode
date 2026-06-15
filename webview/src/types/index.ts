@@ -77,6 +77,10 @@ export interface KanbanState {
   boards: KanbanBoard[];
 }
 
+export interface KanbanRpcResult {
+  kanban: KanbanState;
+}
+
 export type CanvasNodeType = "problem" | "solution";
 export type CanvasEdgeType = "because" | "solved_by";
 

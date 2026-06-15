@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TextInputDialog } from "@/components/TextInputDialog";
 import { CanvasGraph, type CanvasLinkMode } from "@/components/canvas/CanvasGraph";
-import { CanvasDetailPane } from "@/components/canvas/CanvasDetailPane";
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
 import {
   addChildProblem,
@@ -12,6 +11,7 @@ import {
   connectExistingNode,
   createNodeId,
   isLeafProblem,
+  reassignEdgeSource,
   reassignEdgeTarget,
   removeEdgeFromDocument,
   removeNodeFromDocument,
@@ -352,14 +352,17 @@ export function CanvasView({ snapshot, onCanvasesChange, onError }: CanvasViewPr
     (fromId: string, toId: string, edgeType: CanvasEdge["type"]) => {
       let next = document;
       if (linkMode?.reassignEdgeId) {
-        next = reassignEdgeTarget(document, linkMode.reassignEdgeId, toId);
+        next =
+          linkMode.reassignMode === "source"
+            ? reassignEdgeSource(document, linkMode.reassignEdgeId, fromId)
+            : reassignEdgeTarget(document, linkMode.reassignEdgeId, toId);
       } else {
         next = connectExistingNode(document, fromId, toId, edgeType);
       }
       applyDocument(next);
       setLinkMode(null);
       setSelectedEdgeId(null);
-      setSelectedNodeId(toId);
+      setSelectedNodeId(linkMode?.reassignMode === "source" ? fromId : toId);
     },
     [applyDocument, document, linkMode],
   );
@@ -410,12 +413,17 @@ export function CanvasView({ snapshot, onCanvasesChange, onError }: CanvasViewPr
   }, [document]);
 
   const reassignEdge = useCallback(
-    (edgeId: string) => {
+    (edgeId: string, mode: "target" | "source") => {
       const edge = document.edges.find((e) => e.id === edgeId);
       if (!edge) return;
       setSelectedEdgeId(edgeId);
       setSelectedNodeId(null);
-      setLinkMode({ fromId: edge.from, edgeType: edge.type, reassignEdgeId: edgeId });
+      setLinkMode({
+        fromId: mode === "source" ? edge.to : edge.from,
+        edgeType: edge.type,
+        reassignEdgeId: edgeId,
+        reassignMode: mode,
+      });
     },
     [document.edges],
   );
@@ -684,19 +692,6 @@ export function CanvasView({ snapshot, onCanvasesChange, onError }: CanvasViewPr
             onReassignEdge={reassignEdge}
             onAddRootProblem={addRootProblem}
           />
-          {selectedNodeId && (
-            <CanvasDetailPane
-              document={document}
-              selectedNodeId={selectedNodeId}
-              onClose={() => handleSelectNode(null)}
-              onSelectNode={(id) => handleSelectNode(id)}
-              onUpdateNode={handleUpdateNode}
-              onAddWhy={addWhyChild}
-              onAddSolution={addSolutionChild}
-              onStartLinkBecause={startLinkBecause}
-              onStartLinkSolution={startLinkSolution}
-            />
-          )}
         </div>
       )}
 

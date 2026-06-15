@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { KanbanBoard, KanbanState } from "../types/editor.js";
-import { loadKanbanState, moveKanbanNote, reorderKanbanColumns, saveKanbanState } from "./kanban.js";
+import { loadKanbanState, moveKanbanNote, moveKanbanNotes, reorderKanbanColumns, saveKanbanState } from "./kanban.js";
 
 async function withVault(run: (vaultPath: string) => Promise<void>): Promise<void> {
   const vaultPath = await fs.mkdtemp(path.join(os.tmpdir(), "tipsboard-vs-kanban-"));
@@ -232,6 +232,27 @@ describe("kanban host", () => {
       await moveKanbanNote(vaultPath, "board-1", "pages/c.md", "todo", 99);
       const afterOverflow = await loadKanbanState(vaultPath);
       expect(cardsInColumn(afterOverflow, "todo")).toEqual(["pages/a.md:0", "pages/b.md:1", "pages/c.md:2"]);
+    });
+  });
+
+  it("moves multiple notes in one save", async () => {
+    await withVault(async (vaultPath) => {
+      await saveKanbanState(
+        vaultPath,
+        boardWithCards([
+          { note_path: "pages/a.md", column_id: "todo", position: 0 },
+          { note_path: "pages/b.md", column_id: "todo", position: 1 },
+          { note_path: "pages/c.md", column_id: "done", position: 0 },
+        ]),
+      );
+
+      await moveKanbanNotes(vaultPath, "board-1", [
+        { notePath: "pages/a.md", toColumnId: "done", position: 0 },
+        { notePath: "pages/c.md", toColumnId: "todo", position: 1 },
+      ]);
+      const state = await loadKanbanState(vaultPath);
+      expect(cardsInColumn(state, "todo")).toEqual(["pages/b.md:0", "pages/c.md:1"]);
+      expect(cardsInColumn(state, "done")).toEqual(["pages/a.md:0"]);
     });
   });
 });

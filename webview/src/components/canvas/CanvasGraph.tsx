@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { palette } from "@/theme/palette";
 import type { CanvasDocument, CanvasEdge } from "@/types";
-import { buildCanvasGraphIndex, getFocusNeighborhood, isValidConnection, isLeafProblem, problemNeedsSolution } from "@/lib/canvas/graphUtils";
+import { buildCanvasGraphIndex, canReassignEdgeSource, canReassignEdgeTarget, getFocusNeighborhood, isValidConnection, isLeafProblem, problemNeedsSolution } from "@/lib/canvas/graphUtils";
 import {
   computeEdgeGeometry,
   computeGraphLayout,
@@ -144,6 +144,7 @@ export type CanvasLinkMode = {
   fromId: string;
   edgeType: CanvasEdge["type"];
   reassignEdgeId?: string;
+  reassignMode?: "target" | "source";
 };
 
 function offsetRect(rect: LayoutRect): LayoutRect {
@@ -201,7 +202,7 @@ export function CanvasGraph({
   onAddSolution: (nodeId: string) => void;
   onDeleteNode: (nodeId: string) => void;
   onDeleteEdge: (edgeId: string) => void;
-  onReassignEdge: (edgeId: string) => void;
+  onReassignEdge: (edgeId: string, mode: "target" | "source") => void;
   onAddRootProblem: () => void;
 }) {
   const { t } = useTranslation();
@@ -235,6 +236,12 @@ export function CanvasGraph({
   const linkPreviewAnchor = useMemo(() => {
     if (!linkMode || !linkSourceRect) return null;
     const from = offsetRect(linkSourceRect);
+    if (linkMode.reassignEdgeId && linkMode.reassignMode === "source") {
+      if (linkMode.edgeType === "solved_by") {
+        return { x: from.x, y: from.y + from.height / 2 };
+      }
+      return { x: from.x + from.width / 2, y: from.y };
+    }
     if (linkMode.edgeType === "solved_by") {
       return { x: from.x + from.width, y: from.y + from.height / 2 };
     }
@@ -322,7 +329,17 @@ export function CanvasGraph({
   const handleNodeClick = useCallback(
     (nodeId: string) => {
       if (linkMode) {
-        if (isValidConnection(document, linkMode.fromId, nodeId, linkMode.edgeType)) {
+        if (linkMode.reassignEdgeId) {
+          const edge = document.edges.find((e) => e.id === linkMode.reassignEdgeId);
+          if (!edge) return;
+          if (linkMode.reassignMode === "source") {
+            if (canReassignEdgeSource(document, linkMode.reassignEdgeId, nodeId)) {
+              onConnect(nodeId, edge.to, edge.type);
+            }
+          } else if (canReassignEdgeTarget(document, linkMode.reassignEdgeId, nodeId)) {
+            onConnect(edge.from, nodeId, edge.type);
+          }
+        } else if (isValidConnection(document, linkMode.fromId, nodeId, linkMode.edgeType)) {
           onConnect(linkMode.fromId, nodeId, linkMode.edgeType);
         }
         return;
@@ -382,7 +399,9 @@ export function CanvasGraph({
       {linkMode && (
         <div className="pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full border border-accent-link/25 bg-bg-card px-4 py-1.5 text-xs text-text-primary shadow-sm">
           {linkMode.reassignEdgeId
-            ? t("canvas.graph.reassignHint")
+            ? linkMode.reassignMode === "source"
+              ? t("canvas.graph.reassignSourceHint")
+              : t("canvas.graph.reassignHint")
             : linkMode.edgeType === "because"
               ? t("canvas.graph.linkBecauseHint")
               : t("canvas.graph.linkSolutionHint")}
@@ -477,6 +496,7 @@ export function CanvasGraph({
             const depth = node.type === "problem" ? layout.depths.get(node.id) : undefined;
             const dimmed =
               focusIds !== null && selectedNodeId !== null && !focusIds.has(node.id);
+            const showActions = selectedNodeId === node.id || hoverNodeId === node.id;
             return (
               <div
                 key={node.id}
@@ -488,6 +508,7 @@ export function CanvasGraph({
                   node={node}
                   depth={depth}
                   selected={selectedNodeId === node.id}
+                  hovered={hoverNodeId === node.id}
                   missingSolution={node.type === "problem" && problemNeedsSolution(graphIndex, node.id)}
                   canLinkSolution={node.type === "problem" && isLeafProblem(graphIndex, node.id)}
                   editing={editingNodeId === node.id}
@@ -496,10 +517,14 @@ export function CanvasGraph({
                     Boolean(
                       linkMode &&
                         hoverNodeId === node.id &&
-                        isValidConnection(document, linkMode.fromId, node.id, linkMode.edgeType),
+                        (linkMode.reassignEdgeId
+                          ? linkMode.reassignMode === "source"
+                            ? canReassignEdgeSource(document, linkMode.reassignEdgeId, node.id)
+                            : canReassignEdgeTarget(document, linkMode.reassignEdgeId, node.id)
+                          : isValidConnection(document, linkMode.fromId, node.id, linkMode.edgeType)),
                     )
                   }
-                  showInlineActions={false}
+                  showInlineActions={showActions}
                   left={r.x}
                   top={r.y}
                   width={r.width}
@@ -554,7 +579,8 @@ export function CanvasGraph({
               x={selectedEdgeMid.x}
               y={selectedEdgeMid.y}
               edgeType={selectedEdge.type}
-              onReassign={() => onReassignEdge(selectedEdge.id)}
+              onReassignTarget={() => onReassignEdge(selectedEdge.id, "target")}
+              onReassignSource={() => onReassignEdge(selectedEdge.id, "source")}
               onDelete={() => onDeleteEdge(selectedEdge.id)}
             />
           )}

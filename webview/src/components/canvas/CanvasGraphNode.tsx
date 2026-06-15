@@ -6,6 +6,7 @@ export function CanvasGraphNode({
   node,
   depth,
   selected,
+  hovered = false,
   missingSolution,
   canLinkSolution,
   editing,
@@ -29,6 +30,7 @@ export function CanvasGraphNode({
   node: CanvasNode;
   depth?: number;
   selected: boolean;
+  hovered?: boolean;
   missingSolution: boolean;
   canLinkSolution: boolean;
   editing: boolean;
@@ -81,7 +83,7 @@ export function CanvasGraphNode({
       style={{ left, top, width, minHeight: height }}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      {selected && showInlineActions && (
+      {showInlineActions && (
         <div className="absolute left-0 right-0 top-[calc(100%+14px)] z-30 flex items-center justify-center gap-1">
           {isProblem && (
             <>
@@ -144,7 +146,9 @@ export function CanvasGraphNode({
             ? missingSolution
               ? "ring-2 ring-red-400/50"
               : "ring-2 ring-accent-link/40"
-            : linkSource
+            : hovered
+              ? "shadow-md"
+              : linkSource
               ? "ring-2 ring-accent-link"
               : linkTarget
                 ? "ring-2 ring-emerald-500"
@@ -213,7 +217,7 @@ export function CanvasGraphNode({
         )}
       </div>
 
-      {isProblem && selected && showInlineActions && (
+      {isProblem && showInlineActions && (
         <>
           <button
             type="button"

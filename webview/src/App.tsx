@@ -162,6 +162,7 @@ export function App() {
   const noteIndexRef = useRef<NoteIndex>(buildNoteIndex([]));
   const [noteIndexEpoch, bumpNoteIndexEpoch] = useState(0);
   const selectedPathRef = useRef(selectedPath);
+  const viewModeRef = useRef(viewMode);
   const openTabsRef = useRef(openTabs);
   const activeTabIdRef = useRef(activeTabId);
   const diskCommittedTitleRef = useRef<Map<string, string>>(new Map());
@@ -182,6 +183,10 @@ export function App() {
   useEffect(() => {
     selectedPathRef.current = selectedPath;
   }, [selectedPath]);
+
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+  }, [viewMode]);
 
   useEffect(() => {
     openTabsRef.current = openTabs;
@@ -246,6 +251,10 @@ export function App() {
 
   const mergeAttachmentsFromHost = useCallback((attachments: VaultAttachmentSummary[]) => {
     setSnapshot((prev) => ({ ...prev, attachments }));
+  }, []);
+
+  const mergeKanbanFromHost = useCallback((kanban: VaultSnapshot["kanban"]) => {
+    setSnapshot((prev) => ({ ...prev, kanban }));
   }, []);
 
   const refreshSnapshot = useCallback(async () => {
@@ -313,12 +322,22 @@ export function App() {
           hasUnsavedChanges,
         });
         if (action === "ignore") return;
+        const normalizedPaths = payload.paths?.map((p) => p.replace(/\\/g, "/"));
+        const onlyKanbanChanged =
+          normalizedPaths?.length === 1 && normalizedPaths[0] === ".tipsboard/kanban.json";
+        if (onlyKanbanChanged && viewModeRef.current === "kanban") {
+          void window.tipsboardDesktop
+            .getKanban()
+            .then((result) => mergeKanbanFromHost(result.kanban))
+            .catch((caught) => setError(messageForError(caught)));
+          return;
+        }
         void refreshSnapshot();
       }
     }
     window.addEventListener("message", onHostEvent);
     return () => window.removeEventListener("message", onHostEvent);
-  }, [hasUnsavedChanges, refreshSnapshot]);
+  }, [hasUnsavedChanges, mergeKanbanFromHost, refreshSnapshot]);
 
   useEffect(() => {
     if (prevVaultPathRef.current === undefined) {

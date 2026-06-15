@@ -208,6 +208,30 @@ export function reassignEdgeTarget(doc: CanvasDocument, edgeId: string, newTo: s
   };
 }
 
+export function canReassignEdgeTarget(doc: CanvasDocument, edgeId: string, newTo: string): boolean {
+  const edge = doc.edges.find((e) => e.id === edgeId);
+  if (!edge) return false;
+  return isValidConnection(doc, edge.from, newTo, edge.type);
+}
+
+export function canReassignEdgeSource(doc: CanvasDocument, edgeId: string, newFrom: string): boolean {
+  const edge = doc.edges.find((e) => e.id === edgeId);
+  if (!edge) return false;
+  const withoutEdge = removeEdgeFromDocument(doc, edgeId);
+  return isValidConnection(withoutEdge, newFrom, edge.to, edge.type);
+}
+
+export function reassignEdgeSource(doc: CanvasDocument, edgeId: string, newFrom: string): CanvasDocument {
+  const edge = doc.edges.find((e) => e.id === edgeId);
+  if (!edge) return doc;
+  const withoutEdge = removeEdgeFromDocument(doc, edgeId);
+  if (!isValidConnection(withoutEdge, newFrom, edge.to, edge.type)) return doc;
+  return {
+    ...withoutEdge,
+    edges: [...withoutEdge.edges, createEdge(newFrom, edge.to, edge.type)],
+  };
+}
+
 export function hasBecausePath(index: CanvasGraphIndex, fromId: string, toId: string): boolean {
   if (fromId === toId) return true;
   const stack = [fromId];

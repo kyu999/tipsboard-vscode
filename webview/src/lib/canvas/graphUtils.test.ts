@@ -15,6 +15,10 @@ import {
   problemHasSolution,
   problemNeedsSolution,
   addChildSolution,
+  reassignEdgeTarget,
+  reassignEdgeSource,
+  canReassignEdgeSource,
+  canReassignEdgeTarget,
 } from "./graphUtils";
 import { computeGraphLayout } from "./graphLayout";
 import { buildOutlineForest, flattenOutlineNodes } from "./outlineTree";
@@ -123,6 +127,17 @@ describe("graphUtils", () => {
     expect(isValidConnection(doc, "p2", "p1", "because")).toBe(false);
     expect(isValidConnection(cyclic, "p1", "p2", "because")).toBe(false);
     expect(isValidConnection(doc, "p1", "p4", "because")).toBe(true);
+  });
+
+  it("reassigns edge target and source while preserving constraints", () => {
+    expect(canReassignEdgeTarget(doc, "e1", "p4")).toBe(true);
+    const targetMoved = reassignEdgeTarget(doc, "e1", "p4");
+    expect(targetMoved.edges.some((e) => e.from === "p1" && e.to === "p4" && e.type === "because")).toBe(true);
+
+    expect(canReassignEdgeSource(doc, "e3", "p1")).toBe(true);
+    const sourceMoved = reassignEdgeSource(doc, "e3", "p1");
+    expect(sourceMoved.edges.some((e) => e.from === "p1" && e.to === "p4" && e.type === "because")).toBe(true);
+    expect(canReassignEdgeSource(doc, "e3", "p4")).toBe(false);
   });
 });
 

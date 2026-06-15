@@ -6,6 +6,7 @@ import type {
   CanvasSummary,
   ImportedImage,
   ImportAttachmentBuffersResult,
+  KanbanRpcResult,
   NoteSummary,
   OrganizeSuggestionsResponse,
   SemanticIndexProgress,
@@ -30,22 +31,27 @@ declare global {
       ) => Promise<{ notePath: string; note: NoteSummary }>;
       deleteNote: (path: string) => Promise<VaultSnapshot>;
       setNotePinned: (path: string, pinned: boolean) => Promise<VaultSnapshot>;
-      createKanbanBoard: (name: string) => Promise<VaultSnapshot>;
-      updateKanbanBoard: (boardId: string, data: { name?: string }) => Promise<VaultSnapshot>;
-      deleteKanbanBoard: (boardId: string) => Promise<VaultSnapshot>;
-      createKanbanColumn: (boardId: string, name: string) => Promise<VaultSnapshot>;
+      createKanbanBoard: (name: string) => Promise<KanbanRpcResult>;
+      updateKanbanBoard: (boardId: string, data: { name?: string }) => Promise<KanbanRpcResult>;
+      deleteKanbanBoard: (boardId: string) => Promise<KanbanRpcResult>;
+      createKanbanColumn: (boardId: string, name: string) => Promise<KanbanRpcResult>;
       updateKanbanColumn: (
         columnId: string,
         data: { name?: string; position?: number },
-      ) => Promise<VaultSnapshot>;
-      deleteKanbanColumn: (columnId: string) => Promise<VaultSnapshot>;
-      reorderKanbanColumns: (boardId: string, columnIds: string[]) => Promise<VaultSnapshot>;
+      ) => Promise<KanbanRpcResult>;
+      deleteKanbanColumn: (columnId: string) => Promise<KanbanRpcResult>;
+      reorderKanbanColumns: (boardId: string, columnIds: string[]) => Promise<KanbanRpcResult>;
       moveKanbanNote: (
         boardId: string,
         notePath: string,
         toColumnId: string | null,
         position?: number,
-      ) => Promise<VaultSnapshot>;
+      ) => Promise<KanbanRpcResult>;
+      moveKanbanNotes: (
+        boardId: string,
+        moves: Array<{ notePath: string; toColumnId: string | null; position: number }>,
+      ) => Promise<KanbanRpcResult>;
+      getKanban: () => Promise<KanbanRpcResult>;
       getCanvas: (relativePath: string) => Promise<CanvasLoadResult>;
       saveCanvas: (relativePath: string, document: CanvasDocument) => Promise<CanvasSummary[]>;
       createCanvas: (name: string) => Promise<CanvasSummary[]>;

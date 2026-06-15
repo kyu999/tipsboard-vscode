@@ -4,10 +4,16 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TextInputDialog } from "@/components/TextInputDialog";
 import { reorderColumnsWithPlacement } from "@/lib/kanbanColumnReorder";
 import { getKanbanDropPosition, type KanbanDropPlacement } from "@/lib/kanbanDropPosition";
+import {
+  applyMoveKanbanNoteInState,
+  applyMoveKanbanNotesInState,
+  applyReorderKanbanColumnsInState,
+} from "@/lib/kanbanStateOps";
 import { mergeCreatedNoteIntoSnapshot } from "@/lib/mergeCreatedNote";
 import { runUnlessInFlight } from "@/lib/runUnlessInFlight";
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
-import type { KanbanCardState, NoteSummary, VaultSnapshot } from "@/types";
+import { KANBAN_SAVE_DEBOUNCE_MS } from "@/shared/autosaveDelays";
+import type { KanbanCardState, KanbanRpcResult, KanbanState, NoteSummary, VaultSnapshot } from "@/types";
 
 const KANBAN_COLUMN_DRAG_MIME = "application/x-tipsboard-kanban-column";
 
@@ -86,8 +92,19 @@ export function KanbanBoardView({
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const focusedScrollKeyRef = useRef<string | null>(null);
   const createKanbanCardInFlightRef = useRef(false);
+  const snapshotRef = useRef(snapshot);
+  const selectedBoardIdRef = useRef(selectedBoardId);
+  const kanbanSaveTimerRef = useRef<number | null>(null);
+  const kanbanPersistInFlightRef = useRef(false);
+  const pendingKanbanMovesRef = useRef<
+    Array<{ notePath: string; toColumnId: string | null; position: number }>
+  >([]);
+  const pendingColumnOrderRef = useRef<{ boardId: string; columnIds: string[] } | null>(null);
   const boardPickerRef = useClickOutside<HTMLDivElement>(boardPickerOpen, () => setBoardPickerOpen(false));
   const boardMenuRef = useClickOutside<HTMLDivElement>(boardMenuOpen, () => setBoardMenuOpen(false));
+
+  snapshotRef.current = snapshot;
+  selectedBoardIdRef.current = selectedBoardId;
 
   const selectedBoard = useMemo(() => {
     return snapshot.kanban.boards.find((board) => board.id === selectedBoardId) ?? null;
@@ -200,9 +217,80 @@ export function KanbanBoardView({
       });
   }, [existingQuery, selectedBoard?.cards, snapshot.notes, tagMap]);
 
-  const applySnapshot = useCallback((next: VaultSnapshot) => {
-    onSnapshotChange(next);
-  }, [onSnapshotChange]);
+  const applyKanbanLocal = useCallback(
+    (kanban: KanbanState) => {
+      onSnapshotChange({ ...snapshotRef.current, kanban });
+    },
+    [onSnapshotChange],
+  );
+
+  const mergeKanbanFromRpc = useCallback(
+    (result: KanbanRpcResult) => {
+      onSnapshotChange({ ...snapshotRef.current, kanban: result.kanban });
+    },
+    [onSnapshotChange],
+  );
+
+  const flushKanbanPersist = useCallback(async () => {
+    if (kanbanPersistInFlightRef.current) return;
+    const moves = pendingKanbanMovesRef.current;
+    const columnOrder = pendingColumnOrderRef.current;
+    pendingKanbanMovesRef.current = [];
+    pendingColumnOrderRef.current = null;
+    if (moves.length === 0 && !columnOrder) return;
+
+    const rollbackKanban = snapshotRef.current.kanban;
+    kanbanPersistInFlightRef.current = true;
+    try {
+      if (columnOrder) {
+        const result = await window.tipsboardDesktop.reorderKanbanColumns(
+          columnOrder.boardId,
+          columnOrder.columnIds,
+        );
+        mergeKanbanFromRpc(result);
+      }
+      if (moves.length > 0) {
+        const boardId = selectedBoardIdRef.current;
+        if (!boardId) return;
+        const result =
+          moves.length === 1
+            ? await window.tipsboardDesktop.moveKanbanNote(
+                boardId,
+                moves[0]!.notePath,
+                moves[0]!.toColumnId,
+                moves[0]!.position,
+              )
+            : await window.tipsboardDesktop.moveKanbanNotes(boardId, moves);
+        mergeKanbanFromRpc(result);
+      }
+    } catch (error) {
+      applyKanbanLocal(rollbackKanban);
+      onError(messageForError(error));
+    } finally {
+      kanbanPersistInFlightRef.current = false;
+      if (pendingKanbanMovesRef.current.length > 0 || pendingColumnOrderRef.current) {
+        if (kanbanSaveTimerRef.current !== null) window.clearTimeout(kanbanSaveTimerRef.current);
+        kanbanSaveTimerRef.current = window.setTimeout(() => {
+          kanbanSaveTimerRef.current = null;
+          void flushKanbanPersist();
+        }, KANBAN_SAVE_DEBOUNCE_MS);
+      }
+    }
+  }, [applyKanbanLocal, mergeKanbanFromRpc, onError]);
+
+  const scheduleKanbanPersist = useCallback(() => {
+    if (kanbanSaveTimerRef.current !== null) window.clearTimeout(kanbanSaveTimerRef.current);
+    kanbanSaveTimerRef.current = window.setTimeout(() => {
+      kanbanSaveTimerRef.current = null;
+      void flushKanbanPersist();
+    }, KANBAN_SAVE_DEBOUNCE_MS);
+  }, [flushKanbanPersist]);
+
+  useEffect(() => {
+    return () => {
+      if (kanbanSaveTimerRef.current !== null) window.clearTimeout(kanbanSaveTimerRef.current);
+    };
+  }, []);
 
   const handleCreateBoard = useCallback(() => {
     setTextDialog({
@@ -213,14 +301,14 @@ export function KanbanBoardView({
         try {
           const next = await window.tipsboardDesktop.createKanbanBoard(name);
           setTextDialog(null);
-          applySnapshot(next);
+          mergeKanbanFromRpc(next);
           setSelectedBoardId(next.kanban.boards[0]?.id ?? null);
         } catch (error) {
           onError(messageForError(error));
         }
       },
     });
-  }, [applySnapshot, onError, t]);
+  }, [mergeKanbanFromRpc, onError, t]);
 
   const handleRenameBoard = useCallback(() => {
     if (!selectedBoard) return;
@@ -233,13 +321,13 @@ export function KanbanBoardView({
         try {
           const next = await window.tipsboardDesktop.updateKanbanBoard(selectedBoard.id, { name });
           setTextDialog(null);
-          applySnapshot(next);
+          mergeKanbanFromRpc(next);
         } catch (error) {
           onError(messageForError(error));
         }
       },
     });
-  }, [applySnapshot, onError, selectedBoard, t]);
+  }, [mergeKanbanFromRpc, onError, selectedBoard, t]);
 
   const handleDeleteBoard = useCallback(() => {
     if (!selectedBoard) return;
@@ -252,14 +340,14 @@ export function KanbanBoardView({
         try {
           const next = await window.tipsboardDesktop.deleteKanbanBoard(selectedBoard.id);
           setConfirmDialog(null);
-          applySnapshot(next);
+          mergeKanbanFromRpc(next);
           setSelectedBoardId(next.kanban.boards[0]?.id ?? null);
         } catch (error) {
           onError(messageForError(error));
         }
       },
     });
-  }, [applySnapshot, onError, selectedBoard, t]);
+  }, [mergeKanbanFromRpc, onError, selectedBoard, t]);
 
   const handleCreateColumn = useCallback(() => {
     if (!selectedBoard) return;
@@ -271,13 +359,13 @@ export function KanbanBoardView({
         try {
           const next = await window.tipsboardDesktop.createKanbanColumn(selectedBoard.id, name);
           setTextDialog(null);
-          applySnapshot(next);
+          mergeKanbanFromRpc(next);
         } catch (error) {
           onError(messageForError(error));
         }
       },
     });
-  }, [applySnapshot, onError, selectedBoard, t]);
+  }, [mergeKanbanFromRpc, onError, selectedBoard, t]);
 
   const handleRenameColumn = useCallback((columnId: string, currentName: string) => {
     setTextDialog({
@@ -289,13 +377,13 @@ export function KanbanBoardView({
         try {
           const next = await window.tipsboardDesktop.updateKanbanColumn(columnId, { name });
           setTextDialog(null);
-          applySnapshot(next);
+          mergeKanbanFromRpc(next);
         } catch (error) {
           onError(messageForError(error));
         }
       },
     });
-  }, [applySnapshot, onError, t]);
+  }, [mergeKanbanFromRpc, onError, t]);
 
   const handleDeleteColumn = useCallback((columnId: string) => {
     setConfirmDialog({
@@ -307,13 +395,13 @@ export function KanbanBoardView({
         try {
           const next = await window.tipsboardDesktop.deleteKanbanColumn(columnId);
           setConfirmDialog(null);
-          applySnapshot(next);
+          mergeKanbanFromRpc(next);
         } catch (error) {
           onError(messageForError(error));
         }
       },
     });
-  }, [applySnapshot, onError, t]);
+  }, [mergeKanbanFromRpc, onError, t]);
 
   const handleCreateCard = useCallback((columnId: string | null) => {
     if (!selectedBoard) return;
@@ -325,46 +413,79 @@ export function KanbanBoardView({
         await runUnlessInFlight(createKanbanCardInFlightRef, async () => {
           try {
             const created = await window.tipsboardDesktop.createNote(title);
-            let next = mergeCreatedNoteIntoSnapshot(snapshot, created.note);
+            const withNote = mergeCreatedNoteIntoSnapshot(snapshotRef.current, created.note);
             if (columnId) {
               const position = cardsByColumn.get(columnId)?.length ?? 0;
-              next = await window.tipsboardDesktop.moveKanbanNote(selectedBoard.id, created.notePath, columnId, position);
+              onSnapshotChange({
+                ...withNote,
+                kanban: applyMoveKanbanNoteInState(
+                  withNote.kanban,
+                  selectedBoard.id,
+                  created.notePath,
+                  columnId,
+                  position,
+                ),
+              });
+              pendingKanbanMovesRef.current.push({
+                notePath: created.notePath,
+                toColumnId: columnId,
+                position,
+              });
+              scheduleKanbanPersist();
+            } else {
+              onSnapshotChange(withNote);
             }
             setTextDialog(null);
-            applySnapshot(next);
           } catch (error) {
             onError(messageForError(error));
           }
         });
       },
     });
-  }, [applySnapshot, cardsByColumn, onError, selectedBoard, snapshot, t]);
+  }, [cardsByColumn, onError, onSnapshotChange, scheduleKanbanPersist, selectedBoard, t]);
 
   const handleReorderColumns = useCallback(
-    async (dragColumnId: string, targetColumnId: string, placement: "before" | "after") => {
+    (dragColumnId: string, targetColumnId: string, placement: "before" | "after") => {
       if (!selectedBoard) return;
       const order = sortedBoardColumns.map((c) => c.id);
       const nextOrder = reorderColumnsWithPlacement(order, dragColumnId, targetColumnId, placement);
       if (!nextOrder) return;
       if (nextOrder.every((id, index) => id === order[index])) return;
-      try {
-        applySnapshot(await window.tipsboardDesktop.reorderKanbanColumns(selectedBoard.id, nextOrder));
-      } catch (error) {
-        onError(messageForError(error));
-      }
+      const optimistic = applyReorderKanbanColumnsInState(
+        snapshotRef.current.kanban,
+        selectedBoard.id,
+        nextOrder,
+      );
+      applyKanbanLocal(optimistic);
+      pendingColumnOrderRef.current = { boardId: selectedBoard.id, columnIds: nextOrder };
+      scheduleKanbanPersist();
     },
-    [applySnapshot, onError, selectedBoard, sortedBoardColumns],
+    [applyKanbanLocal, scheduleKanbanPersist, selectedBoard, sortedBoardColumns],
   );
 
-  const handleMoveNote = useCallback(async (notePath: string, columnId: string | null, position?: number) => {
-    if (!selectedBoard) return;
-    try {
-      const nextPosition = position ?? (columnId ? getKanbanDropPosition(cardsByColumn.get(columnId) ?? [], notePath, null, "end") : 0);
-      applySnapshot(await window.tipsboardDesktop.moveKanbanNote(selectedBoard.id, notePath, columnId, nextPosition));
-    } catch (error) {
-      onError(messageForError(error));
-    }
-  }, [applySnapshot, cardsByColumn, onError, selectedBoard]);
+  const handleMoveNote = useCallback(
+    (notePath: string, columnId: string | null, position?: number) => {
+      if (!selectedBoard) return;
+      const nextPosition =
+        position ??
+        (columnId ? getKanbanDropPosition(cardsByColumn.get(columnId) ?? [], notePath, null, "end") : 0);
+      const optimistic = applyMoveKanbanNoteInState(
+        snapshotRef.current.kanban,
+        selectedBoard.id,
+        notePath,
+        columnId,
+        nextPosition,
+      );
+      applyKanbanLocal(optimistic);
+      pendingKanbanMovesRef.current.push({
+        notePath,
+        toColumnId: columnId,
+        position: nextPosition,
+      });
+      scheduleKanbanPersist();
+    },
+    [applyKanbanLocal, cardsByColumn, scheduleKanbanPersist, selectedBoard],
+  );
 
   const handleRemoveCard = useCallback((notePath: string) => {
     setConfirmDialog({
@@ -374,28 +495,39 @@ export function KanbanBoardView({
       destructive: true,
       onConfirm: async () => {
         setConfirmDialog(null);
-        await handleMoveNote(notePath, null);
+        handleMoveNote(notePath, null);
       },
     });
   }, [handleMoveNote, t]);
 
-  const handleAddSelectedExisting = useCallback(async () => {
+  const handleAddSelectedExisting = useCallback(() => {
     if (!selectedBoard || !existingPicker) return;
-    let next: VaultSnapshot | null = null;
-    try {
-      const basePosition = cardsByColumn.get(existingPicker.columnId)?.length ?? 0;
-      const paths = Array.from(selectedExistingPaths);
-      for (const [index, path] of paths.entries()) {
-        next = await window.tipsboardDesktop.moveKanbanNote(selectedBoard.id, path, existingPicker.columnId, basePosition + index);
-      }
-      if (next) applySnapshot(next);
-      setExistingPicker(null);
-      setSelectedExistingPaths(new Set());
-      setExistingQuery("");
-    } catch (error) {
-      onError(messageForError(error));
-    }
-  }, [applySnapshot, cardsByColumn, existingPicker, onError, selectedBoard, selectedExistingPaths]);
+    const basePosition = cardsByColumn.get(existingPicker.columnId)?.length ?? 0;
+    const paths = Array.from(selectedExistingPaths);
+    const moves = paths.map((path, index) => ({
+      notePath: path,
+      toColumnId: existingPicker.columnId,
+      position: basePosition + index,
+    }));
+    const optimistic = applyMoveKanbanNotesInState(
+      snapshotRef.current.kanban,
+      selectedBoard.id,
+      moves,
+    );
+    applyKanbanLocal(optimistic);
+    pendingKanbanMovesRef.current.push(...moves);
+    scheduleKanbanPersist();
+    setExistingPicker(null);
+    setSelectedExistingPaths(new Set());
+    setExistingQuery("");
+  }, [
+    applyKanbanLocal,
+    cardsByColumn,
+    existingPicker,
+    scheduleKanbanPersist,
+    selectedBoard,
+    selectedExistingPaths,
+  ]);
 
   const toggleTagFilter = useCallback((tag: string) => {
     setActiveTagFilters((current) => {
@@ -410,7 +542,7 @@ export function KanbanBoardView({
   }, []);
 
   return (
-    <div className="tb-shell flex min-h-0 min-w-0 flex-1 flex-col py-4 sm:py-5">
+    <div className="tb-kanban-shell flex min-h-0 min-w-0 flex-1 flex-col py-3 sm:py-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <div ref={boardPickerRef} className="relative">
@@ -543,7 +675,7 @@ export function KanbanBoardView({
           <div className="min-h-0 flex-1 overflow-x-auto pb-3">
             <div className="flex min-h-full gap-2">
               {sortedBoardColumns.length === 0 && (
-                <div className="flex min-h-[28rem] w-60 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-accent-link/20 bg-bg-primary p-6 text-center">
+                <div className="flex min-h-[28rem] w-52 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-accent-link/20 bg-bg-primary p-6 text-center">
                   <p className="text-sm font-semibold text-text-primary">{t("kanban.emptyColumns.title")}</p>
                   <p className="mt-2 text-xs leading-5 text-text-muted">{t("kanban.emptyColumns.description")}</p>
                   <button type="button" className="tb-btn-primary mt-4 px-4 py-2 text-xs" onClick={handleCreateColumn}>
@@ -576,7 +708,7 @@ export function KanbanBoardView({
               {sortedBoardColumns.length > 0 && (
                 <button
                   type="button"
-                  className="flex h-11 w-60 shrink-0 items-center gap-2 rounded-xl border border-accent-link/10 bg-bg-elevated px-3 text-left text-sm font-medium text-text-muted transition-colors hover:border-accent-link/20 hover:bg-bg-hover hover:text-text-primary"
+                  className="flex h-11 w-52 shrink-0 items-center gap-2 rounded-xl border border-accent-link/10 bg-bg-elevated px-3 text-left text-sm font-medium text-text-muted transition-colors hover:border-accent-link/20 hover:bg-bg-hover hover:text-text-primary"
                   onClick={handleCreateColumn}
                 >
                   <span className="text-base leading-none">+</span>
@@ -790,7 +922,7 @@ function KanbanColumnLane({
         event.dataTransfer.setData(KANBAN_COLUMN_DRAG_MIME, columnId);
         event.dataTransfer.effectAllowed = "move";
       }}
-      className={`flex max-h-full min-h-[28rem] w-60 shrink-0 cursor-grab flex-col rounded-xl border bg-bg-code p-2 transition-[border-color,box-shadow] active:cursor-grabbing ${sectionBorderClasses}`}
+      className={`flex max-h-full min-h-[28rem] w-52 shrink-0 cursor-grab flex-col rounded-xl border bg-bg-code p-2 transition-[border-color,box-shadow] active:cursor-grabbing ${sectionBorderClasses}`}
       onDragOver={(event) => {
         if (dragEventHasKanbanColumnPayload(event)) {
           event.preventDefault();
@@ -825,24 +957,40 @@ function KanbanColumnLane({
         dropCard(event, null, "end");
       }}
     >
-      <div className="mb-2 flex min-w-0 cursor-grab items-center gap-1 px-1 active:cursor-grabbing">
+      <div className="mb-2 flex min-w-0 cursor-grab items-center gap-1 px-0.5 active:cursor-grabbing">
         <span
-          className="-ml-0.5 inline-flex h-8 w-7 shrink-0 select-none items-center justify-center rounded-md text-text-muted"
+          className="inline-flex h-5 w-5 shrink-0 select-none items-center justify-center rounded-md text-text-muted"
           aria-hidden
           title={t("kanban.actions.dragColumnReorder")}
         >
-          <i className="fa-solid fa-grip text-[13px]" />
+          <i className="fa-solid fa-grip text-[11px]" />
         </span>
-        <div className="relative min-h-8 min-w-0 flex-1 px-1 py-0.5">
-          <h2 className="truncate text-sm font-semibold leading-6 text-text-primary">{title}</h2>
-        </div>
-        <div data-kanban-suppress-column-drag className="flex shrink-0 items-center gap-1">
-          <span className="rounded-full px-2 py-0.5 text-2xs text-text-muted">{cards.length}</span>
-          <button type="button" className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-base font-semibold text-text-muted hover:bg-bg-hover hover:text-accent-link" onClick={onCreateCard} title={t("kanban.actions.newCard")} aria-label={t("kanban.actions.newCard")}>
+        <h2
+          className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-text-primary"
+          title={title}
+        >
+          {title}
+        </h2>
+        <div data-kanban-suppress-column-drag className="flex shrink-0 items-center gap-0.5">
+          <button
+            type="button"
+            className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-base font-semibold text-text-muted hover:bg-bg-hover/80 hover:text-accent-link"
+            onClick={onCreateCard}
+            title={t("kanban.actions.newCard")}
+            aria-label={t("kanban.actions.newCard")}
+          >
             +
           </button>
           <div ref={menuRef} className="relative">
-            <button type="button" className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-sm font-semibold text-text-muted hover:bg-bg-hover hover:text-text-primary" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-haspopup="true" aria-label={t("kanban.actions.columnMenu")} title={t("kanban.actions.columnMenu")}>
+            <button
+              type="button"
+              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-sm font-semibold text-text-muted hover:bg-bg-hover/80 hover:text-text-primary"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-expanded={menuOpen}
+              aria-haspopup="true"
+              aria-label={t("kanban.actions.columnMenu")}
+              title={t("kanban.actions.columnMenu")}
+            >
               ⋯
             </button>
             {menuOpen && (
