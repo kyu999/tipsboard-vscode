@@ -33,7 +33,7 @@ run("node", ["scripts/build-extension.cjs"], {
 console.log("[prepare-model-cache] Downloading model weights (Hub access required on this machine)...");
 run(
   "npx",
-  ["vitest", "run", "eval/semantic/prepareModelCache.test.ts", "--config", "vitest.semantic-eval.config.mts"],
+  ["vitest", "run", "--config", "vitest.semantic-prepare.config.mts"],
   {
     ...process.env,
     TIPSBOARD_SEMANTIC_MODEL_CACHE_OUT: cacheOut,

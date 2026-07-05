@@ -23,6 +23,7 @@ playwright.config.ts
 # Local semantic search evaluation (dev-only; can include large caches under eval/.cache/)
 eval/**
 vitest.semantic-eval.config.mts
+vitest.semantic-prepare.config.mts
 tsconfig.semantic-eval.json
 
 # Lockfiles (not required at runtime)

@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createTransformersEmbeddingProvider } from "../../src/host/semantic.js";
-import { SEMANTIC_SEARCH_MODEL_IDS } from "../../src/host/semanticSettings.js";
+import { SEMANTIC_SEARCH_MODEL_IDS } from "../../src/host/semanticModelIds.js";
 
 /**
  * Build-time helper (not CI): warms Transformers.js model cache for closed-network deployment.
