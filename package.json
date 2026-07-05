@@ -2,7 +2,7 @@
   "name": "tipsboard-vscode",
   "displayName": "Tipsboard",
   "description": "Markdown wiki and personal knowledge management workspace",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "tipsboard",
   "icon": "icon.png",
   "galleryBanner": {
@@ -63,7 +63,8 @@
     "onCommand:tipsboard-vscode.newNote",
     "onCommand:tipsboard-vscode.closeEditorTab",
     "onCommand:tipsboard-vscode.downloadSemanticRuntime",
-    "onCommand:tipsboard-vscode.installSemanticRuntime"
+    "onCommand:tipsboard-vscode.installSemanticRuntime",
+    "onCommand:tipsboard-vscode.installSemanticOfflinePack"
   ],
   "main": "./dist/extension/extension.js",
   "contributes": {
@@ -87,6 +88,10 @@
       {
         "command": "tipsboard-vscode.installSemanticRuntime",
         "title": "Tipsboard: Install Semantic Runtime from File..."
+      },
+      {
+        "command": "tipsboard-vscode.installSemanticOfflinePack",
+        "title": "Tipsboard: Install Semantic Offline Pack from File..."
       },
       {
         "command": "tipsboard-vscode.revealSemanticModelCache",
@@ -131,7 +136,7 @@
             "bundled"
           ],
           "default": "bundled",
-          "markdownDescription": "Semantic search (meaning-based search from the wand button in the Tipsboard panel).\n\n- **bundled** (default): local Transformers.js runtime. If missing, Tipsboard can download or install a runtime pack.\n- **off**: disables semantic search.\n\nOn closed networks, use `importedPath` / **Install Semantic Runtime from File** and set **Allow Remote Models** to `false` with a pre-deployed model cache.",
+          "markdownDescription": "Semantic search (meaning-based search from the wand button in the Tipsboard panel).\n\n- **bundled** (default): local Transformers.js runtime. If missing, Tipsboard can download or install a runtime pack.\n- **off**: disables semantic search.\n\nOn closed networks, install a **semantic offline pack** zip via **Install Semantic Offline Pack from File...** or the Tipsboard settings button.",
           "description": "Semantic search on/off."
         },
         "tipsboard-vscode.semanticSearch.modelId": {
@@ -204,6 +209,7 @@
     "build:extension:fast": "TIPSBOARD_SKIP_SEMANTIC_COPY=1 node scripts/build-extension.cjs",
     "prepare:semantic-pack": "node scripts/prepare-semantic-pack.cjs",
     "prepare:semantic-model-cache": "node scripts/prepare-semantic-model-cache.cjs",
+    "prepare:semantic-offline-pack": "node scripts/prepare-semantic-offline-pack.cjs",
     "watch": "tsc -watch -p ./tsconfig.extension.json",
     "watch:webview": "npm run watch --prefix webview",
     "build:webview": "npm install --prefix webview && npm run build --prefix webview",

@@ -56,12 +56,16 @@ import {
   updateSemanticIndex,
 } from "../host/semantic.js";
 import { createSemanticProviderForExtension } from "../host/semanticProviderFactory.js";
-import { semanticRuntimeAssetName } from "../host/semanticRuntime.js";
+import { semanticRuntimeAssetName, semanticRuntimeTarget } from "../host/semanticPlatform.js";
+import { clearSemanticProviderCache } from "../host/semanticProviderFactory.js";
+import { installSemanticOfflinePackFromFile } from "../host/semanticOfflinePack.js";
 import {
   SEMANTIC_SEARCH_MODEL_IDS,
   readSemanticSettings,
+  resolveSemanticModelCacheDir,
   semanticConfigurationPrefix,
   semanticModelHubUrl,
+  semanticOfflinePackAssetName,
   type SemanticSettings,
 } from "../host/semanticSettings.js";
 import { buildOrganizeSuggestions, buildBulkOrganizeSuggestions } from "../host/organizeSuggestions.js";
@@ -72,6 +76,7 @@ import type { TipsboardPanel } from "../panel/TipsboardPanel.js";
 function semanticSearchSettingsPayload(settings: SemanticSettings) {
   const runtimeBase = settings.runtimeDownloadBaseUrl.replace(/\/+$/, "");
   const runtimeAsset = semanticRuntimeAssetName();
+  const offlineAsset = semanticOfflinePackAssetName(semanticRuntimeTarget());
   return {
     modelId: settings.modelId,
     allowRemoteModels: settings.allowRemoteModels,
@@ -79,6 +84,7 @@ function semanticSearchSettingsPayload(settings: SemanticSettings) {
     modelIds: SEMANTIC_SEARCH_MODEL_IDS,
     enabled: settings.provider !== "off",
     runtimeDownloadUrl: `${runtimeBase}/${runtimeAsset}`,
+    offlinePackDownloadUrl: `${runtimeBase}/${offlineAsset}`,
     modelDownloadUrl: semanticModelHubUrl(settings.modelId),
     modelDownloadUrls: Object.fromEntries(
       SEMANTIC_SEARCH_MODEL_IDS.map((id) => [id, semanticModelHubUrl(id)]),
@@ -591,6 +597,21 @@ export async function handleRpcInbound(
         return;
       }
 
+      case "installSemanticOfflinePack": {
+        await installSemanticOfflinePackFromFile({
+          extensionVersion: panel.extensionVersion(),
+          globalStoragePath: panel.semanticRuntimeStorageDir(),
+          defaultModelCacheDir: panel.semanticModelCacheDir(),
+        });
+        clearSemanticProviderCache();
+        const settings = readSemanticSettings();
+        reply({
+          ok: true,
+          result: semanticSearchSettingsPayload(settings),
+        });
+        return;
+      }
+
       case "getSemanticSearchSettings": {
         const settings = readSemanticSettings();
         reply({
@@ -747,7 +768,8 @@ export async function handleRpcInbound(
       }
 
       case "revealSemanticModelCache": {
-        const cacheDir = panel.semanticModelCacheDir();
+        const settings = readSemanticSettings();
+        const cacheDir = resolveSemanticModelCacheDir(settings, panel.semanticModelCacheDir());
         const cacheUri = vscode.Uri.file(cacheDir);
         await vscode.workspace.fs.createDirectory(cacheUri);
         await vscode.commands.executeCommand("revealFileInOS", cacheUri);

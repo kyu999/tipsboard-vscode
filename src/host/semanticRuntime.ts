@@ -8,7 +8,10 @@ import path from "node:path";
 import AdmZip from "adm-zip";
 import * as vscode from "vscode";
 
-export const SEMANTIC_RUNTIME_KIND = "tipsboard-semantic-runtime-pack";
+import { validateZipEntries } from "./semanticZip.js";
+import { SEMANTIC_RUNTIME_KIND, semanticRuntimeAssetName, semanticRuntimeTarget } from "./semanticPlatform.js";
+
+export { SEMANTIC_RUNTIME_KIND, semanticRuntimeAssetName, semanticRuntimeTarget } from "./semanticPlatform.js";
 
 interface SemanticRuntimeManifest {
   schemaVersion: number;
@@ -26,14 +29,6 @@ export interface SemanticRuntimeOptions {
 }
 
 const RUNTIME_DIR_NAME = "semantic-runtime";
-
-export function semanticRuntimeTarget(): string {
-  return `${process.platform}-${process.arch}`;
-}
-
-export function semanticRuntimeAssetName(target: string = semanticRuntimeTarget()): string {
-  return `tipsboard-semantic-runtime-${target}.zip`;
-}
 
 export function semanticRuntimeVersion(extensionVersion: string): string {
   return extensionVersion.trim() || "dev";
@@ -127,12 +122,12 @@ export async function installSemanticRuntimeFromFile(options: SemanticRuntimeOpt
 
 async function installSemanticRuntimeZip(zipPath: string, options: SemanticRuntimeOptions): Promise<string> {
   const target = semanticRuntimeTarget();
-  const destination = semanticRuntimeInstallPath(options);
   const tmpDir = path.join(options.globalStoragePath, RUNTIME_DIR_NAME, `.install-${process.pid}-${Date.now()}`);
 
   await fs.rm(tmpDir, { recursive: true, force: true });
   await fs.mkdir(tmpDir, { recursive: true });
 
+  let manifestPath: string;
   try {
     const zip = new AdmZip(zipPath);
     validateZipEntries(zip);
@@ -153,11 +148,7 @@ async function installSemanticRuntimeZip(zipPath: string, options: SemanticRunti
       }
       throw new Error("Selected zip does not contain a Tipsboard semantic runtime manifest.");
     }
-    await validateSemanticRuntime(runtimeRoot, target);
-
-    await fs.rm(destination, { recursive: true, force: true });
-    await fs.mkdir(path.dirname(destination), { recursive: true });
-    await fs.rename(runtimeRoot, destination);
+    manifestPath = await installSemanticRuntimeFromDirectory(runtimeRoot, options);
     if (runtimeRoot !== tmpDir) {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
@@ -166,7 +157,6 @@ async function installSemanticRuntimeZip(zipPath: string, options: SemanticRunti
     throw error;
   }
 
-  const manifestPath = path.join(destination, "manifest.json");
   const digest = await sha256File(zipPath);
   const action = await vscode.window.showInformationMessage(
     `Semantic runtime installed for ${target} (${digest.slice(0, 12)}...). Reload the window before searching.`,
@@ -241,11 +231,33 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-function validateZipEntries(zip: AdmZip): void {
-  for (const entry of zip.getEntries()) {
-    const name = entry.entryName.replace(/\\/g, "/");
-    if (path.isAbsolute(name) || name.split("/").includes("..")) {
-      throw new Error(`Unsafe semantic runtime zip entry: ${entry.entryName}`);
+export { validateZipEntries } from "./semanticZip.js";
+
+export async function installSemanticRuntimeFromDirectory(
+  runtimeRoot: string,
+  options: SemanticRuntimeOptions,
+): Promise<string> {
+  const target = semanticRuntimeTarget();
+  const destination = semanticRuntimeInstallPath(options);
+  await validateSemanticRuntime(runtimeRoot, target);
+
+  await fs.rm(destination, { recursive: true, force: true });
+  await fs.mkdir(path.dirname(destination), { recursive: true });
+  await copyDirectory(runtimeRoot, destination);
+
+  return path.join(destination, "manifest.json");
+}
+
+async function copyDirectory(source: string, destination: string): Promise<void> {
+  await fs.mkdir(destination, { recursive: true });
+  const entries = await fs.readdir(source, { withFileTypes: true });
+  for (const entry of entries) {
+    const from = path.join(source, entry.name);
+    const to = path.join(destination, entry.name);
+    if (entry.isDirectory()) {
+      await copyDirectory(from, to);
+    } else if (entry.isFile()) {
+      await fs.copyFile(from, to);
     }
   }
 }

@@ -137,12 +137,17 @@ const en = {
       },
       downloads: {
         title: "Download sources",
-        runtime: "Inference runtime (first time only)",
+        offlinePack: "Offline pack (runtime + models)",
+        runtime: "Inference runtime only (first time)",
         model: "Embedding model (selected)",
+        openOfflinePack: "Open on GitHub",
         openRuntime: "Open on GitHub",
         openModel: "Open on Hugging Face",
-        autoHint: "Online, Tipsboard fetches from these URLs on first use. To install manually, use Open model cache to find the folder.",
-        manualHint: "When auto-download is off, download from the links below and place files in the model cache folder.",
+        installOfflinePack: "Install offline pack...",
+        autoHint:
+          "Online, Tipsboard fetches on first use. On restricted networks, download the offline pack and install it with the button below.",
+        manualHint:
+          "When auto-download is off, download the offline pack and choose the zip via Install offline pack.",
         openCache: "Open model cache",
       },
     },

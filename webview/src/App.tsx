@@ -1606,6 +1606,12 @@ export function App() {
     });
   }, []);
 
+  const handleInstallSemanticOfflinePack = useCallback(() => {
+    void window.tipsboardDesktop.installSemanticOfflinePack().then(setSemanticSettings, (caught) => {
+      setError(messageForError(caught));
+    });
+  }, []);
+
   const semanticSearchPanelOpen = showSearchResults && searchMode === "semantic";
   const semanticBusy = semanticSearchBusy || semanticIndexMaintBusy;
   const semanticHasQuery = query.trim().length > 0;
@@ -1869,30 +1875,44 @@ export function App() {
                       </p>
                       <ul className="mt-1.5 space-y-1.5 text-2xs text-text-muted">
                         <li className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                          <span>{t("settings.semanticSearch.downloads.runtime")}</span>
+                          <span>{t("settings.semanticSearch.downloads.offlinePack")}</span>
                           <button
                             type="button"
                             className="text-accent-link hover:underline"
-                            onClick={() => openExternalInHost(semanticSettings.runtimeDownloadUrl)}
+                            onClick={() => openExternalInHost(semanticSettings.offlinePackDownloadUrl)}
                           >
-                            {t("settings.semanticSearch.downloads.openRuntime")}
+                            {t("settings.semanticSearch.downloads.openOfflinePack")}
                           </button>
                         </li>
-                        <li className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                          <span>{t("settings.semanticSearch.downloads.model")}</span>
-                          <button
-                            type="button"
-                            className="text-accent-link hover:underline"
-                            onClick={() =>
-                              openExternalInHost(
-                                semanticSettings.modelDownloadUrls[semanticSettings.modelId] ??
-                                  semanticSettings.modelDownloadUrl,
-                              )
-                            }
-                          >
-                            {t("settings.semanticSearch.downloads.openModel")}
-                          </button>
-                        </li>
+                        {semanticSettings.allowRemoteModels && (
+                          <>
+                            <li className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                              <span>{t("settings.semanticSearch.downloads.runtime")}</span>
+                              <button
+                                type="button"
+                                className="text-accent-link hover:underline"
+                                onClick={() => openExternalInHost(semanticSettings.runtimeDownloadUrl)}
+                              >
+                                {t("settings.semanticSearch.downloads.openRuntime")}
+                              </button>
+                            </li>
+                            <li className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                              <span>{t("settings.semanticSearch.downloads.model")}</span>
+                              <button
+                                type="button"
+                                className="text-accent-link hover:underline"
+                                onClick={() =>
+                                  openExternalInHost(
+                                    semanticSettings.modelDownloadUrls[semanticSettings.modelId] ??
+                                      semanticSettings.modelDownloadUrl,
+                                  )
+                                }
+                              >
+                                {t("settings.semanticSearch.downloads.openModel")}
+                              </button>
+                            </li>
+                          </>
+                        )}
                       </ul>
                       <p className="mt-1.5 text-2xs leading-relaxed text-text-muted">
                         {t(
@@ -1901,6 +1921,13 @@ export function App() {
                             : "settings.semanticSearch.downloads.manualHint",
                         )}
                       </p>
+                      <button
+                        type="button"
+                        className="tb-btn-secondary mt-2 w-full text-2xs"
+                        onClick={handleInstallSemanticOfflinePack}
+                      >
+                        {t("settings.semanticSearch.downloads.installOfflinePack")}
+                      </button>
                       <button
                         type="button"
                         className="tb-btn-secondary mt-2 w-full text-2xs"

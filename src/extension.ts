@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { TipsboardPanel } from "./panel/TipsboardPanel.js";
 import { clearSemanticProviderCache } from "./host/semanticProviderFactory.js";
+import { installSemanticOfflinePackFromFile } from "./host/semanticOfflinePack.js";
 import { downloadAndInstallSemanticRuntime, installSemanticRuntimeFromFile } from "./host/semanticRuntime.js";
 import {
   readSemanticSettings,
@@ -14,6 +15,12 @@ export function activate(context: vscode.ExtensionContext): void {
     extensionVersion: (context.extension.packageJSON as { version?: string }).version ?? "dev",
     globalStoragePath: context.globalStorageUri.fsPath,
     runtimeDownloadBaseUrl: readSemanticSettings().runtimeDownloadBaseUrl,
+  });
+
+  const semanticOfflinePackOptions = () => ({
+    extensionVersion: (context.extension.packageJSON as { version?: string }).version ?? "dev",
+    globalStoragePath: context.globalStorageUri.fsPath,
+    defaultModelCacheDir: vscode.Uri.joinPath(context.globalStorageUri, "semantic-models").fsPath,
   });
 
   context.subscriptions.push(
@@ -32,6 +39,10 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand("tipsboard-vscode.installSemanticRuntime", async () => {
       await installSemanticRuntimeFromFile(semanticRuntimeOptions());
+      clearSemanticProviderCache();
+    }),
+    vscode.commands.registerCommand("tipsboard-vscode.installSemanticOfflinePack", async () => {
+      await installSemanticOfflinePackFromFile(semanticOfflinePackOptions());
       clearSemanticProviderCache();
     }),
     vscode.commands.registerCommand("tipsboard-vscode.revealSemanticModelCache", async () => {

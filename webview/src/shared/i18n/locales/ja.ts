@@ -139,12 +139,17 @@ const ja = {
       },
       downloads: {
         title: "ダウンロード元",
-        runtime: "推論ランタイム（初回のみ）",
+        offlinePack: "オフラインパック（runtime + モデル一式）",
+        runtime: "推論ランタイムのみ（初回のみ）",
         model: "Embedding モデル（選択中）",
+        openOfflinePack: "GitHub で開く",
         openRuntime: "GitHub で開く",
         openModel: "Hugging Face で開く",
-        autoHint: "オンラインでは初回利用時に上記から自動取得します。手動で入れる場合は「キャッシュフォルダを開く」で場所を確認してください。",
-        manualHint: "オフのときは上記から手動でダウンロードし、キャッシュフォルダに配置してください。",
+        installOfflinePack: "オフラインパックをインストール...",
+        autoHint:
+          "オンラインでは初回利用時に自動取得します。制限ネットワークではオフラインパックをダウンロードし、下のボタンからインストールしてください。",
+        manualHint:
+          "オフのときはオフラインパックをダウンロードし、「オフラインパックをインストール」から zip を選択してください。",
         openCache: "キャッシュフォルダを開く",
       },
     },

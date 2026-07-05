@@ -4,6 +4,18 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.2] - 2026-07-05
+
+### Added
+
+- **Semantic offline pack**: official zip bundling the semantic runtime and pre-warmed embedding model cache (`tipsboard-semantic-offline-<platform>-<arch>.zip`). Build with `npm run prepare:semantic-offline-pack`; Release workflow uploads offline packs alongside runtime zips.
+- **Install Semantic Offline Pack**: command **Tipsboard: Install Semantic Offline Pack from File...**, WebView settings button, and RPC to install one zip on closed or browser-only networks. Tipsboard deploys runtime and models, sets `allowRemoteModels` to `false`, and configures `modelCachePath` automatically.
+- **Offline pack download link** in Tipsboard semantic search settings (GitHub Releases URL for the current OS).
+
+### Fixed
+
+- **Reveal Semantic Model Cache** (WebView RPC): opens the configured `modelCachePath` when set, not only the default global storage folder.
+
 ## [0.4.1] - 2026-06-15
 
 ### Added

@@ -196,6 +196,8 @@ function wireDesktop(): typeof window.tipsboardDesktop {
 
     getSemanticSearchSettings: () => rpc("getSemanticSearchSettings") as Promise<SemanticSearchSettings>,
 
+    installSemanticOfflinePack: () => rpc("installSemanticOfflinePack") as Promise<SemanticSearchSettings>,
+
     revealSemanticModelCache: () => rpc("revealSemanticModelCache") as Promise<string>,
 
     updateSemanticSearchSettings: (

@@ -232,6 +232,8 @@ export interface SemanticSearchSettings {
   enabled: boolean;
   /** Direct URL to the semantic runtime zip for this OS (GitHub Releases). */
   runtimeDownloadUrl: string;
+  /** Direct URL to the semantic offline pack zip for this OS (GitHub Releases). */
+  offlinePackDownloadUrl: string;
   /** Hugging Face page for the currently selected embedding model. */
   modelDownloadUrl: string;
   /** Hugging Face pages for each selectable model id. */

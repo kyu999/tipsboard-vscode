@@ -322,6 +322,7 @@ Commands such as **Tipsboard: New Note** remain available regardless of conflict
 | `Tipsboard: Close active tab` | Close the active Tipsboard tab (also bound to `Ctrl+Alt+Shift+W` / macOS `Cmd+Alt+Shift+W`; blocked when only one tab remains) |
 | `Tipsboard: Download Semantic Runtime` | Download the local semantic search runtime pack |
 | `Tipsboard: Install Semantic Runtime from File...` | Install a prepared semantic runtime zip |
+| `Tipsboard: Install Semantic Offline Pack from File...` | Install a prepared semantic offline pack zip (runtime + model cache) |
 | `Tipsboard: Reveal Semantic Model Cache` | Open the embedding model cache folder |
 
 ---
@@ -346,7 +347,9 @@ Commands such as **Tipsboard: New Note** remain available regardless of conflict
 
 Semantic search is optional and local-first. With the default provider (`bundled`), Tipsboard uses a local Transformers.js runtime and the `Xenova/multilingual-e5-base` embedding model. The first search may download the runtime pack and model weights if they are not already installed.
 
-For closed networks, install the semantic runtime from a prepared zip or point `tipsboard-vscode.semanticSearch.importedPath` at a prepared runtime folder. Then set `tipsboard-vscode.semanticSearch.allowRemoteModels` to `false` and set `tipsboard-vscode.semanticSearch.modelCachePath` to a prebuilt `semantic-model-cache` folder. The command **Tipsboard: Reveal Semantic Model Cache** opens the cache location currently used by the extension.
+For closed or browser-only networks, download the **Tipsboard semantic offline pack** for your OS from [GitHub Releases](https://github.com/kyu999/tipsboard-vscode/releases) (`tipsboard-semantic-offline-<platform>-<arch>.zip`), then run **Tipsboard: Install Semantic Offline Pack from File...** or use **Install offline pack** in Tipsboard settings. Tipsboard installs the runtime and model cache, disables Hub downloads, and configures the model cache path automatically. Reload the VS Code window when prompted.
+
+Advanced/manual setup is still available: install only the runtime zip, or point `tipsboard-vscode.semanticSearch.importedPath` and `modelCachePath` at prepared folders. See [`docs_wiki/SEMANTIC_SEARCH.md`](docs_wiki/SEMANTIC_SEARCH.md).
 
 Semantic search indexes Markdown recursively under the vault root and includes folder path context in embeddings. Results are ranked with hybrid dense/BM25 search by default, then lightly reranked using title exact match, heading overlap, phrase overlap, recency, and same-note diversity. Use `tipsboard-vscode.semanticSearch.provider = off` to disable semantic search entirely.
 
