@@ -214,6 +214,7 @@
     "watch:webview": "npm run watch --prefix webview",
     "build:webview": "npm install --prefix webview && npm run build --prefix webview",
     "build:webview:fast": "npm run build --prefix webview",
+    "audit": "npm audit && npm audit --prefix webview",
     "lint": "tsc --noEmit -p ./tsconfig.extension.json",
     "test": "vitest run --config vitest.config.mts",
     "eval:semantic": "node scripts/eval-semantic.cjs",

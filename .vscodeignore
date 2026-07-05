@@ -33,10 +33,15 @@ package-lock.json
 **/*.vsix
 **/*.map
 **/*.test.ts
+temp/**
 test-results/**
 playwright-report/**
 .npm-cache-vsce/**
 dist/semantic-pack*/
+dist/.semantic-offline-work-*/
+dist/semantic-model-cache/**
+dist/tipsboard-semantic-offline-*.zip
+dist/tipsboard-semantic-runtime-*.zip
 
 # Repo hygiene (if present)
 .gitignore

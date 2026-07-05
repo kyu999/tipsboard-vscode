@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import AdmZip from "adm-zip";
@@ -92,6 +93,16 @@ export async function installSemanticOfflinePackZip(
 
         const packRoot = await findSemanticOfflinePackRoot(tmpDir);
         if (!packRoot) {
+          const nestedZip = await findSingleNestedZip(tmpDir);
+          if (nestedZip) {
+            const nestedCopy = path.join(os.tmpdir(), `${path.basename(nestedZip)}.${process.pid}-${Date.now()}.tmp`);
+            await fs.copyFile(nestedZip, nestedCopy);
+            try {
+              return await installSemanticOfflinePackZip(nestedCopy, options);
+            } finally {
+              await fs.rm(nestedCopy, { force: true });
+            }
+          }
           throw new Error("Selected zip does not contain a Tipsboard semantic offline pack manifest.");
         }
 
@@ -165,6 +176,14 @@ async function copyDirectory(source: string, destination: string): Promise<void>
       await fs.copyFile(from, to);
     }
   }
+}
+
+async function findSingleNestedZip(root: string): Promise<string | undefined> {
+  const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
+  const zipFiles = entries
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".zip"))
+    .map((entry) => path.join(root, entry.name));
+  return zipFiles.length === 1 ? zipFiles[0] : undefined;
 }
 
 async function sha256File(filePath: string): Promise<string> {

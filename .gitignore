@@ -12,6 +12,7 @@ test-results/
 playwright-report/
 eval/.cache/
 eval/.tmp/
+temp/
 *.log
 .env
 .env.*

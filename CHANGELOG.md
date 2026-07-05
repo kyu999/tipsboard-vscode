@@ -12,9 +12,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Install Semantic Offline Pack**: command **Tipsboard: Install Semantic Offline Pack from File...**, WebView settings button, and RPC to install one zip on closed or browser-only networks. Tipsboard deploys runtime and models, sets `allowRemoteModels` to `false`, and configures `modelCachePath` automatically.
 - **Offline pack download link** in Tipsboard semantic search settings (GitHub Releases URL for the current OS).
 
+### Changed
+
+- **CI dependency audit**: CI now runs `npm audit` for both the extension root and `webview` package after installing dependencies.
+- **WebView dependencies**: refreshed lockfile dependencies to clear the current `webview` audit findings.
+
 ### Fixed
 
 - **Reveal Semantic Model Cache** (WebView RPC): opens the configured `modelCachePath` when set, not only the default global storage folder.
+- **Release packaging**: excludes extracted offline packs, semantic model caches, and generated semantic zips from VSIX packaging so large ONNX files are not scanned or bundled accidentally.
+- **Offline pack install**: accepts GitHub Actions artifact zips that wrap the actual `tipsboard-semantic-offline-*.zip`.
 
 ## [0.4.1] - 2026-06-15
 
