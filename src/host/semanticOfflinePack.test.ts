@@ -13,7 +13,7 @@ import {
   validateSemanticOfflinePackLayout,
   validateSemanticOfflinePackManifest,
 } from "./semanticOfflinePackCore.js";
-import { SEMANTIC_RUNTIME_KIND } from "./semanticPlatform.js";
+import { SEMANTIC_RUNTIME_KIND, semanticRuntimeTarget } from "./semanticPlatform.js";
 import { validateZipEntries } from "./semanticZip.js";
 
 const tempDirs: string[] = [];
@@ -67,7 +67,7 @@ async function writeOfflinePackRoot(root: string, target: string): Promise<void>
 describe("semantic offline pack validation", () => {
   it("accepts a valid offline pack layout", async () => {
     const root = await makeTempDir("tb-offline-pack-");
-    await writeOfflinePackRoot(root, "darwin-arm64");
+    await writeOfflinePackRoot(root, semanticRuntimeTarget());
     const manifest = await validateSemanticOfflinePackLayout(root);
     expect(manifest.kind).toBe(SEMANTIC_OFFLINE_PACK_KIND);
     expect(manifest.bundledModelIds).toEqual(["Xenova/multilingual-e5-base"]);
