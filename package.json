@@ -231,7 +231,7 @@
     "@types/jsdom": "^21.1.7",
     "@types/node": "^20.17.14",
     "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^3.9.1",
+    "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.0",
     "jsdom": "^25.0.1",
     "typescript": "^5.7.0",
