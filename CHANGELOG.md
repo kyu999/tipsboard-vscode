@@ -4,6 +4,26 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0] - 2026-10-26
+
+### Added
+
+- **Explicit note saving**: header **Save** button and `Ctrl+S` / `Cmd+S`. Saves never time out; edits typed during a save stay unsaved for the next save, and failed saves keep your edits for retry.
+- **Unsaved changes dialog** with **Save and leave**, **Discard and leave**, and **Cancel** (discard is hidden while a save is running).
+- **Dependency policy**: `npm run check:deps` (audit + license check) in CI and Release; shipped dependencies must use permissive licenses. `THIRD_PARTY_NOTICES.txt` is generated into the package.
+
+### Changed
+
+- **Note titles** are shown as a separate heading above the body and renamed by clicking it. The title is still stored as the first Markdown line.
+- **Note bodies no longer autosave** on typing. Kanban, Canvas, and pins still save automatically.
+- **Arrow Up / Down** move by visual (wrapped) rows, keep the caret next to the row it left when a rendered block opens or closes, and still stop on each source line of tables, Mermaid, and math blocks.
+- **Icons** switched from Font Awesome to `lucide-react`. Mermaid `fa:` icon syntax inside diagrams is no longer rendered.
+
+### Fixed
+
+- **Caret drift in long notes**: the drawn caret could sit away from the actual insertion point after images finished loading. The editor now re-measures layout when images load or fail.
+- **Saves no longer fail** when re-reading the vault for wiki-link rename suggestions fails after a successful write.
+
 ## [0.4.2] - 2026-07-05
 
 ### Added

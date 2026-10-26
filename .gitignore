@@ -16,3 +16,5 @@ temp/
 *.log
 .env
 .env.*
+
+.tmp-npm-cache/

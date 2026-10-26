@@ -4,6 +4,7 @@ import { openVaultAttachmentInHost } from "@/vscode-bridge-client";
 import { searchAttachments } from "@/lib/attachmentSearch";
 import { joinVaultAbsolutePath } from "@/lib/vaultAbsolutePath";
 import type { VaultAttachmentSummary } from "@/types";
+import { Icon } from "@/components/Icon";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -80,7 +81,7 @@ export function AttachmentLibraryView({
         {filtered.length === 0 ? (
           <div className="tb-card flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-12 text-center">
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-accent-link/10 text-lg text-accent-link">
-              <i className="fa-solid fa-paperclip" aria-hidden />
+              <Icon name="paperclip" />
             </div>
             <p className="text-base font-semibold text-text-primary">
               {attachments.length === 0 ? t("attachments.emptyTitle") : t("attachments.noResultsTitle")}
@@ -99,19 +100,19 @@ export function AttachmentLibraryView({
                     scope="col"
                     aria-label={t("attachments.colOpen")}
                   >
-                    <i className="fa-solid fa-up-right-from-square text-[11px] opacity-60" aria-hidden />
+                    <Icon name="external-link" className="text-[11px] opacity-60" />
                   </th>
                   <th className="min-w-[8rem] max-w-[18rem] px-2 py-2 font-medium" scope="col">
                     {t("attachments.colFilename")}
                   </th>
                   <th className="w-9 px-2 py-2 text-center" scope="col" aria-label={t("attachments.colCopy")}>
-                    <i className="fa-solid fa-copy text-[11px] opacity-60" aria-hidden />
+                    <Icon name="copy" className="text-[11px] opacity-60" />
                   </th>
                   <th className="min-w-0 px-2 py-2 font-medium" scope="col">
                     {t("attachments.colNotes")}
                   </th>
                   <th className="w-10 px-1 py-2 text-center" scope="col" aria-label={t("attachments.colDetails")}>
-                    <i className="fa-solid fa-chevron-down text-[10px] opacity-50" aria-hidden />
+                    <Icon name="chevron-down" className="text-[10px] opacity-50" />
                   </th>
                   <th className="w-7 px-1 py-2 text-center" scope="col" aria-label={t("attachments.colStatus")}>
                     {"\u200b"}
@@ -141,7 +142,7 @@ export function AttachmentLibraryView({
                             aria-label={t("attachments.open")}
                             onClick={() => openVaultAttachmentInHost(attachment.relativePath)}
                           >
-                            <i className="fa-solid fa-up-right-from-square text-[11px]" aria-hidden />
+                            <Icon name="external-link" className="text-[11px]" />
                           </button>
                         </td>
                         <td className="max-w-[18rem] px-2 py-2">
@@ -177,9 +178,9 @@ export function AttachmentLibraryView({
                               }}
                             >
                               {copiedRelativePath === attachment.relativePath ? (
-                                <i className="fa-solid fa-check text-[11px] text-accent-link" aria-hidden />
+                                <Icon name="check" className="text-[11px] text-accent-link" />
                               ) : (
-                                <i className="fa-solid fa-copy text-[11px]" aria-hidden />
+                                <Icon name="copy" className="text-[11px]" />
                               )}
                             </button>
                           ) : (
@@ -218,11 +219,11 @@ export function AttachmentLibraryView({
                             aria-label={expanded ? t("attachments.hideDetails") : t("attachments.showDetails")}
                             onClick={() => toggleDetail(attachment.relativePath)}
                           >
-                            <i
-                              className={`fa-solid fa-chevron-down text-[11px] transition-transform duration-200 ease-out ${
+                            <Icon
+                              name="chevron-down"
+                              className={`text-[11px] transition-transform duration-200 ease-out ${
                                 expanded ? "rotate-180" : ""
                               }`}
-                              aria-hidden
                             />
                           </button>
                         </td>

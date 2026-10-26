@@ -11,6 +11,8 @@ export interface CursorTestApi {
   clickLine: (lineNumber: number, column?: number) => void;
   pressKey: (key: string) => void;
   cursorCoords: () => { x: number; y: number } | null;
+  /** Position of the blinking caret drawn by `drawSelection` (can lag behind layout changes). */
+  drawnCursorCoords: () => { x: number; y: number } | null;
   expectedLineCoords: (lineNumber: number, column?: number) => { x: number; y: number } | null;
 }
 
@@ -84,6 +86,28 @@ export async function cursorBox(page: Page): Promise<{ x: number; y: number }> {
   const coords = await page.evaluate(() => window.__tipsboardCursorTest.cursorCoords());
   if (!coords) throw new Error("cursorCoords returned null");
   return coords;
+}
+
+/** Largest on-screen distance accepted for one visual row step (headings and blank spacers included). */
+const MAX_ROW_STEP_PX = 60;
+
+/**
+ * Asserts the caret moved exactly one visual row on screen: in the pressed direction and no farther
+ * than a single (possibly tall) row. Polls so scroll anchoring done in the next frame is included.
+ */
+export async function expectCaretRowStep(
+  page: Page,
+  before: { x: number; y: number },
+  direction: "down" | "up",
+): Promise<{ x: number; y: number }> {
+  await expect
+    .poll(async () => {
+      const after = await cursorBox(page);
+      const step = direction === "down" ? after.y - before.y : before.y - after.y;
+      return step > 4 && step < MAX_ROW_STEP_PX;
+    })
+    .toBe(true);
+  return cursorBox(page);
 }
 
 export async function walkLogicalLines(

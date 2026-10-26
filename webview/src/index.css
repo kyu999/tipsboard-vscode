@@ -52,6 +52,13 @@
 }
 
 @layer components {
+  /** `Icon` コンポーネントの SVG。周囲の文字サイズに追従し、テキストのベースラインに揃える */
+  .tb-icon {
+    display: inline-block;
+    flex-shrink: 0;
+    vertical-align: -0.125em;
+  }
+
   /** デスクトップ版と同系の shell: 最大幅 + 内側ガター */
   .tb-shell {
     @apply mx-auto w-full min-w-0 max-w-6xl px-4 sm:px-6 lg:px-8;

@@ -149,8 +149,8 @@ more text
     expect(classes.some((c) => c.includes("cm-tipsboard-h3"))).toBe(true);
   });
 
-  it("applies page-title line when inline math is present but the first line is not inside a display $$ block", async () => {
-    const doc = String.raw`### \(note\) style title
+  it("styles the first body line like any other line (the page title is edited outside the editor)", async () => {
+    const doc = String.raw`### \(note\) style heading
 
 $$
 y
@@ -161,9 +161,10 @@ $$
     await flushLayout(view);
     const deco = buildTipsboardDecorationSetForTesting(view);
     const line1 = view.state.doc.line(1);
-    const probe = line1.from + 4;
+    const probe = line1.from + "### ".length;
     const classes = markClassesAt(deco, probe, view.state.doc.length);
-    expect(classes.some((c) => c.includes("cm-page-title-line"))).toBe(true);
+    expect(classes.some((c) => c.includes("cm-page-title-line"))).toBe(false);
+    expect(classes.some((c) => c.includes("cm-tipsboard-h3"))).toBe(true);
   });
 
   it("still decorates ### outside a ```md fence that contains inner # text", async () => {
@@ -216,7 +217,6 @@ Tipsboard supports KaTeX-style mathematical expressions inside Markdown notes.
     await flushLayout(view);
     const deco = buildTipsboardDecorationSetForTesting(view);
 
-    expectClassAtText(deco, doc, "Math Expressions", "cm-page-title-line");
     expectClassAtText(deco, doc, "You", "cm-tipsboard-bold");
   });
 
@@ -265,7 +265,6 @@ $$
     const inlineWidgets = widgetNames(inlineDeco, doc.length);
     const blockWidgets = widgetNames(blockDeco, doc.length);
 
-    expectClassAtText(inlineDeco, doc, "Math Expressions", "cm-page-title-line");
     expectClassAtText(inlineDeco, doc, "H1 with", "cm-tipsboard-h1");
     expectClassAtText(inlineDeco, doc, "H2 with", "cm-tipsboard-h2");
     expectClassAtText(inlineDeco, doc, "H3 with", "cm-tipsboard-h3");

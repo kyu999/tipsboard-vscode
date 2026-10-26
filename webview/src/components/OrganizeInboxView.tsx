@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isInboxNotePath } from "@tipsboard/shared/inboxPath";
+import { Icon } from "@/components/Icon";
 import type {
   BulkOrganizeSuggestionsResponse,
   BulkMoveNotesResponse,
@@ -198,7 +199,7 @@ export function OrganizeInboxView({
                 disabled={busy || moving || inboxNotes.length === 0}
                 onClick={() => void handleAnalyze()}
               >
-                <i className="fa-solid fa-wand-magic-sparkles text-[11px]" aria-hidden />
+                <Icon name="wand" className="text-[11px]" />
                 {busy ? t("organize.analyzing") : t("organize.analyzeAll")}
               </button>
               <button
@@ -207,7 +208,7 @@ export function OrganizeInboxView({
                 disabled={moving || selectedMoveCount === 0}
                 onClick={() => void handleExecute()}
               >
-                <i className="fa-solid fa-folder-tree text-[11px]" aria-hidden />
+                <Icon name="folder-tree" className="text-[11px]" />
                 {moving
                   ? t("organize.moving")
                   : t("organize.moveSelected", { count: selectedMoveCount })}

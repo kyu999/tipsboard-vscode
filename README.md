@@ -73,6 +73,13 @@ Supported features include:
 - collapsible **heading outline** navigation to the left of the editor (ATX headings only; click to jump)
 - image embeds and file attachments (`assets/files/`), plus an **Attachments** sidebar view to browse and search them
 
+#### Saving and titles
+
+- Notes save **only when you ask**: the header **Save** button or `Ctrl+S` / `Cmd+S`. Tipsboard does not write on every keystroke, so slow or cloud-synced storage does not interrupt typing. Keep typing while a save runs; if a save fails, your edits stay and you can save again.
+- The title is shown as a heading above the body. **Click it to rename** the note (Enter to confirm, Esc to cancel). On disk it is still the first line of the Markdown file and becomes the filename when you save.
+- Leaving a note with unsaved changes offers **Save and leave**, **Discard and leave**, or **Cancel**. Closing the Tipsboard panel itself discards unsaved edits.
+- Arrow Up / Down move one visual (wrapped) row at a time, also around rendered tables, Mermaid diagrams, and math blocks.
+
 ---
 
 ### Knowledge Discovery
@@ -158,7 +165,7 @@ While the Tipsboard panel is open, changes made **outside** Tipsboard (another e
 
 ![Editor Nav Memory](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/editor-tabs-nav-memory.png)
 
-In **list** view, a tab strip under the header holds open **notes** and **tag searches** (`#tag`). **Cmd/Ctrl-click** links, tags, or list/search hits opens another tab without the unsaved-changes prompt; normal clicks still confirm when needed. Duplicate note paths or tags share one tab; the last tab cannot be closed.
+In **list** view, a tab strip under the header holds open **notes** and **tag searches** (`#tag`). **Cmd/Ctrl-click** links, tags, or list/search hits opens another tab. Leaving a note with unsaved changes (new tab or not) asks whether to save, discard, or cancel. Duplicate note paths or tags share one tab; the last tab cannot be closed.
 
 **NavMemory** (Tipsboard-only back/forward—not VS Code editor history) restores tabs, view mode, and search state. See **[Keyboard Shortcuts](#keyboard-shortcuts)** and **Commands** for keys, mouse thumb buttons, and **Tipsboard: Close active tab**.
 
@@ -200,7 +207,7 @@ Within a column, drag a card and drop it on another card’s **top half** to pla
 
 ![Confirm updating wiki link labels after a title changes](https://raw.githubusercontent.com/kyu999/tipsboard-vscode/main/assets/vscode/marketplace/rewrite_internal_link.png)
 
-After you edit the **opening title** and save, Tipsboard **may ask** whether to rewrite other notes’ **`[ … ]`** wiki links for consistency—not **`[Label](path)`** markdown. Confirm to apply in order; cancel to skip.
+After you edit the **title** and save, Tipsboard **may ask** whether to rewrite other notes’ **`[ … ]`** wiki links for consistency—not **`[Label](path)`** markdown. Confirm to apply in order; cancel to skip.
 
 ---
 
@@ -300,6 +307,7 @@ Tipsboard ignores Markdown inside `.tipsboard/`, `.git/`, `node_modules/`, `dist
 
 | Shortcut | Action |
 |---|---|
+| `Ctrl+S` (**mac:** `Cmd+S`) | Save the open note |
 | `Ctrl+Shift+L` | Open note grid |
 | `Ctrl+Shift+K` | Open Kanban |
 | `Ctrl+Shift+C` (**mac:** `Cmd+Shift+C`) | Open Canvas (experimental) |
@@ -394,6 +402,9 @@ Then inspect the console for errors.
 Additional documentation:
 
 - `DEVELOPMENT.md`
+- `DEVELOPMENT_RULE.md` (including the dependency vulnerability and license policy; run `npm run check:deps` after changing dependencies)
+
+Bundled third-party licenses are listed in `THIRD_PARTY_NOTICES.txt`, generated into the package at build time.
 
 ---
 

@@ -9,8 +9,12 @@ import { KanbanBoardView } from "@/components/KanbanBoardView";
 import { CanvasView } from "@/components/canvas/CanvasView";
 import { AttachmentLibraryView } from "@/components/AttachmentLibraryView";
 import { OrganizeInboxView } from "@/components/OrganizeInboxView";
+import { Icon } from "@/components/Icon";
 import { NoteEditor, type NoteEditorHandle } from "@/components/NoteEditor";
 import { NoteOutlineNav } from "@/components/NoteOutlineNav";
+import { NoteTitleHeader } from "@/components/NoteTitleHeader";
+import { UnsavedChangesDialog, type UnsavedChangesChoice } from "@/components/UnsavedChangesDialog";
+import { composeNoteMarkdown, splitNoteMarkdown, type NoteDraft } from "@/lib/noteSaveSession";
 import { extractAtxHeadings } from "@/domain/markdown/atxHeadings";
 import { readNoteOutlineOpen, writeNoteOutlineOpen } from "@/lib/noteOutlinePreference";
 import { NoteTabBar } from "@/components/NoteTabBar";
@@ -143,7 +147,10 @@ export function App() {
   const [organizeError, setOrganizeError] = useState<string | null>(null);
   const [organizeProgress, setOrganizeProgress] = useState<SemanticIndexProgress | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
-  const hasUnsavedChanges = saveState === "unsaved" || saveState === "error";
+  const hasUnsavedChanges = saveState === "unsaved" || saveState === "error" || saveState === "saving";
+  const [noteDraft, setNoteDraft] = useState<{ path: string; draft: NoteDraft } | null>(null);
+  const [unsavedDialog, setUnsavedDialog] = useState<{ saveInProgress: boolean; busy: boolean } | null>(null);
+  const unsavedResolverRef = useRef<((choice: UnsavedChangesChoice) => void) | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [localMenuOpen, setLocalMenuOpen] = useState(false);
   const [userGuideOpen, setUserGuideOpen] = useState(false);
@@ -378,10 +385,16 @@ export function App() {
     () => snapshot.notes.find((note) => note.path === selectedPath) ?? null,
     [selectedPath, snapshot.notes],
   );
-  const noteHeadings = useMemo(
-    () => extractAtxHeadings(selectedNote?.body ?? ""),
-    [selectedNote?.body],
-  );
+  /** Title and body currently being edited (falls back to the saved note until the editor reports). */
+  const selectedDraft = useMemo<NoteDraft | null>(() => {
+    if (!selectedNote) return null;
+    if (noteDraft && normalizeVaultNotePath(noteDraft.path) === normalizeVaultNotePath(selectedNote.path)) {
+      return noteDraft.draft;
+    }
+    return splitNoteMarkdown(selectedNote.body);
+  }, [noteDraft, selectedNote]);
+  const selectedDraftMarkdown = selectedDraft ? composeNoteMarkdown(selectedDraft) : "";
+  const noteHeadings = useMemo(() => extractAtxHeadings(selectedDraft?.body ?? ""), [selectedDraft?.body]);
   const showOutlineNav = noteHeadings.length > 0;
   const noteContentCol = showOutlineNav ? "col-start-2" : "col-start-1";
   const handleToggleOutline = useCallback(() => {
@@ -393,7 +406,7 @@ export function App() {
   }, []);
   const semanticSearchEnabled = semanticSettings?.enabled ?? false;
   const debouncedNearNoteBody = useDebouncedValue(
-    selectedNote?.body ?? "",
+    selectedDraftMarkdown,
     NEAR_NOTES_BODY_DEBOUNCE_MS,
     selectedPath,
   );
@@ -606,22 +619,43 @@ export function App() {
     resolver?.(confirmed);
   }, []);
 
-  const confirmDiscardChanges = useCallback(async () => {
-    if (!hasUnsavedChanges) return true;
-    return requestConfirm({
-      title: t("page.editor.discardUnsavedTitle"),
-      message: t("page.editor.discardUnsavedConfirm"),
-      confirmLabel: t("page.editor.discardUnsaved"),
-      destructive: true,
+  const chooseUnsavedChangesAction = useCallback((choice: UnsavedChangesChoice) => {
+    const resolver = unsavedResolverRef.current;
+    unsavedResolverRef.current = null;
+    resolver?.(choice);
+  }, []);
+
+  /** Save / discard / cancel before leaving the open note. Resolves true when navigation may proceed. */
+  const confirmLeaveNote = useCallback(async () => {
+    const editor = noteEditorRef.current;
+    if (!hasUnsavedChanges || !editor) return true;
+    const saveInProgress = editor.isSaving();
+    const choice = await new Promise<UnsavedChangesChoice>((resolve) => {
+      unsavedResolverRef.current = resolve;
+      setUnsavedDialog({ saveInProgress, busy: false });
     });
-  }, [hasUnsavedChanges, requestConfirm, t]);
+    if (choice === "cancel") {
+      setUnsavedDialog(null);
+      return false;
+    }
+    if (choice === "discard") {
+      editor.discard();
+      setUnsavedDialog(null);
+      return true;
+    }
+    setUnsavedDialog({ saveInProgress, busy: true });
+    const saved = await editor.saveBeforeLeave();
+    setUnsavedDialog(null);
+    if (!saved) setError(t("page.editor.saveFailedStay"));
+    return saved;
+  }, [hasUnsavedChanges, t]);
 
   const handleSelectNote = useCallback(
     async (path: string | null, options?: { openInNewTab?: boolean }) => {
       const openInNewTab = Boolean(options?.openInNewTab);
 
       if (path === null) {
-        if (!(await confirmDiscardChanges())) return false;
+        if (!(await confirmLeaveNote())) return false;
         pushNavHistory();
         setSelectedPath(null);
         setViewMode("list");
@@ -632,7 +666,7 @@ export function App() {
 
       if (!openInNewTab && path === selectedPath && selectedPath != null) return true;
 
-      if (!openInNewTab && !(await confirmDiscardChanges())) return false;
+      if (!(await confirmLeaveNote())) return false;
 
       if (!openInNewTab) pushNavHistory();
 
@@ -654,7 +688,7 @@ export function App() {
       }
       return true;
     },
-    [confirmDiscardChanges, selectedPath],
+    [confirmLeaveNote, selectedPath],
   );
 
   const runSemanticSearch = useCallback(async () => {
@@ -739,7 +773,7 @@ export function App() {
   const handleActivateTab = useCallback(
     async (tabId: string) => {
       if (tabId === activeTabId) return;
-      if (!(await confirmDiscardChanges())) return;
+      if (!(await confirmLeaveNote())) return;
       pushNavHistory();
       setActiveTabId(tabId);
       const target = openTabsRef.current.find((t) => t.id === tabId);
@@ -762,7 +796,7 @@ export function App() {
         setShowSearchResults(true);
       }
     },
-    [activeTabId, confirmDiscardChanges],
+    [activeTabId, confirmLeaveNote],
   );
 
   const handleCloseTab = useCallback(
@@ -771,7 +805,7 @@ export function App() {
       if (!activeTabId) return;
 
       if (tabId === activeTabId && hasUnsavedChanges) {
-        if (!(await confirmDiscardChanges())) return;
+        if (!(await confirmLeaveNote())) return;
       }
       const closingTab = openTabsRef.current.find((t) => t.id === tabId);
       const removed = removeTabAtId(openTabsRef.current, activeTabId, tabId);
@@ -797,7 +831,7 @@ export function App() {
         setShowSearchResults(true);
       }
     },
-    [confirmDiscardChanges, hasUnsavedChanges],
+    [confirmLeaveNote, hasUnsavedChanges],
   );
 
   const handleCloseActiveTabFromHost = useCallback(() => {
@@ -825,7 +859,7 @@ export function App() {
     async (initialTitle?: string, options?: { openInNewTab?: boolean }) => {
       const wantNewTab = Boolean(options?.openInNewTab);
       const out = await runUnlessInFlight(createNoteInFlightRef, async () => {
-        if (!wantNewTab && !(await confirmDiscardChanges())) return null;
+        if (!(await confirmLeaveNote())) return null;
         if (!wantNewTab) pushNavHistory();
         const title = initialTitle?.trim() || t("common.untitled");
         try {
@@ -854,7 +888,7 @@ export function App() {
       });
       return out ?? null;
     },
-    [confirmDiscardChanges, mergeNoteCreatedFromHost, t],
+    [confirmLeaveNote, mergeNoteCreatedFromHost, t],
   );
 
   useEffect(() => {
@@ -936,7 +970,13 @@ export function App() {
       const newTitle = result.note.title;
       if (oldNorm === normalizeTitle(newTitle)) return result.notePath;
 
-      const inboundPaths = await window.tipsboardDesktop.findInboundWikiLinks(oldNorm);
+      let inboundPaths: string[];
+      try {
+        inboundPaths = await window.tipsboardDesktop.findInboundWikiLinks(oldNorm);
+      } catch (caught) {
+        setError(messageForError(caught));
+        return result.notePath;
+      }
       const inboundPathSet = new Set(inboundPaths.map((notePath) => normalizeVaultNotePath(notePath)));
       const candidateNotes =
         inboundPathSet.size > 0
@@ -1042,47 +1082,45 @@ export function App() {
     [requestConfirm, t],
   );
 
-  const handleDraftNoteChange = useCallback((path: string, body: string) => {
-    setSnapshot((current) => {
-      const oldNote = current.notes.find((note) => note.path === path) ?? null;
-      const notes = current.notes.map((note) => {
-        if (note.path !== path) return note;
-        const title = extractDraftTitle(body, note.title);
-        return {
-          ...note,
-          title,
-          normalizedTitle: normalizeTitle(title),
-          body,
-          preview: extractDraftPreview(body, note.filename),
-        };
-      });
-      const newNote = notes.find((note) => note.path === path);
-      if (oldNote && newNote) {
-        noteIndexRef.current = patchNoteIndex(noteIndexRef.current, notes, oldNote, newNote);
+  const persistNoteFromEditor = useCallback(
+    async (path: string, markdown: string) => {
+      setError(null);
+      try {
+        return await handleSaveNote(path, markdown);
+      } catch (caught) {
+        setError(`${t("page.editor.saveFailed")} (${messageForError(caught)})`);
+        throw caught;
       }
-      return { ...current, notes };
-    });
-    bumpNoteIndexEpoch((value) => value + 1);
+    },
+    [handleSaveNote, t],
+  );
+
+  const handleDraftNoteChange = useCallback((path: string, draft: NoteDraft) => {
+    setNoteDraft({ path, draft });
+  }, []);
+
+  const handleSaveClick = useCallback(() => {
+    void noteEditorRef.current?.save();
   }, []);
 
   const handleExportHtml = useCallback(async () => {
-    if (!selectedNote) return;
+    if (!selectedNote || !selectedDraft) return;
     try {
       clearTimeout(exportHtmlBannerTimer.current);
       setExportHtmlError(null);
       setExportHtmlSuccess(null);
 
-      const imagePaths = collectVaultMarkdownImagePaths(selectedNote.body);
+      const imagePaths = collectVaultMarkdownImagePaths(selectedDraftMarkdown);
       const dataUrlMap = await window.tipsboardDesktop.readAssetDataUrls(imagePaths);
 
       const html = await buildStandalonePageHtml({
-        title: selectedNote.title,
-        bodyMarkdown: selectedNote.body,
+        title: selectedDraft.title,
+        bodyMarkdown: selectedDraftMarkdown,
         resolveVaultImageSrcSync: (p) => dataUrlMap[p] ?? "",
       });
       const saved = await window.tipsboardDesktop.exportHtml({
         html,
-        suggestedFileName: sanitizeExportFilename(selectedNote.title),
+        suggestedFileName: sanitizeExportFilename(selectedDraft.title),
       });
       if (saved) {
         setExportHtmlSuccess(t("page.editor.exportHtmlSuccess"));
@@ -1095,7 +1133,7 @@ export function App() {
       clearTimeout(exportHtmlBannerTimer.current);
       exportHtmlBannerTimer.current = setTimeout(() => setExportHtmlError(null), 4500);
     }
-  }, [selectedNote, t]);
+  }, [selectedDraft, selectedDraftMarkdown, selectedNote, t]);
 
   const handleDeleteNote = useCallback(async () => {
     if (!selectedNote) return;
@@ -1226,7 +1264,7 @@ export function App() {
     ) => {
       const wantNewTab = Boolean(options?.openInNewTab);
       if (type === "tag") {
-        if (!wantNewTab && !(await confirmDiscardChanges())) return;
+        if (!(await confirmLeaveNote())) return;
         if (!wantNewTab) pushNavHistory();
         const r = addOrFocusTagTab(openTabsRef.current, activeTabIdRef.current, title, {
           newTab: wantNewTab,
@@ -1262,7 +1300,7 @@ export function App() {
       }
       await handleCreateNote(title, { openInNewTab: wantNewTab });
     },
-    [confirmDiscardChanges, handleCreateNote, handleSelectNote, index.byNormalizedTitle],
+    [confirmLeaveNote, handleCreateNote, handleSelectNote, index.byNormalizedTitle],
   );
 
   const handleExportJson = useCallback(async () => {
@@ -1275,7 +1313,7 @@ export function App() {
   }, []);
 
   const handleImportJson = useCallback(async () => {
-    if (!(await confirmDiscardChanges())) return;
+    if (!(await confirmLeaveNote())) return;
     try {
       const next = await window.tipsboardDesktop.importJson();
       mergeVaultSnapshotFromHost(next);
@@ -1293,10 +1331,10 @@ export function App() {
     } catch (caught) {
       setError(messageForError(caught));
     }
-  }, [confirmDiscardChanges, mergeVaultSnapshotFromHost]);
+  }, [confirmLeaveNote, mergeVaultSnapshotFromHost]);
 
   const handleOpenCardView = useCallback(async () => {
-    if (!(await confirmDiscardChanges())) return;
+    if (!(await confirmLeaveNote())) return;
     pushNavHistory();
     setSelectedPath(null);
     setViewMode("list");
@@ -1304,10 +1342,10 @@ export function App() {
     setSaveState("idle");
     setLocalMenuOpen(false);
     setUserGuideOpen(false);
-  }, [confirmDiscardChanges]);
+  }, [confirmLeaveNote]);
 
   const handleOpenKanban = useCallback(async (focus?: { boardId: string; columnId: string; notePath: string }) => {
-    if (!(await confirmDiscardChanges())) return;
+    if (!(await confirmLeaveNote())) return;
     pushNavHistory();
     setSelectedPath(null);
     setViewMode("kanban");
@@ -1316,10 +1354,10 @@ export function App() {
     setSaveState("idle");
     setLocalMenuOpen(false);
     setUserGuideOpen(false);
-  }, [confirmDiscardChanges]);
+  }, [confirmLeaveNote]);
 
   const handleOpenCanvas = useCallback(async () => {
-    if (!(await confirmDiscardChanges())) return;
+    if (!(await confirmLeaveNote())) return;
     pushNavHistory();
     setSelectedPath(null);
     setViewMode("canvas");
@@ -1329,10 +1367,10 @@ export function App() {
     setLocalMenuOpen(false);
     setUserGuideOpen(false);
     setShowSearchResults(false);
-  }, [confirmDiscardChanges]);
+  }, [confirmLeaveNote]);
 
   const handleOpenOrganize = useCallback(async () => {
-    if (!(await confirmDiscardChanges())) return;
+    if (!(await confirmLeaveNote())) return;
     pushNavHistory();
     setSelectedPath(null);
     setViewMode("organize");
@@ -1342,7 +1380,7 @@ export function App() {
     setLocalMenuOpen(false);
     setUserGuideOpen(false);
     setShowSearchResults(false);
-  }, [confirmDiscardChanges]);
+  }, [confirmLeaveNote]);
 
   const handleSetPreferFolderHierarchy = useCallback(
     async (value: boolean) => {
@@ -1389,7 +1427,7 @@ export function App() {
   );
 
   const handleOpenAttachments = useCallback(async () => {
-    if (!(await confirmDiscardChanges())) return;
+    if (!(await confirmLeaveNote())) return;
     pushNavHistory();
     setSelectedPath(null);
     setViewMode("attachments");
@@ -1399,7 +1437,7 @@ export function App() {
     setLocalMenuOpen(false);
     setUserGuideOpen(false);
     setShowSearchResults(false);
-  }, [confirmDiscardChanges]);
+  }, [confirmLeaveNote]);
 
   const handleToggleUserGuide = useCallback(async () => {
     if (userGuideOpen) {
@@ -1407,7 +1445,7 @@ export function App() {
       setLocalMenuOpen(false);
       return;
     }
-    if (!(await confirmDiscardChanges())) return;
+    if (!(await confirmLeaveNote())) return;
     pushNavHistory();
     setUserGuideOpen(true);
     setSelectedPath(null);
@@ -1416,7 +1454,7 @@ export function App() {
     setSaveState("idle");
     setLocalMenuOpen(false);
     setShowSearchResults(false);
-  }, [confirmDiscardChanges, userGuideOpen]);
+  }, [confirmLeaveNote, userGuideOpen]);
 
   const applyNavMemoryEntry = useCallback(
     (entry: NavMemory) => {
@@ -1450,28 +1488,28 @@ export function App() {
     const stack = navHistoryRef.current;
     const prev = stack.pop();
     if (!prev) return;
-    if (!(await confirmDiscardChanges())) {
+    if (!(await confirmLeaveNote())) {
       stack.push(prev);
       return;
     }
     pushNavStackLimited(navForwardRef.current, cloneNavMemory(navStateRef.current));
     applyNavMemoryEntry(prev);
-  }, [applyNavMemoryEntry, confirmDiscardChanges]);
+  }, [applyNavMemoryEntry, confirmLeaveNote]);
 
   const handleNavigateForward = useCallback(async () => {
     const forward = navForwardRef.current;
     const next = forward.pop();
     if (!next) return;
-    if (!(await confirmDiscardChanges())) {
+    if (!(await confirmLeaveNote())) {
       forward.push(next);
       return;
     }
     pushNavStackLimited(navHistoryRef.current, cloneNavMemory(navStateRef.current));
     applyNavMemoryEntry(next);
-  }, [applyNavMemoryEntry, confirmDiscardChanges]);
+  }, [applyNavMemoryEntry, confirmLeaveNote]);
 
   useEffect(() => {
-    const dialogOpen = confirmDialog != null;
+    const dialogOpen = confirmDialog != null || unsavedDialog != null;
 
     function onDocumentKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
@@ -1555,6 +1593,7 @@ export function App() {
     return () => document.removeEventListener("keydown", onDocumentKeyDown);
   }, [
     confirmDialog,
+    unsavedDialog,
     handleNavigateBack,
     handleNavigateForward,
     handleOpenCardView,
@@ -1563,7 +1602,7 @@ export function App() {
   ]);
 
   useEffect(() => {
-    const dialogOpen = confirmDialog != null;
+    const dialogOpen = confirmDialog != null || unsavedDialog != null;
 
     function onPointerDown(event: PointerEvent) {
       if (event.pointerType !== "mouse") return;
@@ -1576,7 +1615,7 @@ export function App() {
 
     document.addEventListener("pointerdown", onPointerDown, { capture: true });
     return () => document.removeEventListener("pointerdown", onPointerDown, { capture: true });
-  }, [confirmDialog, handleNavigateBack, handleNavigateForward]);
+  }, [confirmDialog, unsavedDialog, handleNavigateBack, handleNavigateForward]);
 
   const handleLanguageChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     void changeLanguage(getSupportedLanguage(event.target.value));
@@ -1629,7 +1668,7 @@ export function App() {
       <main className="flex min-h-screen items-center justify-center px-6">
         <section className="tb-card max-w-xl px-8 py-10 text-center">
           <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-link/10 text-xl text-accent-link">
-            <i className="fa-solid fa-leaf" aria-hidden />
+            <Icon name="leaf" />
           </div>
           <p className="text-2xs font-semibold uppercase tracking-[0.2em] text-accent-link">
             {t("onboarding.eyebrow")}
@@ -1664,7 +1703,7 @@ export function App() {
             title={t("layout.userGuide")}
             aria-label={t("layout.userGuide")}
           >
-            <i className="fa-solid fa-book" aria-hidden />
+            <Icon name="book" />
           </button>
 
           <div className="my-0.5 h-px w-7 bg-accent-link/15" aria-hidden />
@@ -1684,7 +1723,7 @@ export function App() {
             title={`${t("layout.cardView")} — ${t("layout.shortcutCards")}`}
             aria-label={t("layout.cardView")}
           >
-            <i className="fa-solid fa-grip" aria-hidden />
+            <Icon name="cards" />
           </button>
           <button
             type="button"
@@ -1701,7 +1740,7 @@ export function App() {
             title={`${t("layout.kanban")} — ${t("layout.shortcutKanban")}`}
             aria-label={t("layout.kanban")}
           >
-            <i className="fa-solid fa-table-columns" aria-hidden />
+            <Icon name="kanban" />
           </button>
           <button
             type="button"
@@ -1718,7 +1757,7 @@ export function App() {
             title={`${t("layout.canvasExperimental")} — ${t("layout.shortcutCanvas")}`}
             aria-label={t("layout.canvasExperimental")}
           >
-            <i className="fa-solid fa-border-all" aria-hidden />
+            <Icon name="canvas" />
           </button>
           <button
             type="button"
@@ -1735,7 +1774,7 @@ export function App() {
             title={t("layout.attachments")}
             aria-label={t("layout.attachments")}
           >
-            <i className="fa-solid fa-paperclip" aria-hidden />
+            <Icon name="paperclip" />
           </button>
           <button
             type="button"
@@ -1752,7 +1791,7 @@ export function App() {
             title={t("layout.organize")}
             aria-label={t("layout.organize")}
           >
-            <i className="fa-solid fa-inbox" aria-hidden />
+            <Icon name="inbox" />
             {preferFolderHierarchy && inboxNotes.length > 0 && (
               <span className="absolute right-1.5 top-1.5 min-w-[1rem] rounded-full bg-amber-500 px-1 text-[10px] font-semibold leading-4 text-white">
                 {inboxNotes.length > 9 ? "9+" : inboxNotes.length}
@@ -1769,7 +1808,7 @@ export function App() {
             title={`${t("layout.newPage")} — ${t("layout.shortcutNewNote")}`}
             aria-label={t("layout.newPage")}
           >
-            <i className="fa-solid fa-plus" aria-hidden />
+            <Icon name="plus" />
           </button>
           <div className="min-h-2 flex-1" aria-hidden />
           <div ref={localMenuRef} className="relative flex flex-col items-center">
@@ -1784,7 +1823,7 @@ export function App() {
               aria-haspopup="menu"
               aria-expanded={localMenuOpen}
             >
-              <i className="fa-solid fa-gear" aria-hidden />
+              <Icon name="settings" />
             </button>
             {localMenuOpen && (
               <div className="absolute bottom-0 left-[calc(100%+10px)] z-50 max-h-[min(30rem,calc(100dvh-4rem))] w-80 overflow-y-auto overflow-x-hidden rounded-2xl border border-accent-link/10 bg-bg-card py-1 text-sm shadow-dropdown">
@@ -1793,7 +1832,7 @@ export function App() {
                   onClick={() => void handleImportJson()}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                 >
-                  <i className="fa-solid fa-file-import text-[10px]" aria-hidden />
+                  <Icon name="import" className="text-[10px]" />
                   {t("layout.importJson")}
                 </button>
                 <button
@@ -1801,7 +1840,7 @@ export function App() {
                   onClick={() => void handleExportJson()}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                 >
-                  <i className="fa-solid fa-file-export text-[10px]" aria-hidden />
+                  <Icon name="export" className="text-[10px]" />
                   {t("layout.exportJson")}
                 </button>
                 <div className="border-t border-accent-link/10 px-3 py-3">
@@ -1956,7 +1995,7 @@ export function App() {
                   aria-label={t("page.editor.backToList")}
                   title={`${t("page.editor.backToList")} — ${t("layout.shortcutBack")}`}
                 >
-                  <i className="fa-solid fa-arrow-left text-sm" aria-hidden />
+                  <Icon name="arrow-left" className="text-sm" />
                 </button>
               ) : userGuideOpen ? (
                 <button
@@ -1966,7 +2005,7 @@ export function App() {
                   aria-label={t("page.userGuide.closeGuide")}
                   title={t("page.userGuide.closeGuide")}
                 >
-                  <i className="fa-solid fa-arrow-left text-sm" aria-hidden />
+                  <Icon name="arrow-left" className="text-sm" />
                 </button>
               ) : (
                 <span className="inline-flex h-9 w-9 shrink-0" aria-hidden />
@@ -2008,7 +2047,7 @@ export function App() {
                           const needsNavigateAway =
                             selectedNote !== null || userGuideOpen || viewMode === "kanban" || viewMode === "canvas" || viewMode === "attachments" || viewMode === "organize";
                           if (needsNavigateAway) {
-                            if (!(await confirmDiscardChanges())) {
+                            if (!(await confirmLeaveNote())) {
                               return;
                             }
                             pushNavHistory();
@@ -2108,7 +2147,7 @@ export function App() {
                           title={t("semanticSearch.updateIndex")}
                           aria-label={t("semanticSearch.updateIndex")}
                         >
-                          <i className="fa-solid fa-rotate-right text-xs" aria-hidden />
+                          <Icon name="refresh" className="text-xs" />
                         </button>
                         <button
                           type="button"
@@ -2118,7 +2157,7 @@ export function App() {
                           title={t("semanticSearch.rebuildIndex")}
                           aria-label={t("semanticSearch.rebuildIndex")}
                         >
-                          <i className="fa-solid fa-arrows-rotate text-xs" aria-hidden />
+                          <Icon name="rebuild" className="text-xs" />
                         </button>
                       </div>
                     </div>
@@ -2204,6 +2243,18 @@ export function App() {
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <SaveStatus state={saveState} />
+                {selectedNote && (
+                  <button
+                    type="button"
+                    onClick={handleSaveClick}
+                    disabled={saveState === "saving" || !hasUnsavedChanges}
+                    title={t("page.editor.saveHint", { shortcut: "Ctrl+S / ⌘S" })}
+                    className="tb-btn-primary px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                  >
+                    <Icon name={saveState === "saving" ? "spinner" : "save"} className={saveState === "saving" ? "animate-spin" : ""} />
+                    {t("page.editor.save")}
+                  </button>
+                )}
               </div>
             </div>
           </header>
@@ -2262,6 +2313,13 @@ export function App() {
                   </div>
                 )}
 
+                <NoteTitleHeader
+                  key={`${editorSessionId}:${selectedNote.path}`}
+                  title={selectedDraft?.title ?? selectedNote.title}
+                  onCommit={(title) => noteEditorRef.current?.setTitle(title)}
+                  onSubmit={() => noteEditorRef.current?.focus()}
+                />
+
                 {selectedKanbanStatuses.length > 0 && (
                   <div className="mb-3 flex flex-wrap gap-2">
                     {selectedKanbanStatuses.map(({ board, column }) => (
@@ -2278,7 +2336,7 @@ export function App() {
                         className="inline-flex items-center gap-1 rounded-full border border-accent-link/15 bg-bg-elevated px-3 py-1 text-2xs font-medium text-text-muted transition-colors hover:border-accent-link/35 hover:bg-bg-hover hover:text-text-primary"
                         title={t("page.editor.kanbanStatus")}
                       >
-                        <i className="fa-solid fa-table-columns text-[10px]" aria-hidden />
+                        <Icon name="kanban" className="text-[10px]" />
                         {board.name} / {column.name}
                       </button>
                     ))}
@@ -2313,7 +2371,7 @@ export function App() {
                           : "text-text-muted/80 hover:bg-bg-hover hover:text-text-primary"
                       }`}
                     >
-                      <i className="fa-solid fa-thumbtack" aria-hidden />
+                      <Icon name="pin" />
                     </button>
                     {selectedNoteCanOrganize && (
                       <OrganizeInboxStrip
@@ -2348,7 +2406,7 @@ export function App() {
                       title={t("page.editor.exportHtmlHint")}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[13px] text-text-muted/80 transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-link/25"
                     >
-                      <i className="fa-solid fa-file-export" aria-hidden />
+                      <Icon name="export" />
                     </button>
                     <button
                       type="button"
@@ -2357,7 +2415,7 @@ export function App() {
                       title={t("page.editor.delete")}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[13px] text-text-muted/70 transition-colors hover:bg-accent-error/[0.08] hover:text-accent-error focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-error/25"
                     >
-                      <i className="fa-solid fa-trash-can" aria-hidden />
+                      <Icon name="trash" />
                     </button>
                   </nav>
 
@@ -2367,11 +2425,11 @@ export function App() {
                     note={selectedNote}
                     suggestions={index.suggestions}
                     existingNormalizedTitles={Array.from(index.byNormalizedTitle.keys())}
-                    onSave={handleSaveNote}
+                    onSave={persistNoteFromEditor}
                     onSavedPathChange={setSelectedPath}
                     onSaveStateChange={setSaveState}
+                    onDraftChange={handleDraftNoteChange}
                     onLinkClick={handleLinkClick}
-                    onContentChange={handleDraftNoteChange}
                     onImageDropError={setError}
                     onAttachmentIndexUpdated={mergeAttachmentsFromHost}
                     attachmentMaxBytes={snapshot.attachmentMaxBytes}
@@ -2458,7 +2516,7 @@ export function App() {
               <div className="tb-shell flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-20">
                 <div className="tb-card max-w-md px-8 py-10 text-center">
                   <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-link/10 text-xl font-semibold text-accent-link">
-                    <i className="fa-solid fa-leaf" aria-hidden />
+                    <Icon name="leaf" />
                   </div>
                   <p className="text-lg font-semibold text-text-primary">{t("page.list.emptyTitle")}</p>
                   <p className="mt-2 text-sm leading-6 text-text-muted">
@@ -2472,7 +2530,7 @@ export function App() {
                     })}
                   </p>
                   <button type="button" className="tb-btn-primary mt-5" onClick={() => void handleCreateNote()}>
-                    <i className="fa-solid fa-plus" aria-hidden />
+                    <Icon name="plus" />
                     {t("layout.newPage")}
                   </button>
                 </div>
@@ -2481,7 +2539,7 @@ export function App() {
               <div className="tb-shell flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-20">
                 <div className="tb-card max-w-md px-8 py-10 text-center">
                   <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-link/10 text-xl font-semibold text-accent-link">
-                    <i className="fa-solid fa-magnifying-glass" aria-hidden />
+                    <Icon name="search" />
                   </div>
                   <p className="text-lg font-semibold text-text-primary">{t("page.list.searchEmptyTitle")}</p>
                   <p className="mt-2 text-sm leading-6 text-text-muted">{t("page.list.searchEmptyDescription")}</p>
@@ -2542,6 +2600,13 @@ export function App() {
           }}
         />
       )}
+      {unsavedDialog && (
+        <UnsavedChangesDialog
+          saveInProgress={unsavedDialog.saveInProgress}
+          busy={unsavedDialog.busy}
+          onChoose={chooseUnsavedChangesAction}
+        />
+      )}
       {confirmDialog && (
         <ConfirmDialog
           title={confirmDialog.title}
@@ -2572,10 +2637,7 @@ function SemanticSearchModeSwitch({
 
   return (
     <label className="flex cursor-pointer select-none items-center gap-1.5">
-      <i
-        className={`fa-solid fa-wand-magic-sparkles text-[10px] ${enabled ? "text-accent-link" : "text-text-muted"}`}
-        aria-hidden
-      />
+      <Icon name="wand" className={`text-[10px] ${enabled ? "text-accent-link" : "text-text-muted"}`} />
       <span className={`hidden text-2xs font-medium sm:inline ${enabled ? "text-accent-link" : "text-text-muted"}`}>
         {label}
       </span>
@@ -2657,7 +2719,7 @@ function OrganizeInboxStrip({
         aria-expanded={stripOpen}
         aria-haspopup="dialog"
       >
-        <i className="fa-solid fa-inbox" aria-hidden />
+        <Icon name="inbox" />
       </button>
 
       {stripOpen && (
@@ -2682,7 +2744,7 @@ function OrganizeInboxStrip({
                 onOpenOrganizePanel();
               }}
             >
-              <i className="fa-solid fa-table-list text-[11px]" aria-hidden />
+              <Icon name="list-rows" className="text-[11px]" />
               {t("organize.openOrganizePanel")}
             </button>
             <button
@@ -2696,7 +2758,7 @@ function OrganizeInboxStrip({
                 onToggleOpen();
               }}
             >
-              <i className="fa-solid fa-folder-tree text-[11px]" aria-hidden />
+              <Icon name="folder-tree" className="text-[11px]" />
               {busy ? t("organize.analyzing") : t("organize.suggestAction")}
             </button>
           </div>
@@ -2757,7 +2819,7 @@ function OrganizeSuggestionsPopover({
                 aria-label={t("organize.refresh")}
                 title={t("organize.refresh")}
               >
-                <i className={`fa-solid fa-rotate-right text-[11px] ${busy ? "fa-spin" : ""}`} aria-hidden />
+                <Icon name="refresh" className={`text-[11px] ${busy ? "animate-spin" : ""}`} />
               </button>
               <button
                 type="button"
@@ -2765,7 +2827,7 @@ function OrganizeSuggestionsPopover({
                 onClick={onClose}
                 aria-label={t("organize.close")}
               >
-                <i className="fa-solid fa-xmark text-[11px]" aria-hidden />
+                <Icon name="close" className="text-[11px]" />
               </button>
             </div>
           </div>
@@ -2883,7 +2945,7 @@ function NoteCard({
           className="pointer-events-none absolute right-2.5 top-2.5 z-10 text-accent-link drop-shadow-[0_0_1px_rgba(255,255,255,0.95)]"
           aria-hidden
         >
-          <i className="fa-solid fa-thumbtack text-xs" />
+          <Icon name="pin" className="text-xs" />
         </span>
       ) : null}
 
@@ -3028,7 +3090,7 @@ function RelatedLinks({
           className="flex items-center gap-1.5 text-2xs text-text-muted"
           title={t("links.isolatedDescription")}
         >
-          <i className="fa-solid fa-link-slash text-[10px] opacity-60" aria-hidden />
+          <Icon name="unlink" className="text-[10px] opacity-60" />
           <span>{t("links.isolatedTitle")}</span>
         </div>
       )}
@@ -3302,15 +3364,6 @@ function formatPreview(preview: string): string {
     .replace(/(?<!\\)\[([^\[\]\n]+?)\s+https?:\/\/\S+\]/g, "$1")
     .replace(/(?<!\\)\[([^\[\]\n]+?)\](?!\()/g, "$1")
     .trim();
-}
-
-function extractDraftTitle(body: string, fallback: string): string {
-  const firstLine = body.split("\n", 1)[0]?.trim();
-  return firstLine || fallback;
-}
-
-function extractDraftPreview(body: string, fallback: string): string {
-  return body.split("\n").slice(1).join("\n").trim() || fallback;
 }
 
 function messageForError(error: unknown): string {

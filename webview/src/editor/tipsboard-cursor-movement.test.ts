@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { EditorSelection } from "@codemirror/state";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { type EditorView } from "@codemirror/view";
 
 import { createEditor } from "./index";
@@ -65,6 +65,13 @@ function pressArrow(view: EditorView, key: "ArrowDown" | "ArrowUp"): void {
 
 describe("Tipsboard editor cursor movement", () => {
   const opened: EditorView[] = [];
+
+  beforeAll(() => {
+    // jsdom has no layout: give Range the empty geometry CodeMirror's coordinate queries expect.
+    const emptyRects = (): DOMRectList => Object.assign([], { item: () => null }) as unknown as DOMRectList;
+    Range.prototype.getClientRects ??= emptyRects;
+    Range.prototype.getBoundingClientRect ??= () => new DOMRect(0, 0, 0, 0);
+  });
 
   afterEach(() => {
     for (const view of opened.splice(0)) {

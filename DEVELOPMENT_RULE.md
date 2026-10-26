@@ -11,3 +11,16 @@
 - テストは変更のリスクに応じて追加・更新し、既存のテスト方針に合わせること。
 - セキュリティ上重要な情報、認証情報、個人情報、環境依存の秘密情報をコードやドキュメントに含めないこと。
 - 実装後は、変更内容、確認した動作、実行したテスト、残っている懸念点を簡潔に共有すること。
+
+## 依存パッケージ（脆弱性・ライセンス）
+
+- パッケージを追加・更新する前に、必ず次を確認すること。確認前に `npm install` / `npm update` を実行しない。
+  - 脆弱性: `npm view <pkg>@<version>` で公開状況を確認し、導入後は `npm run audit` が 0 件であること。修正版が無い既知脆弱性を持つバージョンは導入しない。
+  - ライセンス: `npm view <pkg>@<version> license dependencies` で本体と推移的依存のライセンスを確認する。
+  - 配布範囲: その依存が VSIX（拡張ホスト・WebView）またはセマンティックランタイムに同梱されるか、開発時のみかを判断する。
+- 配布物に同梱される依存は、商用利用可能な寛容ライセンス（`license-policy.json` の `shippedAllowedLicenses`: MIT / ISC / Apache-2.0 / BSD 系など）に限る。GPL・LGPL・AGPL・MPL・CC-BY・SSPL・BUSL・独自ライセンス・ライセンス不明は同梱しない。
+- 開発時のみの依存で寛容ライセンス以外を許可する場合は、`license-policy.json` の `devOnlyAllowedLicenses` に理由を書いて追加し、レビューを受けること。
+- package.json の `license` が欠落・不正確な場合は、ライセンスファイルを確認したうえで `packageLicenseOverrides` に記録すること。
+- 方針外の依存が見つかった場合は、依存の削除、寛容ライセンスの代替への切り替え、配布物からの除外の順で解消すること。
+- 依存を変更したら `npm run check:deps`（`npm audit` とライセンス検査）を実行し、通ることを確認してからコミットすること。CI でも同じ検査を必須とする。
+- 配布物の第三者ライセンス表記は `npm run vscode:prepublish` が `dist/THIRD_PARTY_NOTICES.txt` に生成する。手で編集しない。

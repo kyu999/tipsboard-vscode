@@ -39,8 +39,8 @@ jobs:
           npm ci
           npm ci --prefix webview
 
-      - name: Audit dependencies
-        run: npm run audit
+      - name: Audit dependencies (vulnerabilities and licenses)
+        run: npm run check:deps
 
       - name: Test
         run: npm test

@@ -20,6 +20,7 @@ import {
 import type { CanvasDocument, CanvasEdge, CanvasLoadResult, CanvasSummary, VaultSnapshot } from "@/types";
 import { CANVAS_AUTOSAVE_DELAY_MS } from "@/shared/autosaveDelays";
 import { validateCanvasRules } from "@/lib/canvas/canvasRuleValidation";
+import { Icon } from "@/components/Icon";
 
 interface CanvasViewProps {
   snapshot: VaultSnapshot;
@@ -466,7 +467,7 @@ export function CanvasView({ snapshot, onCanvasesChange, onError }: CanvasViewPr
             aria-expanded={canvasPickerOpen}
           >
             {selectedCanvas?.name ?? t("canvas.noCanvas")}
-            <i className="fa-solid fa-chevron-down ml-2 text-xs" aria-hidden />
+            <Icon name="chevron-down" className="ml-2 text-xs" />
           </button>
           <span
             className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800"
@@ -513,7 +514,7 @@ export function CanvasView({ snapshot, onCanvasesChange, onError }: CanvasViewPr
             aria-label={t("canvas.actions.canvasMenu")}
             onClick={() => setCanvasMenuOpen((open) => !open)}
           >
-            <i className="fa-solid fa-ellipsis-vertical" aria-hidden />
+            <Icon name="menu" />
           </button>
           {canvasMenuOpen && selectedPath && (
             <div className="absolute left-0 top-full z-30 mt-1 min-w-[200px] rounded-xl border border-stone-300/80 bg-bg-card py-1 shadow-soft">
@@ -556,7 +557,7 @@ export function CanvasView({ snapshot, onCanvasesChange, onError }: CanvasViewPr
                 aria-expanded={warningsOpen}
                 onClick={() => setWarningsOpen((open) => !open)}
               >
-                <i className="fa-solid fa-triangle-exclamation text-sm" aria-hidden />
+                <Icon name="warning" className="text-sm" />
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold leading-none text-white">
                   {warningCount > 9 ? "9+" : warningCount}
                 </span>
@@ -627,7 +628,7 @@ export function CanvasView({ snapshot, onCanvasesChange, onError }: CanvasViewPr
               aria-label={t("canvas.actions.openMermaidSource")}
               onClick={openMermaidInEditor}
             >
-              <i className="fa-solid fa-file-code text-xs" aria-hidden />
+              <Icon name="file-code" className="text-xs" />
             </button>
           )}
           {saveState === "unsaved" && t("canvas.save.unsaved")}

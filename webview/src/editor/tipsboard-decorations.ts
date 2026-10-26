@@ -118,7 +118,7 @@ class MarkdownImageWidget extends WidgetType {
     super();
   }
 
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
     const wrapper = document.createElement("span");
     wrapper.className = "cm-image-widget";
     if (this.options.align) {
@@ -136,6 +136,7 @@ class MarkdownImageWidget extends WidgetType {
       placeholder.className = "text-accent-error text-xs";
       placeholder.textContent = this.alt || this.src;
       wrapper.appendChild(placeholder);
+      view.requestMeasure();
     };
     if (this.src.startsWith("assets/images/")) {
       const resolved = resolveMarkdownImageSrc(this.src);
@@ -490,18 +491,20 @@ function createInlineSpan(className: string, text: string): HTMLElement {
   return span;
 }
 
-/** Vault attachment `[label](assets/files/...)`. Icon via CSS `::before`, not FA classes on label text. */
+/** Vault attachment `[label](assets/files/...)`. Icon via CSS `::before` so label text stays untouched. */
 const VAULT_ATTACHMENT_LINK_CLASS = "cm-tipsboard-vault-attachment-link" as const;
+
+/** Lucide "paperclip" (ISC). Rendered as a CSS mask so it inherits the link color. */
+const PAPERCLIP_ICON_MASK = `url("data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"/></svg>',
+)}")`;
 
 function createVaultAttachmentTableLink(label: string, target: string): HTMLElement {
   const span = document.createElement("span");
-  span.className = `${VAULT_ATTACHMENT_LINK_CLASS} cm-tipsboard-vault-attachment-link--dom-icon`;
+  span.className = VAULT_ATTACHMENT_LINK_CLASS;
   span.dataset.tipsboardTableLinkType = "vaultAttachment";
   span.dataset.tipsboardTableLinkTarget = target;
-  const icon = document.createElement("i");
-  icon.className = "fa-solid fa-paperclip fa-xs";
-  icon.setAttribute("aria-hidden", "true");
-  span.append(icon, document.createTextNode(` ${label}`));
+  span.textContent = label;
   return span;
 }
 
@@ -545,7 +548,6 @@ const codeBlockShellWrapper = BlockWrapper.create({
   attributes: { class: "cm-tipsboard-code-shell" },
   rank: 52,
 });
-const pageTitleLineMark = Decoration.mark({ class: "cm-page-title-line" });
 const orderedMarkerMark = Decoration.mark({ class: "cm-tipsboard-ordered-marker" });
 
 export const setExistingLinkTitlesEffect = StateEffect.define<readonly string[]>();
@@ -1296,12 +1298,7 @@ function buildDecorations(view: EditorView): DecorationSet {
   const tableRanges = collectInactiveMarkdownTableRanges(view, viewport);
   const mermaidRanges = collectInactiveMermaidBlockRanges(view, viewport);
   const mathRanges = collectInactiveMathBlockRanges(view, viewport);
-  const firstLine = view.state.doc.line(1);
   const existingLinkTitles = view.state.field(existingLinkTitlesField);
-  const blockWidgetRanges = [...tableRanges, ...mermaidRanges, ...mathRanges];
-  if (!rangeFullyContainedInAny({ from: firstLine.from, to: firstLine.to }, blockWidgetRanges)) {
-    addDecoration(decorations, firstLine.from, firstLine.to, pageTitleLineMark);
-  }
 
   const blockRanges = [...tableRanges, ...mermaidRanges, ...mathRanges];
   const allSkipRanges = [...skipRanges, ...blockRanges];
@@ -1415,6 +1412,26 @@ const tableEditHandler = EditorView.domEventHandlers({
   },
 });
 
+/**
+ * Images inside widgets change height after they load (or fail), which CodeMirror cannot observe.
+ * Without a re-measure its height map goes stale and clicks land on a different line than the caret.
+ */
+const remeasureOnMediaLoad = ViewPlugin.fromClass(
+  class {
+    private readonly onMediaSettled = () => this.view.requestMeasure();
+
+    constructor(private readonly view: EditorView) {
+      view.contentDOM.addEventListener("load", this.onMediaSettled, true);
+      view.contentDOM.addEventListener("error", this.onMediaSettled, true);
+    }
+
+    destroy() {
+      this.view.contentDOM.removeEventListener("load", this.onMediaSettled, true);
+      this.view.contentDOM.removeEventListener("error", this.onMediaSettled, true);
+    }
+  },
+);
+
 export function tipsboardDecorations(
   existingNormalizedTitles: Iterable<string> = [],
 ): Extension[] {
@@ -1424,22 +1441,11 @@ export function tipsboardDecorations(
     tipsboardInlineDecorations,
     codeBlockShellWrappers,
     tableEditHandler,
+    remeasureOnMediaLoad,
   ];
 }
 
 export const tipsboardTheme = EditorView.baseTheme({
-  ".cm-page-title-line": {
-    fontWeight: "700",
-    fontSize: "1.48em",
-    lineHeight: "1.35",
-    letterSpacing: "-0.02em",
-    paddingBottom: "12px",
-    borderBottom: `1px solid ${pe.borderStrong}`,
-    marginBottom: "10px",
-    display: "inline-block",
-    width: "100%",
-    color: pt.primary,
-  },
   ".cm-tipsboard-bold": { fontWeight: "bold" },
   ".cm-tipsboard-italic": { fontStyle: "italic" },
   ".cm-tipsboard-strike": { textDecoration: "line-through", opacity: "0.6" },
@@ -1501,29 +1507,20 @@ export const tipsboardTheme = EditorView.baseTheme({
     paddingInlineEnd: "2px",
   },
   ".cm-tipsboard-vault-attachment-link::before": {
-    display: "inline-block",
-    fontFamily: '"Font Awesome 7 Free"',
-    fontWeight: "900",
-    content: '"\\f0c6"',
-    marginInlineEnd: "0.35em",
-    opacity: "0.92",
-    fontSize: "0.82em",
-    lineHeight: "1",
-    verticalAlign: "0.05em",
-    textDecoration: "none",
-    WebkitFontSmoothing: "antialiased",
-  },
-  ".cm-tipsboard-vault-attachment-link--dom-icon::before": {
     content: '""',
-    margin: "0",
-    display: "none",
-  },
-  ".cm-tipsboard-vault-attachment-link--dom-icon > .fa-paperclip": {
+    display: "inline-block",
+    width: "0.85em",
+    height: "0.85em",
     marginInlineEnd: "0.35em",
     opacity: "0.92",
-    fontSize: "0.82em",
-    verticalAlign: "0.05em",
-    textDecoration: "none",
+    verticalAlign: "-0.08em",
+    backgroundColor: "currentColor",
+    maskImage: PAPERCLIP_ICON_MASK,
+    maskRepeat: "no-repeat",
+    maskSize: "contain",
+    WebkitMaskImage: PAPERCLIP_ICON_MASK,
+    WebkitMaskRepeat: "no-repeat",
+    WebkitMaskSize: "contain",
   },
   ".cm-tipsboard-tag": {
     color: pa.tag,

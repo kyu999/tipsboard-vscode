@@ -1,4 +1,6 @@
 .vscode/**
+.cursor/**
+.tmp-npm-cache/**
 
 # Sources and alternate / stale build outputs (runtime uses dist/ only)
 src/**

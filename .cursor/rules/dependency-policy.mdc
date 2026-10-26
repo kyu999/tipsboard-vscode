@@ -1,0 +1,16 @@
+---
+description: npm 依存の追加・更新時に脆弱性とライセンスを事前確認する
+alwaysApply: true
+---
+
+# 依存パッケージの導入ルール
+
+詳細は `DEVELOPMENT_RULE.md` の「依存パッケージ（脆弱性・ライセンス）」に従う。
+
+- `npm install <pkg>` / `npm update` の前に、必ず次を確認する。
+  - `npm view <pkg>@<version> license dependencies` で本体と推移的依存のライセンスを確認する。
+  - 既知の脆弱性がないことを確認する（導入後の `npm run audit` が 0 件であること）。
+  - VSIX・WebView・セマンティックランタイムに同梱されるか、開発時のみかを判断する。
+- 同梱される依存は `license-policy.json` の `shippedAllowedLicenses`（MIT / ISC / Apache-2.0 / BSD 系など商用利用可能な寛容ライセンス）だけを許可する。GPL / LGPL / AGPL / MPL / CC-BY / 独自 / 不明は同梱しない。
+- 開発時のみで寛容ライセンス以外が必要な場合は、`devOnlyAllowedLicenses` に理由付きで追加し、ユーザーに確認する。
+- 依存を変更したら `npm run check:deps` を実行して結果を報告する。

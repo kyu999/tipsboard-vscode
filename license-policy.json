@@ -1,0 +1,34 @@
+{
+  "shippedAllowedLicenses": [
+    "MIT",
+    "MIT-0",
+    "ISC",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "Unlicense",
+    "CC0-1.0",
+    "Python-2.0",
+    "BlueOak-1.0.0"
+  ],
+  "devOnlyAllowedLicenses": {
+    "MPL-2.0": "Unmodified build tools (lightningcss) used only at build time; not shipped.",
+    "Artistic-2.0": "Transitive dependencies of @vscode/vsce used only to package the VSIX; not shipped.",
+    "CC-BY-3.0": "SPDX exception data (spdx-exceptions) used only by packaging tools; not shipped.",
+    "CC-BY-4.0": "Browser support data (caniuse-lite) read only at build time; not shipped.",
+    "WTFPL": "Formatting helpers used only by packaging tools; not shipped.",
+    "LGPL-3.0-or-later": "sharp/libvips binaries used only by local semantic evaluation; replaced by a stub in shipped runtime packs.",
+    "LicenseRef-Microsoft-vsce-sign": "Microsoft signing tool installed by @vscode/vsce for VSIX packaging; not shipped."
+  },
+  "packageLicenseOverrides": {
+    "khroma": {
+      "license": "MIT",
+      "reason": "package.json omits the license field; the bundled license file is MIT."
+    },
+    "@vscode/vsce-sign*": {
+      "license": "LicenseRef-Microsoft-vsce-sign",
+      "reason": "package.json points to Microsoft license terms for the vsce signing tool."
+    }
+  }
+}

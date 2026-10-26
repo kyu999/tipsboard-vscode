@@ -10,7 +10,6 @@ import { tipsboardLanguage } from "./tipsboard-language";
 import { tipsboardDecorations, tipsboardTheme } from "./tipsboard-decorations";
 import { tipsboardKeymap } from "./tipsboard-keymap";
 import { createLinkClickHandler, type LinkClickHandler } from "./tipsboard-links";
-import { createManualSavePlugin, type EditorSaveConfig } from "./tipsboard-save";
 import { createLocalLinkCompletionSource } from "./tipsboard-link-completion";
 import { createLocalAttachmentDropExtension } from "./tipsboard-image-drop";
 import { DEFAULT_ATTACHMENT_MAX_BYTES } from "@/shared/attachmentConstants";
@@ -42,11 +41,6 @@ const notebookTheme = EditorView.theme(
     },
     ".cm-line": {
       padding: "1px 0",
-    },
-    // Page-title spacing for line 1 only. Avoid `.cm-line:first-child` alone:
-    // fenced blocks wrap inner `.cm-line`s so the opening ``` row becomes a false first-child.
-    ".cm-content > .cm-line:first-child": {
-      paddingBottom: "14px",
     },
     ".cm-cursor": {
       borderLeftColor: accent.link,
@@ -150,7 +144,6 @@ export interface EditorConfig {
   currentUserPageTitle?: string | null;
   getCurrentUserPageTitle?: () => string | null | undefined;
   onLinkClick: LinkClickHandler;
-  save?: EditorSaveConfig;
   getLinkSuggestions: () => LinkSuggestion[];
   existingNormalizedTitles?: Iterable<string>;
   onImageDropError?: (message: string) => void;
@@ -198,12 +191,6 @@ export function createEditor(config: EditorConfig): EditorView {
       }
     }),
     createLinkClickHandler(config.onLinkClick),
-    ...(config.save
-      ? createManualSavePlugin({
-          ...config.save,
-          initialContent: config.doc,
-        })
-      : []),
     createLocalAttachmentDropExtension({
       getMaxAttachmentBytes: () => config.getMaxAttachmentBytes?.() ?? DEFAULT_ATTACHMENT_MAX_BYTES,
       onError: config.onImageDropError,

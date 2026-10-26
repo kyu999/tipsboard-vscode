@@ -326,7 +326,8 @@ vault/
 
 ### 8.3 タイトル・ファイル名
 
-- **タイトル**は本文 **先頭行**（`extractTitle`）。
+- **タイトル**は本文 **先頭行**（`extractTitle`）。ディスク上の形式は従来どおり「1 行目 = タイトル」の Markdown。
+- **WebView の表示**: タイトルは本文エディタと分離した見出し（`NoteTitleHeader`）に表示し、本文エディタには 2 行目以降だけを出す（`splitNoteMarkdown`）。見出しは **クリックで入力欄に切り替わり**、Enter / フォーカス外で確定、Escape で取り消し。確定したタイトルはドラフトに入るだけで、**保存時に 1 行目へ書き戻す**（`composeNoteMarkdown`）。空文字・変更なしは確定しない。IME 変換中の Enter は確定扱いにしない。
 - **新規作成時**、`createNote` は vault root 直下の `inbox/` に `stem.md` を作る。`inbox` がファイル等で使えない場合は `Tipsboard inbox/`、`Tipsboard inbox 2/` ... にフォールバックする。
 - **保存時**、先頭行から stem を作り、**既存ファイル名と異なれば同じディレクトリ内でリネーム**（衝突時は `stem (2).md` のようにユニーク化）。既存フォルダ階層は保存だけでは変えない。
 - リネーム時、**KANBAN** の `note_path`、**pins** のパスを **パッチ**する。
@@ -402,7 +403,9 @@ vault/
 | `viewMode` | `"list"` \| `"kanban"` \| `"canvas"` \| `"attachments"` \| `"organize"`。左サイドバーから切替（Canvas は格子アイコン、`Ctrl+Shift+C` / `⌘⇧C`）。 |
 | `kanbanFocus` | ボード / 列 / カードのフォーカス情報 |
 | `editorSessionId` | ノート切り替え時にインクリメントし **`NoteEditor` をリマウント**させるトリガ。カーソル・エディタ内スクロール・ノートビュー外側スクロールは path 単位のメモリキャッシュ（`webview/src/lib/editorViewState.ts`）に離脱時保存し、再マウント後に復元する。 |
-| `saveState` | `"idle" \| "unsaved" \| "saving" \| "saved" \| "error"`（CodeMirror 保存プラグインから供給） |
+| `saveState` | `"idle" \| "unsaved" \| "saving" \| "saved" \| "error"`（`NoteEditor` が持つ `NoteSaveSession` から供給） |
+| `noteDraft` | 選択中ノートの未保存ドラフト `{ title, body }`。見出しナビ・近傍ノート検索・HTML エクスポートはこれを使う。`snapshot` は保存成功まで更新しない。 |
+| `unsavedDialog` | 未保存時の離脱確認（3 択）ダイアログの表示状態 |
 | `query` / `listSearchFilter` | ヘッダー検索入力とカード一覧フィルタ。Enter で `query.trim()` を `listSearchFilter` に反映して一覧へ戻り、候補ドロップダウンのクリックは直接ノートを開く。 |
 | セマンティック検索モーダル | ヘッダーの wand から開く。`semanticSearchOpen` / `semanticQuery` / `semanticResults` 等。`tipsboardDesktop.semanticSearch` を呼ぶ（設定 off 時は Host がエラー）。 |
 | `nearNotes` / `nearNotesBusy` | 選択中ノートの本文を `semanticSearch` に渡して得た候補を `webview/src/lib/nearNotes.ts` でノート単位に集約した Related 表示用 state。`getSemanticSearchSettings.enabled` が false（`semanticSearch.provider === off`）のときは RPC も UI も出さない。編集時は debounce 済み本文で 800ms 後に再検索し、入力中は直前結果を維持。ノート切替時は debounce をスキップして即検索。検索が失敗した WebView セッションでは再試行しない。 |
@@ -422,23 +425,32 @@ vault/
 
 - **バック**用 **`navHistoryRef`** と **進む**用 **`navForwardRef`**。**各リスト最大 50**。超過時は末尾を push し、先頭を `shift()`。共有ロジックは **`webview/src/lib/navMemory.ts`**（`cloneNavMemory` / `pushNavStackLimited` / `navMemoryEqual`）。
 - `pushNavHistory` は遷移前の状態として **選択ノート・viewMode・KANBAN フォーカス・ガイド開閉・一覧フィルタ・`openTabs` / `activeTabId`・検索バー `query` / `showSearchResults`** をバック側に保存し、このとき **進む側を空にクリアする**（新しい遷移で「進む」を無効化するため）。
-- **戻る**はバック側を popし、復元実行前に **現在状態を進む側に push**。**進む**は進む側を popし、復元実行前に **現在状態をバック側に push**。いずれも未保存時は **`confirmDiscardChanges`** で確認ダイアログを挟んだのち状態を復元。
+- **戻る**はバック側を popし、復元実行前に **現在状態を進む側に push**。**進む**は進む側を popし、復元実行前に **現在状態をバック側に push**。いずれも未保存時は **`confirmLeaveNote`**（§9.5）で確認ダイアログを挟んだのち状態を復元。
 - **`pushNavHistory` を呼ぶ**操作（別ノートへ、カード一覧・KANBAN・ガイド等）で適宜バック側へ積む。フォルダ変更・JSON import などで **両スタックを空にする**。
 
 ### 9.5 未保存扱い
 
-- `saveState` が `unsaved` / `error` のとき **`hasUnsavedChanges`**。
-- ノート切替・フォルダ選択・新規作成・履歴戻りの前に **`confirmDiscardChanges`**（確認ダイアログ）。
+- `saveState` が `unsaved` / `saving` / `error` のとき **`hasUnsavedChanges`**。
+- ノート切替（新規タブで開く場合を含む）・タグリンク・フォルダ選択・新規作成・履歴戻り/進みの前に **`confirmLeaveNote`** を呼ぶ。未保存なら **3 択ダイアログ**（`UnsavedChangesDialog`）を出す。
+  - **保存して移動**: `saveBeforeLeave` で保存（保存中なら完了を待ち、まだ差分があれば再保存）。ダイアログは処理中表示。失敗時は移動せず、エラーメッセージを出して編集内容を残す。
+  - **破棄して移動**: ドラフトを最後に保存した本文・タイトルへ戻して移動。**保存中は表示しない**（書き込み中の内容と整合しないため）。
+  - **キャンセル**: 何もしない（Escape・背景クリックも同じ）。
 - `beforeunload` でブラウザ標準の離脱警告を登録（WebView では効かない環境もあるが、**アプリ内の保存表示が主**）。
+- **既知の制約**: Tipsboard パネル自体を閉じると未保存の編集は失われる。非表示（別タブへ切替）なら `retainContextWhenHidden` により保持される。
 
 ### 9.6 保存パイプライン（エディタ～Host）
 
-1. `NoteEditor` は `createEditor` に `save: { onSave, onStateChange }` を渡す。
-2. **`createManualSavePlugin`（`tipsboard-save.ts`）**: ドキュメント変更後デバウンスし **`onSave(content)`** を非同期実行。連打時はキューイング。
-3. `onSave` → `App.handleSaveNote` → **`tipsboardDesktop.saveNote(path, body)`**。
-4. 成功後、`result.notePath` が変わっていれば（リネーム）**`selectedPath` と `noteRef` を更新**。
+ノート本文は **明示保存のみ**（自動保存しない）。データレス PC やクラウド同期フォルダなど、書き込みが遅い・失敗しやすい環境でも入力を妨げないための方針。KANBAN / Canvas / pins は従来どおり自動保存。
+
+1. **保存の起点**は 2 つだけ: ヘッダーの **保存ボタン**（未保存がないとき・保存中は無効）と **`mod+S`**（`NoteEditor` が `document` の keydown で処理。Alt / Shift 付きは対象外）。タイトル編集中の `mod+S` は先にタイトルを確定してから保存する。
+2. **`NoteSaveSession`（`webview/src/lib/noteSaveSession.ts`）**: 保存済みドラフトと編集中ドラフトを分けて持ち、`saveState` を導出する純粋な状態機械。
+   - 保存中に再度保存要求が来ても **多重送信しない**（進行中の Promise を返す）。
+   - 保存中に入力した内容は保存対象に含めず、完了後も **未保存** のまま残す。
+   - 保存はタイムアウトせず完了まで待つ。失敗時は編集内容を保持し、`error` 表示から再保存できる。
+3. `NoteEditor` → `App.persistNoteFromEditor` → `App.handleSaveNote` → **`tipsboardDesktop.saveNote(path, composeNoteMarkdown(draft))`**。
+4. 成功後、`result.notePath` が変わっていれば（リネーム）**`selectedPath` と `noteRef` を更新**し、セッションのパスも差し替える。
 5. `App` は **`upsertSavedNote`** で `snapshot.notes` の該当要素を **`NoteSummary` 全置換**（本文・タイトル・preview・日時）。
-6. **内部リンク文言の書き換え（任意・確認あり）**: ディスク準拠の直前タイトルを `diskCommittedTitle` ref（パスキーは **`/` に正規化**）で追跡し、保存後 **`normalizeTitle` が変わった**ときは、WebView の `snapshot` がディスクより遅れる（未保存編集中に外部変更を無視している等）ことがあるため、**リンク一覧のために `getSnapshot()` を追加で読み直し**、コードフェンス外の内部 `[ … ]` で旧正規化名に一致する表示を列挙する。検出があると **確認ダイアログ** を出し、承認時は対象ごとに `saveNote` を順次実行する（当該ノート自身は同名パスでの再保存、終了後 **`editorSessionId` を進めてエディタを再マウント**）。却下または対象なしでは本文は変えない。直前スナップショット以降の競合編集までは検知しない。
+6. **内部リンク文言の書き換え（任意・確認あり）**: ディスク準拠の直前タイトルを `diskCommittedTitle` ref（パスキーは **`/` に正規化**）で追跡し、保存後 **`normalizeTitle` が変わった**ときは、WebView の `snapshot` がディスクより遅れる（未保存編集中に外部変更を無視している等）ことがあるため、**リンク一覧のために `getSnapshot()` を追加で読み直し**（この読み直しが失敗しても保存自体は成功扱い）、コードフェンス外の内部 `[ … ]` で旧正規化名に一致する表示を列挙する。検出があると **確認ダイアログ** を出し、承認時は対象ごとに `saveNote` を順次実行する（当該ノート自身は同名パスでの再保存、終了後 **`editorSessionId` を進めてエディタを再マウント**）。却下または対象なしでは本文は変えない。直前スナップショット以降の競合編集までは検知しない。
 
 ![](../assets/vscode/marketplace/rewrite_internal_link.png)
 
@@ -446,7 +458,7 @@ vault/
 
 7. **`mergeVaultSnapshotFromHost`** が `getSnapshot`/import/delete など **Host が返す一式の `VaultSnapshot`** をセットするときのみ `diskCommittedTitle` を全ノートから再構成する。**`handleDraftNoteChange` では再構成しない**。
 
-入力中は **`handleDraftNoteChange`** で `snapshot` 内の当該ノートだけタイトル／preview を軽く更新し、一覧カードの見た目を即時反映する。
+入力中は **`handleDraftNoteChange`** が `noteDraft` だけを更新する。`snapshot`（一覧カードのタイトル・preview）は **保存成功時に反映**する。
 
 ### 9.7 キーボードショートカット
 
@@ -463,6 +475,7 @@ vault/
 
 | 操作 | キー（Windows/Linux では Ctrl、macOS では Cmd を mod とする） |
 | --- | --- |
+| ノートを保存 | `mod+S`（ノート表示中。`NoteEditor` が処理して `preventDefault` する） |
 | カード一覧を開く | `mod+Shift+L` |
 | KANBAN を開く | `mod+Shift+K` |
 | Canvas を開く | `mod+Shift+C` |
@@ -529,7 +542,9 @@ vault/
 - **検索** `@codemirror/search`（トップにパネル、`tipsboardKeymap` と共存）
 - **装飾・言語** `tipsboardLanguage`, `tipsboardDecorations`, `tipsboardTheme`, `notebookTheme`
 - **リンククリック** `createLinkClickHandler` → `tipsboard-links.ts`
-- **保存** `createManualSavePlugin`
+- **保存**: エディタ拡張としては持たない（`NoteEditor` / `NoteSaveSession` が担当、§9.6）
+- **縦カーソル移動** `tipsboardKeymap`（`tipsboard-keymap.ts`）: `ArrowUp` / `ArrowDown` は CodeMirror 既定と同じ **見た目の行（折り返し行）単位**。例外は 2 つで、(1) 既定の移動が隣の論理行を飛ばす場合（表・Mermaid・表示数式などの描画済みブロックがソース行を隠しているとき）は隣の論理行へ止めてブロックを編集状態で開く、(2) 折り返していない行で移動先が同じ行に留まる場合（レイアウト取得不可）は隣の行へ進む。ブロックの開閉で高さが 1.5 行分以上変わったときは、移動元の行のすぐ隣にカーソルが来るよう測定フレームでスクロールを補正する。
+- **遅延レイアウトの再計測**: 画像の読み込み完了・失敗（`contentDOM` のキャプチャ段 `load` / `error`）と画像プレースホルダ表示で `requestMeasure` を呼ぶ。CodeMirror はエディタ更新直後の ResizeObserver 通知を無視するため、これがないと長文で描画上のカーソルと実際の入力位置がずれる。
 - **Shift+ドロップ添付** `createLocalAttachmentDropExtension` → `tipsboard-image-drop.ts`
 - **Tipsboard 固有装飾・KaTeX・Mermaid 等**は `tipsboard-decorations.ts` ほかに分割
 
@@ -556,12 +571,17 @@ vault/
 | WebView バンドル | `npm run build:webview` → `dist/media/webview.js`, `webview.css` |
 | 公開前 | `vscode:prepublish` = `compile` + `build:extension`（esbuild のあと **`copy-extension-deps`** で ML ランタイムを `dist/extension/node_modules` に同梱）+ `build:webview` |
 | VSIX | `npm run package`（`vsce package --no-dependencies`）。**`dist/extension/node_modules`** は `.vscodeignore` で **`node_modules/**` の除外に例外**を付け、VSIX に含める。 |
+| 依存チェック | `npm run check:deps` = `npm run audit`（root と `webview`）+ `npm run licenses`（`scripts/check-licenses.cjs` と `license-policy.json`）。同梱される依存（Host / WebView / セマンティックランタイム）は寛容ライセンスのみ許可。CI とリリースワークフローで実行する。方針は `DEVELOPMENT_RULE.md`。 |
+| 第三者ライセンス表記 | `vscode:prepublish` の最後に `npm run licenses -- --write-notices dist/THIRD_PARTY_NOTICES.txt` で同梱依存のライセンス文を生成する。 |
+
+アイコンは `lucide-react`（ISC）を `webview/src/components/Icon.tsx` 経由で使う。Font Awesome は v0.5.0 で削除したため、Mermaid 図中の `fa:` アイコン記法は描画されない。
 
 ## 13. テスト（現状の置き場）
 
 - **Host**: `src/host/*.test.ts`（例: `vault.host.test.ts`, `pins.host.test.ts`, `kanban.host.test.ts`）。Vitest、`vitest.config.mts`。
 - **WebView / domain**: `webview/src/**/*.test.ts`（装飾・数式・ソート等）。
-- **WebView エディタ（ブラウザ単体）**: Playwright で `cursor-test.html` 経由の CodeMirror カーソル検証（`npm run test:webview:e2e`）。VS Code 拡張ホストの統合 E2E ではない。
+- **WebView 保存状態**: `webview/src/lib/noteSaveSession.test.ts`（保存中の多重要求、保存中入力、失敗後の再保存、破棄、リネーム）。
+- **WebView エディタ（ブラウザ単体）**: Playwright で `cursor-test.html` 経由の CodeMirror カーソル検証（`npm run test:webview:e2e`）。縦移動は論理行番号に加え **画面上の Y 座標が 1 行分だけ進むこと**（`expectCaretRowStep`）を検証する。ブロック開閉時のスクロール補正、画像の遅延読み込み後に描画カーソルと実位置が一致することも含む。VS Code 拡張ホストの統合 E2E ではない。
 - Bridge の**電送そのもの**の自動 E2E は薄く、**プロトコルは本書と `protocol.ts` が契約**となる。
 
 ---
@@ -590,3 +610,4 @@ vault/
 | 2026-06-06 | 拡張 **v0.3.7**: **見出しナビ**（`NoteOutlineNav`、`atxHeadings.ts`、localStorage 開閉状態）。**Windows 日本語添付オープン**修正（`openOsDefaultApp.ts`、`openVaultAsset`）。README・CHANGELOG・同梱ユーザーガイド・§7・§9.8 を更新。 |
 | 2026-06-07 | 拡張 **v0.3.9**: **Canvas**（`.tipsboard/canvas/*.canvas`、`CanvasView` / `@xyflow/react`、`getCanvas` / `saveCanvas` / `createCanvas` / `deleteCanvas` RPC、ノート改名・削除連動）。README・CHANGELOG・同梱ユーザーガイド・§1・§2・§4.4・§7・§8・§9 を更新。 |
 | 2026-06-14 | 拡張 **v0.4.0**: **Canvas 再設計**（Mermaid 問題構造エディタ、`problem` / `solution`、`CanvasGraph` / `CanvasDetailPane`、深さレーン・フォーカス・構造警告）。JSON 無限ボード廃止。README・CHANGELOG・[`CANVAS_SPEC.md`](./CANVAS_SPEC.md)・同梱ユーザーガイド・§1・§8.1.2・§9.12 を更新。 |
+| 2026-10-26 | 拡張 **v0.5.0**: ノート本文を **明示保存のみ**に変更（保存ボタン / `mod+S`、`NoteSaveSession`、自動保存プラグイン `tipsboard-save.ts` 削除）。タイトルを本文と分離した **クリック編集の見出し**に変更。未保存時の離脱を **保存して移動 / 破棄して移動 / キャンセル** の 3 択に変更。縦矢印を見た目の行単位にし、ブロック開閉時のスクロール補正と画像読み込み後の再計測を追加。依存の脆弱性・ライセンス方針（`check:deps`、第三者ライセンス表記生成）と Font Awesome から `lucide-react` への置換。§8.3・§9.2・§9.4〜§9.7・§10・§12・§13 を更新。 |

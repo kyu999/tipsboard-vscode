@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { CanvasEdge } from "@/types";
+import { Icon } from "@/components/Icon";
 
 export function CanvasEdgeToolbar({
   x,
@@ -39,7 +40,7 @@ export function CanvasEdgeToolbar({
           onReassignSource();
         }}
       >
-        <i className="fa-solid fa-arrow-up text-[10px]" aria-hidden />
+        <Icon name="arrow-up" className="text-[10px]" />
         {t("canvas.actions.reassignSource")}
       </button>
       <button
@@ -50,7 +51,7 @@ export function CanvasEdgeToolbar({
           onReassignTarget();
         }}
       >
-        <i className="fa-solid fa-arrow-down text-[10px]" aria-hidden />
+        <Icon name="arrow-down" className="text-[10px]" />
         {t("canvas.actions.reassignEdge")}
       </button>
       <button
@@ -61,7 +62,7 @@ export function CanvasEdgeToolbar({
           onDelete();
         }}
       >
-        <i className="fa-solid fa-trash-can text-[10px]" aria-hidden />
+        <Icon name="trash" className="text-[10px]" />
         {t("canvas.actions.deleteEdge")}
       </button>
     </div>

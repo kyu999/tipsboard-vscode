@@ -1,5 +1,6 @@
 import type { EditorTab } from "@/lib/editorTabs";
 import type { NoteSummary } from "@/types";
+import { Icon } from "@/components/Icon";
 
 export type NoteTabBarProps = {
   tabs: readonly EditorTab[];
@@ -78,7 +79,7 @@ export function NoteTabBar({
                 if (canClose) onClose(tab.id);
               }}
             >
-              <i className="fa-solid fa-xmark scale-90 text-[9px]" aria-hidden />
+              <Icon name="close" className="scale-90 text-[9px]" />
             </button>
           </div>
         );

@@ -1,12 +1,8 @@
 import { indentLess, indentMore } from "@codemirror/commands";
 import { selectedCompletion } from "@codemirror/autocomplete";
-import { syntaxTree } from "@codemirror/language";
-import { EditorSelection, type EditorState } from "@codemirror/state";
+import { EditorSelection } from "@codemirror/state";
 import { type EditorView, type KeyBinding } from "@codemirror/view";
 import { formatIconSyntax } from "@/domain/links/iconSyntax";
-import { findRenderableMathSpans } from "./tipsboard-katex-math";
-import { findMermaidBlocks } from "./tipsboard-mermaid";
-import { findMarkdownTables } from "./tipsboard-tables";
 
 const UNORDERED_LIST_ITEM_RE = /^([ \t]*)([-+*])\s+\S.*$/;
 const UNORDERED_LIST_MARKER_RE = /^([ \t]*)([-+*])\s/;
@@ -96,176 +92,97 @@ function insertIconSyntax(view: EditorView, currentUserPageTitle?: string | null
   return true;
 }
 
-type ReplacementBlockSpan = { from: number; to: number };
+/** Any vertical step larger than this many default line heights is treated as a layout jump. */
+const LAYOUT_JUMP_LINE_FACTOR = 1.5;
 
-function collectHorizontalRuleSpans(state: EditorState): ReplacementBlockSpan[] {
-  const out: ReplacementBlockSpan[] = [];
-  syntaxTree(state).iterate({
-    enter(node) {
-      if (node.name === "HorizontalRule") {
-        out.push({ from: node.from, to: node.to });
-      }
-    },
-  });
-
-  return out;
-}
-
-function collectFencedCodeSpans(state: EditorState, mermaidBlocks: readonly ReplacementBlockSpan[]): ReplacementBlockSpan[] {
-  const out: ReplacementBlockSpan[] = [];
-  syntaxTree(state).iterate({
-    enter(node) {
-      if (node.name !== "FencedCode") return;
-      if (mermaidBlocks.some((mb) => mb.from === node.from)) return;
-      out.push({ from: node.from, to: node.to });
-    },
-  });
-
-  return out;
-}
-
-function collectTipsboardReplacementBlockSpans(
-  view: EditorView,
-): readonly ReplacementBlockSpan[] {
-  const state = view.state;
-  const text = state.doc.toString();
-  const mermaidBlocks = findMermaidBlocks(text);
-  const tables = findMarkdownTables(text).filter((table) =>
-    mermaidBlocks.every((mb) => !(table.from >= mb.from && table.to <= mb.to)),
-  );
-  const displayMathSpans = findRenderableMathSpans(text, state).filter((span) => {
-    if (!span.displayMode) return false;
-    if (mermaidBlocks.some((mb) => span.from >= mb.from && span.to <= mb.to)) return false;
-    if (tables.some((t) => span.from >= t.from && span.to <= t.to)) return false;
-    return true;
-  });
-
-  const horizontalRules = collectHorizontalRuleSpans(state);
-  const fencedCodeBlocks = collectFencedCodeSpans(state, mermaidBlocks);
-
-  const spans: ReplacementBlockSpan[] = [
-    ...fencedCodeBlocks,
-    ...tables.map(({ from, to }) => ({ from, to })),
-    ...mermaidBlocks.map(({ from, to }) => ({ from, to })),
-    ...displayMathSpans.map(({ from, to }) => ({ from, to })),
-    ...horizontalRules,
-  ].sort((a, b) => a.from - b.from || b.to - a.to - (b.from - a.from));
-
-  return spans;
-}
-
-function isBlankLine(state: EditorState, lineNumber: number): boolean {
-  if (lineNumber < 1 || lineNumber > state.doc.lines) return false;
-  return state.doc.line(lineNumber).text.length === 0;
-}
-
-const REPLACEMENT_BLOCK_BOUNDARY_WINDOW = 6;
-const SINGLE_STEP_LINE_MAX_LENGTH = 120;
-
-function canForceLogicalLineStep(state: EditorState, fromLineNumber: number, toLineNumber: number): boolean {
-  const fromLine = state.doc.line(fromLineNumber);
-  const toLine = state.doc.line(toLineNumber);
-  return fromLine.text.length <= SINGLE_STEP_LINE_MAX_LENGTH && toLine.text.length <= SINGLE_STEP_LINE_MAX_LENGTH;
+function findVerticalScrollParent(element: HTMLElement): HTMLElement | null {
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight) {
+      return node;
+    }
+  }
+  return null;
 }
 
 /**
- * Moves by one document line across Markdown tables, fenced code blocks, fenced Mermaid blocks,
- * and display-mode KaTeX spans where decorations can make default vertical motion skip hidden
- * or visually wrapped source rows.
- *
- * Wrapped paragraphs still use CodeMirror defaults when outside these spans.
+ * Entering or leaving a rendered block (table, Mermaid, display math) swaps it between widget and
+ * source, which changes its height. Scroll by that height change so the caret lands right next to
+ * the row it left instead of visually jumping several lines.
  */
-function moveReplacementBlockBoundaryLine(view: EditorView, direction: "down" | "up"): boolean {
+function keepCaretNextToPreviousRow(
+  view: EditorView,
+  before: { top: number; bottom: number },
+  contentHeightBefore: number,
+  forward: boolean,
+): void {
+  view.requestMeasure({
+    read(currentView) {
+      const heightChange = currentView.contentDOM.getBoundingClientRect().height - contentHeightBefore;
+      const threshold = currentView.defaultLineHeight * LAYOUT_JUMP_LINE_FACTOR;
+      if (Math.abs(heightChange) < threshold) return 0;
+      const after = currentView.coordsAtPos(currentView.state.selection.main.head);
+      if (!after) return 0;
+      const desiredTop = forward ? before.bottom : before.top - (after.bottom - after.top);
+      const offset = after.top - desiredTop;
+      return Math.abs(offset) < threshold ? 0 : offset;
+    },
+    write(offset, currentView) {
+      if (offset === 0) return;
+      const scroller = findVerticalScrollParent(currentView.scrollDOM);
+      if (scroller) scroller.scrollTop += offset;
+      else currentView.scrollDOM.ownerDocument.defaultView?.scrollBy(0, offset);
+    },
+  });
+}
+
+function occupiesSingleVisualRow(view: EditorView, line: { from: number; to: number }): boolean {
+  const start = view.coordsAtPos(line.from, 1);
+  const end = view.coordsAtPos(line.to, -1);
+  return !start || !end || Math.abs(end.top - start.top) < 1;
+}
+
+/**
+ * ArrowUp / ArrowDown move by visual (wrapped) rows like CodeMirror's default. Overrides:
+ * - when the default motion would leave the current line but skip the adjacent line (a rendered
+ *   block widget hides its source rows), step onto that adjacent line so the block opens for editing;
+ * - when an unwrapped line would not be left at all (layout unavailable), step onto the adjacent line.
+ */
+function moveCaretVertically(view: EditorView, forward: boolean): boolean {
   const range = view.state.selection.main;
   if (!range.empty || view.state.selection.ranges.length > 1) return false;
 
   const doc = view.state.doc;
   const currentLine = doc.lineAt(range.head);
-  const currentColumn = range.head - currentLine.from;
-  const spans = collectTipsboardReplacementBlockSpans(view);
-  const adjacentLineNumber =
-    direction === "down" ? currentLine.number + 1 : currentLine.number - 1;
+  const adjacentNumber = currentLine.number + (forward ? 1 : -1);
+  if (adjacentNumber < 1 || adjacentNumber > doc.lines) return false;
 
-  if (
-    spans.length > 0 &&
-    adjacentLineNumber >= 1 &&
-    adjacentLineNumber <= doc.lines &&
-    canForceLogicalLineStep(view.state, currentLine.number, adjacentLineNumber)
-  ) {
-    const targetLine = doc.line(adjacentLineNumber);
-    view.dispatch({
-      selection: EditorSelection.cursor(
-        targetLine.from + Math.min(currentColumn, targetLine.length),
-      ),
-      scrollIntoView: true,
-      userEvent: "select",
-    });
-    return true;
+  let target = view.moveVertically(range, forward);
+  const targetLineNumber = doc.lineAt(target.head).number;
+  const skipsAdjacentLine = targetLineNumber !== currentLine.number && targetLineNumber !== adjacentNumber;
+  const stuckOnUnwrappedLine =
+    targetLineNumber === currentLine.number && occupiesSingleVisualRow(view, currentLine);
+  if (skipsAdjacentLine || stuckOnUnwrappedLine) {
+    const adjacent = doc.line(adjacentNumber);
+    const column = Math.min(range.head - currentLine.from, adjacent.length);
+    target = EditorSelection.cursor(adjacent.from + column, 0, undefined, target.goalColumn);
   }
 
-  for (const span of spans) {
-    const startLine = doc.lineAt(span.from);
-    const endLine = doc.lineAt(Math.max(span.from, span.to - 1));
-    let targetLineNumber: number | null = null;
-
-    if (direction === "down") {
-      if (currentLine.number === startLine.number - 1) {
-        targetLineNumber = startLine.number;
-      } else if (
-        currentLine.number === startLine.number - 2 &&
-        isBlankLine(view.state, startLine.number - 1)
-      ) {
-        targetLineNumber = startLine.number - 1;
-      } else if (
-        currentLine.number < startLine.number - 1 &&
-        currentLine.number >= startLine.number - REPLACEMENT_BLOCK_BOUNDARY_WINDOW &&
-        canForceLogicalLineStep(view.state, currentLine.number, currentLine.number + 1)
-      ) {
-        targetLineNumber = currentLine.number + 1;
-      } else if (currentLine.number >= startLine.number && currentLine.number < endLine.number) {
-        targetLineNumber = currentLine.number + 1;
-      } else if (currentLine.number === endLine.number && endLine.number < doc.lines) {
-        targetLineNumber = endLine.number + 1;
-      }
-    } else if (currentLine.number === endLine.number + 1) {
-      targetLineNumber = endLine.number;
-    } else if (
-      currentLine.number === endLine.number + 2 &&
-      isBlankLine(view.state, endLine.number + 1)
-    ) {
-      targetLineNumber = endLine.number + 1;
-    } else if (
-      currentLine.number > endLine.number + 1 &&
-      currentLine.number <= endLine.number + REPLACEMENT_BLOCK_BOUNDARY_WINDOW &&
-      canForceLogicalLineStep(view.state, currentLine.number, currentLine.number - 1)
-    ) {
-      targetLineNumber = currentLine.number - 1;
-    } else if (currentLine.number > startLine.number && currentLine.number <= endLine.number) {
-      targetLineNumber = currentLine.number - 1;
-    } else if (currentLine.number === startLine.number && startLine.number > 1) {
-      targetLineNumber = startLine.number - 1;
-    }
-
-    if (targetLineNumber === null) continue;
-
-    const targetLine = doc.line(targetLineNumber);
-    view.dispatch({
-      selection: EditorSelection.cursor(
-        targetLine.from + Math.min(currentColumn, targetLine.length),
-      ),
-      scrollIntoView: true,
-      userEvent: "select",
-    });
-    return true;
-  }
-
-  return false;
+  const before = view.coordsAtPos(range.head);
+  const contentHeightBefore = view.contentDOM.getBoundingClientRect().height;
+  view.dispatch({
+    selection: EditorSelection.create([target]),
+    scrollIntoView: true,
+    userEvent: "select",
+  });
+  if (before) keepCaretNextToPreviousRow(view, before, contentHeightBefore, forward);
+  return true;
 }
 
 export function tipsboardKeymap(config: TipsboardKeymapConfig = {}): KeyBinding[] {
   return [
-    { key: "ArrowDown", run: (view) => moveReplacementBlockBoundaryLine(view, "down") },
-    { key: "ArrowUp", run: (view) => moveReplacementBlockBoundaryLine(view, "up") },
+    { key: "ArrowDown", run: (view) => moveCaretVertically(view, true) },
+    { key: "ArrowUp", run: (view) => moveCaretVertically(view, false) },
     { key: "Enter", run: continueBullet },
     { key: "Backspace", run: outdentBulletOnBackspace },
     { key: "Tab", run: indentMore },

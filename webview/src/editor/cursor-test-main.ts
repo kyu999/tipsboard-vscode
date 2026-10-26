@@ -1,4 +1,3 @@
-import "@fortawesome/fontawesome-free/css/all.min.css";
 import "katex/dist/katex.min.css";
 import "@/shared/i18n/config";
 import "@/index.css";
@@ -28,6 +27,8 @@ function mount(doc = COMPREHENSIVE_CURSOR_MARKDOWN): void {
   const shell = document.createElement("main");
   shell.style.width = "760px";
   shell.style.margin = "24px auto";
+  // Long notes can always scroll; keeps scroll-based caret anchoring testable on short fixtures.
+  shell.style.paddingBottom = "100vh";
   root.append(shell);
 
   view = createEditor({
@@ -128,6 +129,13 @@ window.__tipsboardCursorTest = {
     if (!coords) return null;
     return { x: coords.left, y: coords.top };
   },
+  drawnCursorCoords() {
+    const cursor = getView().dom.querySelector(".cm-cursor-primary");
+    if (!(cursor instanceof HTMLElement)) return null;
+    const rect = cursor.getBoundingClientRect();
+    return { x: rect.left, y: rect.top };
+  },
+  expectedLineCoords: lineCoords,
 };
 
 mount();

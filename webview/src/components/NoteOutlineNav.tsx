@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { AtxHeading } from "@/domain/markdown/atxHeadings";
+import { Icon } from "@/components/Icon";
 
 const LEVEL_PADDING: Record<number, string> = {
   1: "pl-0",
@@ -37,7 +38,7 @@ export function NoteOutlineNav({
           aria-label={t("page.editor.outlineToggle")}
           title={t("page.editor.outlineToggle")}
         >
-          <i className="fa-solid fa-list-ul text-[11px]" aria-hidden />
+          <Icon name="list" className="text-[11px]" />
         </button>
       </div>
     );
@@ -57,7 +58,7 @@ export function NoteOutlineNav({
             aria-label={t("page.editor.outlineToggleClose")}
             title={t("page.editor.outlineToggleClose")}
           >
-            <i className="fa-solid fa-chevron-left text-[10px]" aria-hidden />
+            <Icon name="chevron-left" className="text-[10px]" />
           </button>
         </div>
         <nav className="min-h-0 flex-1 overflow-y-auto px-1 py-1.5">

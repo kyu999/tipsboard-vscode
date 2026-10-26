@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { CanvasNode } from "@/types";
+import { Icon } from "@/components/Icon";
 
 export function CanvasGraphNode({
   node,
@@ -96,7 +97,7 @@ export function CanvasGraphNode({
                   onAddWhy();
                 }}
               >
-                <i className="fa-solid fa-plus text-[9px]" aria-hidden />
+                <Icon name="plus" className="text-[9px]" />
                 {t("canvas.graph.addWhyShort")}
               </button>
               {canLinkSolution && (
@@ -109,7 +110,7 @@ export function CanvasGraphNode({
                     onAddSolution();
                   }}
                 >
-                  <i className="fa-solid fa-plus text-[9px]" aria-hidden />
+                  <Icon name="plus" className="text-[9px]" />
                   {t("canvas.graph.addSolutionShort")}
                 </button>
               )}
@@ -124,7 +125,7 @@ export function CanvasGraphNode({
               onDelete();
             }}
           >
-            <i className="fa-solid fa-trash-can text-[10px]" aria-hidden />
+            <Icon name="trash" className="text-[10px]" />
           </button>
         </div>
       )}
@@ -240,7 +241,7 @@ export function CanvasGraphNode({
                 onStartLinkSolution();
               }}
             >
-              <i className="fa-solid fa-lightbulb" aria-hidden />
+              <Icon name="lightbulb" />
             </button>
           )}
         </>

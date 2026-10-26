@@ -14,6 +14,7 @@ import { runUnlessInFlight } from "@/lib/runUnlessInFlight";
 import { useClickOutside } from "@/shared/hooks/useClickOutside";
 import { KANBAN_SAVE_DEBOUNCE_MS } from "@/shared/autosaveDelays";
 import type { KanbanCardState, KanbanRpcResult, KanbanState, NoteSummary, VaultSnapshot } from "@/types";
+import { Icon } from "@/components/Icon";
 
 const KANBAN_COLUMN_DRAG_MIME = "application/x-tipsboard-kanban-column";
 
@@ -555,7 +556,7 @@ export function KanbanBoardView({
               title={selectedBoard?.name ?? t("kanban.noBoard")}
             >
               <span className="truncate">{selectedBoard?.name ?? t("kanban.noBoard")}</span>
-              <i className="fa-solid fa-chevron-down text-[10px] text-text-muted" aria-hidden />
+              <Icon name="chevron-down" className="text-[10px] text-text-muted" />
             </button>
             {boardPickerOpen && (
               <div className="absolute left-0 top-10 z-40 w-64 overflow-hidden rounded-2xl border border-accent-link/10 bg-bg-card py-1 text-sm shadow-card">
@@ -574,7 +575,7 @@ export function KanbanBoardView({
                         className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                       >
                         <span className="truncate">{board.name}</span>
-                        {board.id === selectedBoardId && <i className="fa-solid fa-check text-[10px] text-accent-link" aria-hidden />}
+                        {board.id === selectedBoardId && <Icon name="check" className="text-[10px] text-accent-link" />}
                       </button>
                     ))
                   )}
@@ -587,7 +588,7 @@ export function KanbanBoardView({
                   }}
                   className="flex w-full items-center gap-2 border-t border-accent-link/10 px-3 py-2 text-left text-xs font-medium text-accent-link transition-colors hover:bg-bg-hover"
                 >
-                  <i className="fa-solid fa-plus text-[10px]" aria-hidden />
+                  <Icon name="plus" className="text-[10px]" />
                   {t("kanban.actions.newBoard")}
                 </button>
               </div>
@@ -633,7 +634,7 @@ export function KanbanBoardView({
         <>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="relative min-w-64 flex-1">
-              <i className="fa-solid fa-magnifying-glass pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-2xs text-text-muted" aria-hidden />
+              <Icon name="search" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-2xs text-text-muted" />
               <input
                 value={existingPicker ? existingQuery : ""}
                 onFocus={() => {
@@ -740,7 +741,7 @@ export function KanbanBoardView({
             <div className="border-b border-accent-link/10 px-4 py-3">
               <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="relative min-w-0 flex-1">
-                  <i className="fa-solid fa-magnifying-glass pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-2xs text-text-muted" aria-hidden />
+                  <Icon name="search" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-2xs text-text-muted" />
                   <input
                     value={existingQuery}
                     onChange={(event) => setExistingQuery(event.target.value)}
@@ -793,7 +794,7 @@ export function KanbanBoardView({
                           }`}
                           aria-hidden
                         >
-                          {selectedExistingPaths.has(note.path) && <i className="fa-solid fa-check text-[9px]" aria-hidden />}
+                          {selectedExistingPaths.has(note.path) && <Icon name="check" className="text-[9px]" />}
                         </span>
                         <span className="min-w-0">
                           <span className="block truncate text-xs font-semibold text-text-primary">{note.title || t("common.untitled")}</span>
@@ -963,7 +964,7 @@ function KanbanColumnLane({
           aria-hidden
           title={t("kanban.actions.dragColumnReorder")}
         >
-          <i className="fa-solid fa-grip text-[11px]" />
+          <Icon name="drag-handle" className="text-[11px]" />
         </span>
         <h2
           className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-text-primary"
@@ -1079,7 +1080,7 @@ function KanbanColumnLane({
                 title={t("kanban.actions.removeCard")}
                 aria-label={t("kanban.actions.removeCard")}
               >
-                <i className="fa-solid fa-xmark" aria-hidden />
+                <Icon name="close" />
               </button>
             </div>
           );

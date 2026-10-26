@@ -6,3 +6,7 @@ The name "Tipsboard", associated branding, icons, screenshots, and marketplace
 assets identify the original project by kyu999 and are not granted for use as
 the name or branding of a derived product except as required to describe the
 origin of the Work.
+
+This product bundles third-party open source software distributed under
+permissive licenses (MIT, ISC, Apache-2.0, BSD and similar). Their license
+texts are included in the distributed package as dist/THIRD_PARTY_NOTICES.txt.

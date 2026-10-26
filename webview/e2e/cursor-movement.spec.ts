@@ -23,6 +23,7 @@ import {
 } from "../src/editor/cursor-test-fixtures";
 import {
   cursorBox,
+  expectCaretRowStep,
   expectCursorLine,
   expectCursorPosition,
   mountDoc,
@@ -62,18 +63,22 @@ test("ArrowDown and ArrowUp move one logical line through comprehensive decorate
   await walkLogicalLines(page, COMPREHENSIVE_CURSOR_LINE_COUNT, 2, "up", skip);
 });
 
-test("ArrowDown and ArrowUp move one logical line through decorated markdown", async ({ page }) => {
+test("ArrowDown and ArrowUp move one visual row through decorated markdown", async ({ page }) => {
   await mountDoc(page, DECORATED_CURSOR_MARKDOWN);
   await setCursor(page, 3, 3);
 
+  let before = await cursorBox(page);
   await page.keyboard.press("ArrowDown");
-  await expectCursorPosition(page, 4, 3);
+  await expectCursorLine(page, 4);
+  before = await expectCaretRowStep(page, before, "down");
 
   await page.keyboard.press("ArrowDown");
-  await expectCursorPosition(page, 5, 3);
+  await expectCursorLine(page, 5);
+  before = await expectCaretRowStep(page, before, "down");
 
   await page.keyboard.press("ArrowUp");
-  await expectCursorPosition(page, 4, 3);
+  await expectCursorLine(page, 4);
+  await expectCaretRowStep(page, before, "up");
 });
 
 test("ArrowDown does not skip table rows", async ({ page }) => {
@@ -118,11 +123,18 @@ test("ArrowDown walks visual lines in wrapped paragraph fixture", async ({ page 
   await mountDoc(page, WRAPPED_PARAGRAPH_MARKDOWN);
   await setCursor(page, WRAPPED_PARAGRAPH_ANCHORS.wrappedLine, 10);
 
+  let before = await cursorBox(page);
   await page.keyboard.press("ArrowDown");
   await expectCursorLine(page, WRAPPED_PARAGRAPH_ANCHORS.wrappedLine);
+  before = await expectCaretRowStep(page, before, "down");
 
   await page.keyboard.press("ArrowDown");
   await expectCursorLine(page, WRAPPED_PARAGRAPH_ANCHORS.wrappedLine);
+  before = await expectCaretRowStep(page, before, "down");
+
+  await page.keyboard.press("ArrowUp");
+  await expectCursorLine(page, WRAPPED_PARAGRAPH_ANCHORS.wrappedLine);
+  await expectCaretRowStep(page, before, "up");
 });
 
 for (const { from, to, key } of BOUNDARY_ARROW_CASES) {
@@ -325,9 +337,7 @@ test("ArrowUp from the bottom of math expression bullets walks list and prose li
   }
 });
 
-test("[known-bug] ArrowUp from blank after tall math does not jump past display math block", async ({
-  page,
-}) => {
+test("ArrowUp into tall display math keeps the caret next to the row it left", async ({ page }) => {
   await mountDoc(page, TALL_MATH_SPACER_MARKDOWN);
   await setCursor(page, TALL_MATH_SPACER_ANCHORS.researchNotes, 0);
 
@@ -337,6 +347,78 @@ test("[known-bug] ArrowUp from blank after tall math does not jump past display 
   const blankCursor = await cursorBox(page);
   await page.keyboard.press("ArrowUp");
   await expectCursorPosition(page, 12, 0);
+  await expectCaretRowStep(page, blankCursor, "up");
+});
+
+test("ArrowDown out of an opened display math block keeps the caret next to the row it left", async ({
+  page,
+}) => {
+  const filler = Array.from({ length: 40 }, (_, index) => `Filler line ${index + 1}.`);
+  await mountDoc(page, [...filler, ...TALL_MATH_SPACER_MARKDOWN.split("\n")].join("\n"));
+  const closingLine = filler.length + 12;
+  await setCursor(page, closingLine, 0);
+  await expect(page.locator(".cm-tipsboard-katex-display")).toHaveCount(0);
+  await page.evaluate(() => {
+    const caret = window.__tipsboardCursorTest.cursorCoords();
+    if (caret) window.scrollBy(0, caret.y - window.innerHeight / 2);
+  });
+
   const closingCursor = await cursorBox(page);
-  expect(Math.abs(closingCursor.y - blankCursor.y)).toBeLessThan(40);
+  await page.keyboard.press("ArrowDown");
+  await expectCursorPosition(page, closingLine + 1, 0);
+  await expect(page.locator(".cm-tipsboard-katex-display")).toHaveCount(1);
+  await expectCaretRowStep(page, closingCursor, "down");
+});
+
+test("caret stays on its text after an image above it finishes loading", async ({ page }) => {
+  let releaseImage!: () => void;
+  const imageGate = new Promise<void>((resolve) => {
+    releaseImage = resolve;
+  });
+  await page.route("https://tipsboard.invalid/delayed-image.svg", async (route) => {
+    await imageGate;
+    await route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="220"><rect width="240" height="220" fill="#ccc"/></svg>',
+    });
+  });
+
+  await mountDoc(
+    page,
+    [
+      "Image Fixture",
+      "![Delayed](https://tipsboard.invalid/delayed-image.svg)",
+      "Line after image.",
+      "Another line.",
+    ].join("\n"),
+  );
+  await setCursor(page, 4, 4);
+  await expectCursorPosition(page, 4, 4);
+  // Keep the editor updating while the image arrives, so its resize lands in the window
+  // where CodeMirror ignores observed resizes.
+  const typingWhileLoading = page.evaluate(async () => {
+    const api = window.__tipsboardCursorTest;
+    const img = document.querySelector<HTMLImageElement>(".cm-image-widget img");
+    for (let tick = 0; tick < 200 && !(img?.complete && img.naturalHeight > 0); tick += 1) {
+      api.setCursor(4, tick % 2 === 0 ? 3 : 4);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  });
+  releaseImage();
+  await typingWhileLoading;
+  await page.waitForFunction(() => {
+    const img = document.querySelector<HTMLImageElement>(".cm-image-widget img");
+    return Boolean(img?.complete && img.naturalHeight > 0);
+  });
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const api = window.__tipsboardCursorTest;
+        const drawn = api.drawnCursorCoords();
+        const actual = api.cursorCoords();
+        return drawn && actual ? Math.abs(drawn.y - actual.y) : Number.POSITIVE_INFINITY;
+      }),
+    )
+    .toBeLessThan(3);
 });

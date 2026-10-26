@@ -14,6 +14,7 @@ import {
 } from "@/lib/canvas/graphLayout";
 import { CanvasEdgeToolbar } from "./CanvasEdgeToolbar";
 import { CanvasGraphNode } from "./CanvasGraphNode";
+import { Icon } from "@/components/Icon";
 
 const PADDING = 48;
 const MIN_ZOOM = 0.35;
@@ -415,7 +416,7 @@ export function CanvasGraph({
           onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z + 0.15))}
           title={t("canvas.graph.zoomIn")}
         >
-          <i className="fa-solid fa-plus text-xs" aria-hidden />
+          <Icon name="plus" className="text-xs" />
         </button>
         <button
           type="button"
@@ -423,7 +424,7 @@ export function CanvasGraph({
           onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z - 0.15))}
           title={t("canvas.graph.zoomOut")}
         >
-          <i className="fa-solid fa-minus text-xs" aria-hidden />
+          <Icon name="minus" className="text-xs" />
         </button>
         <button
           type="button"
