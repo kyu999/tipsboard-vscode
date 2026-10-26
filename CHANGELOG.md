@@ -4,6 +4,12 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.1] - 2026-10-26
+
+### Fixed
+
+- **Marketplace upload**: extension icon resized to 512x512 so it stays under the Marketplace 1024 KB icon limit.
+
 ## [0.5.0] - 2026-10-26
 
 ### Added
