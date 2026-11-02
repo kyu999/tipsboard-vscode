@@ -27,6 +27,11 @@ import {
   type MarkdownImageOptions,
 } from "@/domain/markdown/imageSyntax";
 import { isRenderableCardImageSrc } from "@/domain/preview/firstCardImage";
+import {
+  HIGHLIGHT_COLORS,
+  parseHighlightColorPrefix,
+  type HighlightColor,
+} from "@/domain/markdown/highlightSyntax";
 import { normalizeTitle } from "@/domain/title/title";
 import { getCaretLineNumbers } from "./tipsboard-caret-line";
 import {
@@ -415,7 +420,7 @@ function createTableRow(
 }
 
 const tableInlineRe =
-  /`([^`\n]+?)`|\*\*(.+?)\*\*|\*(?!\*)([^*\n]+?)\*(?!\*)|_([^_\n]+?)_|~~(.+?)~~|\[([^\[\]\n]+?)\]\((assets\/files\/[^)\s]+)\)|\[([^\[\]\n]+?)\]\((https?:\/\/[^)\s]+)\)|\[([^\[\]\n]+?)\s+(https?:\/\/\S+)\]|\[(https?:\/\/\S+)\]|\[([^\[\]\n]+?)\](?!\()|(?<!\[)(?<![\w/])(https?:\/\/\S+)|(?<!\S)(#[^\s#]+)/g;
+  /`([^`\n]+?)`|\*\*(.+?)\*\*|\*(?!\*)([^*\n]+?)\*(?!\*)|_([^_\n]+?)_|~~(.+?)~~|\[([^\[\]\n]+?)\]\((assets\/files\/[^)\s]+)\)|\[([^\[\]\n]+?)\]\((https?:\/\/[^)\s]+)\)|\[([^\[\]\n]+?)\s+(https?:\/\/\S+)\]|\[(https?:\/\/\S+)\]|\[([^\[\]\n]+?)\](?!\()|(?<!\[)(?<![\w/])(https?:\/\/\S+)|(?<!\S)(#[^\s#]+)|==(?!=)(.+?)==/g;
 
 function renderTableCellContent(
   text: string,
@@ -480,8 +485,16 @@ function createTableInlineElement(
     const tag = match[15].slice(1);
     return createTableLink("tag", match[15], tag, existingLinkTitles);
   }
+  if (match[16] != null) {
+    const { color, prefixLength } = parseHighlightColorPrefix(match[16]);
+    return createInlineSpan(highlightClassName(color), match[16].slice(prefixLength));
+  }
 
   return document.createTextNode(match[0]);
+}
+
+function highlightClassName(color: HighlightColor): string {
+  return `cm-tipsboard-highlight cm-tipsboard-highlight-${color}`;
 }
 
 function createInlineSpan(className: string, text: string): HTMLElement {
@@ -533,6 +546,9 @@ function createTableLink(
 const boldMark = Decoration.mark({ class: "cm-tipsboard-bold" });
 const italicMark = Decoration.mark({ class: "cm-tipsboard-italic" });
 const strikeMark = Decoration.mark({ class: "cm-tipsboard-strike" });
+const highlightMarks = Object.fromEntries(
+  HIGHLIGHT_COLORS.map((color) => [color, Decoration.mark({ class: highlightClassName(color) })]),
+) as Record<HighlightColor, Decoration>;
 const indentMark = Decoration.mark({ class: "cm-tipsboard-indent" });
 const inlineCodeMark = Decoration.mark({ class: "cm-tipsboard-inline-code" });
 const linkMark = Decoration.mark({ class: "cm-tipsboard-link" });
@@ -854,7 +870,12 @@ function addSyntaxHideDecoration(
     return true;
   }
 
-  if (nodeName === "EmphasisMark" || nodeName === "CodeMark" || nodeName === "CodeInfo") {
+  if (
+    nodeName === "EmphasisMark" ||
+    nodeName === "HighlightMark" ||
+    nodeName === "CodeMark" ||
+    nodeName === "CodeInfo"
+  ) {
     hideDecorations(decorations, [{ from, to }]);
     return true;
   }
@@ -916,6 +937,16 @@ function addMarkdownDecoration(
 
   if (nodeName === "Strikethrough") {
     addDecoration(decorations, from, to, strikeMark);
+    return;
+  }
+
+  if (nodeName === "Highlight") {
+    const contentFrom = from + 2;
+    const { color, prefixLength } = parseHighlightColorPrefix(
+      view.state.doc.sliceString(contentFrom, to - 2),
+    );
+    addDecoration(decorations, from, to, highlightMarks[color]);
+    hideDecorations(decorations, [{ from: contentFrom, to: contentFrom + prefixLength }]);
     return;
   }
 
@@ -1449,6 +1480,13 @@ export const tipsboardTheme = EditorView.baseTheme({
   ".cm-tipsboard-bold": { fontWeight: "bold" },
   ".cm-tipsboard-italic": { fontStyle: "italic" },
   ".cm-tipsboard-strike": { textDecoration: "line-through", opacity: "0.6" },
+  ".cm-tipsboard-highlight": { borderRadius: "3px", boxDecorationBreak: "clone" },
+  ...Object.fromEntries(
+    HIGHLIGHT_COLORS.map((color) => [
+      `.cm-tipsboard-highlight-${color}`,
+      { backgroundColor: palette.highlight[color] },
+    ]),
+  ),
   ".cm-tipsboard-h1": { fontWeight: "700", fontSize: "1.5em", lineHeight: "1.4", color: pt.primary },
   ".cm-tipsboard-h2": { fontWeight: "700", fontSize: "1.3em", lineHeight: "1.4", color: pt.primary },
   ".cm-tipsboard-h3": { fontWeight: "700", fontSize: "1.15em", lineHeight: "1.4", color: pt.primary },

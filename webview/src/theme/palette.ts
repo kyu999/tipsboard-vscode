@@ -52,6 +52,14 @@ export const palette = {
     missingLinkBg: "rgba(217, 119, 6, 0.08)",
     diagramFrame: "rgba(8, 127, 54, 0.22)",
   },
+  /** `==text==` 色ハイライトの背景（キーは `HIGHLIGHT_COLORS` と一致） */
+  highlight: {
+    yellow: "rgba(250, 204, 21, 0.38)",
+    red: "rgba(248, 113, 113, 0.32)",
+    green: "rgba(74, 222, 128, 0.32)",
+    blue: "rgba(96, 165, 250, 0.32)",
+    purple: "rgba(192, 132, 252, 0.32)",
+  },
   /** boxShadow 等の中立いろ影（stone-900 の RGB） */
   shadow: {
     ink: "28, 25, 23",

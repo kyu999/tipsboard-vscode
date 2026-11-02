@@ -35,6 +35,7 @@ export default {
         bg: palette.bg,
         text: palette.text,
         accent: palette.accent,
+        highlight: palette.highlight,
       },
     },
   },

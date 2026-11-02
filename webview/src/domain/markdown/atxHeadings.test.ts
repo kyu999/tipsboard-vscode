@@ -55,6 +55,12 @@ describe("extractAtxHeadings", () => {
     ]);
   });
 
+  it("strips highlight syntax and color prefixes from heading labels", () => {
+    expect(extractAtxHeadings("## Plan ==red:urgent== and ==todo==\n")).toEqual([
+      { level: 2, text: "Plan urgent and todo", lineNumber: 1 },
+    ]);
+  });
+
   it("strips markdown link and emphasis syntax from heading labels", () => {
     const line =
       "## [B3-5: GeoAI Framework]（[論文あり](assets/files/B3-5.pdf)） **bold**";

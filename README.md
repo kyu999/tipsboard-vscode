@@ -68,6 +68,7 @@ Supported features include:
 - Mermaid diagrams
 - tables
 - KaTeX-style math rendering
+- color highlights: `==text==` (yellow) or `==red:text==` with `yellow` / `red` / `green` / `blue` / `purple`
 - internal link autocomplete
 - tags
 - collapsible **heading outline** navigation to the left of the editor (ATX headings only; click to jump)

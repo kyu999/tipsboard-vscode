@@ -1,3 +1,5 @@
+import { stripHighlightColorPrefix } from "./highlightSyntax";
+
 /** `#tag` のみ構成の行（exportMarkdownPreprocess の TAG_ONLY_LINE と同等）。 */
 const TAG_ONLY_LINE = /^\s*(#[^\s#]+)(\s+(#[^\s#]+))*\s*$/;
 
@@ -30,6 +32,7 @@ function stripMarkdownDecorationsOnce(raw: string): string {
     .replace(/\*([^*]+)\*/g, "$1")
     .replace(/_([^_]+)_/g, "$1")
     .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/==([^=]+)==/g, (_, inner: string) => stripHighlightColorPrefix(inner))
     .replace(/`([^`]+)`/g, "$1");
 }
 

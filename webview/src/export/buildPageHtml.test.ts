@@ -25,6 +25,22 @@ describe("renderBundledMarkdown (markdown-it + KaTeX)", () => {
     expect(html).toContain("<strong>world</strong>");
   });
 
+  it("renders ==text== highlights as <mark> with the color class", () => {
+    const html = renderBundledMarkdown("A ==marker== and ==red:**danger**== but a == b and ===x===.\n");
+    expect(html).toContain('<mark class="tipsboard-highlight tipsboard-highlight-yellow">marker</mark>');
+    expect(html).toContain(
+      '<mark class="tipsboard-highlight tipsboard-highlight-red"><strong>danger</strong></mark>',
+    );
+    expect(html).toContain("a == b");
+    expect(html).toContain("===x===");
+  });
+
+  it("leaves == inside inline code untouched", () => {
+    const html = renderBundledMarkdown("`==code==`\n");
+    expect(html).toContain("<code>==code==</code>");
+    expect(html).not.toContain("<mark");
+  });
+
   it("renders compact image layout options without leaking them into alt text", () => {
     for (const [suffix, textAlign] of [
       ["5l", "left"],

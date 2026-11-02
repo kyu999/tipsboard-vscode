@@ -356,3 +356,71 @@ $$
     }
   });
 });
+
+describe("Tipsboard highlight decorations (==text==)", () => {
+  const opened: EditorView[] = [];
+  afterEach(() => {
+    for (const v of opened.splice(0)) {
+      v.destroy();
+    }
+  });
+
+  it("marks highlighted text and hides the == delimiters and color prefix on non-caret lines", async () => {
+    const doc = "Plain ==marker== and ==red:danger== and **==bold mark==** here.\n\ncaret line";
+    const view = makeView(doc);
+    opened.push(view);
+    await flushLayout(view);
+    const deco = buildTipsboardDecorationSetForTesting(view);
+
+    expectClassAtText(deco, doc, "marker", "cm-tipsboard-highlight cm-tipsboard-highlight-yellow");
+    expectClassAtText(deco, doc, "danger", "cm-tipsboard-highlight cm-tipsboard-highlight-red");
+    expectClassAtText(deco, doc, "bold mark", "cm-tipsboard-highlight cm-tipsboard-highlight-yellow");
+    expectClassAtText(deco, doc, "bold mark", "cm-tipsboard-bold");
+
+    const markerOpen = doc.indexOf("==marker");
+    expect(hasWidgetDecorationAtRange(deco, markerOpen, markerOpen + 2)).toBe(true);
+    const markerClose = doc.indexOf("== and ==red");
+    expect(hasWidgetDecorationAtRange(deco, markerClose, markerClose + 2)).toBe(true);
+    const redPrefix = doc.indexOf("red:");
+    expect(hasWidgetDecorationAtRange(deco, redPrefix, redPrefix + 4)).toBe(true);
+  });
+
+  it("shows raw syntax on the caret line", async () => {
+    const doc = "intro\n\nCaret ==red:here== line";
+    const view = makeView(doc);
+    opened.push(view);
+    await flushLayout(view);
+    const deco = buildTipsboardDecorationSetForTesting(view);
+
+    expectNoClassAtText(deco, doc, "here", "cm-tipsboard-highlight cm-tipsboard-highlight-red");
+    const redPrefix = doc.indexOf("red:");
+    expect(hasWidgetDecorationAtRange(deco, redPrefix, redPrefix + 4)).toBe(false);
+  });
+
+  it("ignores comparisons, unknown color names, and inline code", async () => {
+    const doc = "if a == b then ok, ==note:kept== and `==code==` stay.\n\ncaret line";
+    const view = makeView(doc);
+    opened.push(view);
+    await flushLayout(view);
+    const deco = buildTipsboardDecorationSetForTesting(view);
+
+    expect(classesAtText(deco, doc, "b then").join(" ")).not.toContain("cm-tipsboard-highlight");
+    expectClassAtText(deco, doc, "note:kept", "cm-tipsboard-highlight cm-tipsboard-highlight-yellow");
+    const notePrefix = doc.indexOf("note:");
+    expect(hasWidgetDecorationAtRange(deco, notePrefix, notePrefix + 5)).toBe(false);
+    expect(classesAtText(deco, doc, "code==`").join(" ")).not.toContain("cm-tipsboard-highlight");
+  });
+
+  it("renders highlights inside table cells", async () => {
+    const doc = "| Col | Note |\n| --- | --- |\n| ==blue:cell== | plain |\n\ncaret line";
+    const view = makeView(doc);
+    opened.push(view);
+    await flushLayout(view);
+    const blockDeco = view.state.field(tipsboardTableDecorations);
+    const cell = widgetDOMs(blockDeco, doc.length, view)
+      .map((dom) => dom.querySelector(".cm-tipsboard-highlight-blue"))
+      .find((el) => el != null);
+
+    expect(cell?.textContent).toBe("cell");
+  });
+});

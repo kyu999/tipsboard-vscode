@@ -1,4 +1,5 @@
 import MarkdownIt from "markdown-it";
+import type StateInline from "markdown-it/lib/rules_inline/state_inline.mjs";
 import type Token from "markdown-it/lib/token.mjs";
 import markdownItTaskLists from "markdown-it-task-lists";
 import multimdTable from "markdown-it-multimd-table";
@@ -8,6 +9,8 @@ import katex from "katex";
 import { findMermaidBlocks } from "@/editor/tipsboard-mermaid";
 import { imageLayoutInlineStyle, parseMarkdownImageAlt } from "@/domain/markdown/imageSyntax";
 import mermaid from "mermaid";
+import { HIGHLIGHT_COLORS, parseHighlightColorPrefix } from "@/domain/markdown/highlightSyntax";
+import { palette } from "@/theme/palette";
 import {
   applyDesktopImagePreprocessors,
   applyVaultImageExportPreprocessors,
@@ -31,7 +34,52 @@ function ensureExportMermaid() {
 
 let mdInstance: MarkdownIt | null = null;
 
+const EQUALS = 0x3d;
+
+/**
+ * `==text==` / `==red:text==` を `<mark class="tipsboard-highlight tipsboard-highlight-{color}">` にする。
+ * エディタ（`tipsboard-highlight.ts`）と同じく、`===` 以上と空白で始まる・終わる内側は対象外。
+ */
+function highlightInlineRule(state: StateInline, silent: boolean): boolean {
+  const start = state.pos;
+  const src = state.src;
+  if (
+    src.charCodeAt(start) !== EQUALS ||
+    src.charCodeAt(start + 1) !== EQUALS ||
+    src.charCodeAt(start + 2) === EQUALS ||
+    (start > 0 && src.charCodeAt(start - 1) === EQUALS)
+  ) {
+    return false;
+  }
+
+  const contentStart = start + 2;
+  let close = src.indexOf("==", contentStart);
+  while (close !== -1 && src.charCodeAt(close + 2) === EQUALS) {
+    close = src.indexOf("==", close + 3);
+  }
+  if (close === -1 || close > state.posMax - 2 || close === contentStart) return false;
+  const inner = src.slice(contentStart, close);
+  if (/^\s|\s$/.test(inner)) return false;
+  if (silent) return true;
+
+  const { color, prefixLength } = parseHighlightColorPrefix(inner);
+  const oldPosMax = state.posMax;
+  const open = state.push("tipsboard_highlight_open", "mark", 1);
+  open.markup = "==";
+  open.attrSet("class", `tipsboard-highlight tipsboard-highlight-${color}`);
+  state.pos = contentStart + prefixLength;
+  state.posMax = close;
+  state.md.inline.tokenize(state);
+  const closeToken = state.push("tipsboard_highlight_close", "mark", -1);
+  closeToken.markup = "==";
+  state.pos = close + 2;
+  state.posMax = oldPosMax;
+  return true;
+}
+
 function installExportMarkdownRenderers(md: MarkdownIt): void {
+  md.inline.ruler.before("emphasis", "tipsboard_highlight", highlightInlineRule);
+
   const open = md.renderer.rules.table_open;
   md.renderer.rules.table_open = (tokens, idx, options, env, self) => {
     const inner = open?.(tokens, idx, options, env, self) ?? self.renderToken(tokens, idx, options);
@@ -252,6 +300,16 @@ article.tipsboard-export-article strong,
 article.tipsboard-export-article b {
   font-weight: bold;
 }
+article.tipsboard-export-article mark.tipsboard-highlight {
+  color: inherit;
+  border-radius: 3px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+${HIGHLIGHT_COLORS.map(
+  (color) =>
+    `article.tipsboard-export-article mark.tipsboard-highlight-${color} { background: ${palette.highlight[color]}; }`,
+).join("\n")}
 article.tipsboard-export-article em,
 article.tipsboard-export-article i:not(.tipsboard-export-tag) {
   font-style: italic;

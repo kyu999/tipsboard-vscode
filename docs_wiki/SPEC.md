@@ -498,6 +498,7 @@ vault/
 ### 9.9 エクスポート（HTML）
 
 - 単一ノートを **スタンドアロン HTML** に組み立てる（`export/buildPageHtml.ts`）。数式・Mermaid 等の方針は実装に準拠。
+- 色ハイライト `==text==` は markdown-it のインライン規則で `<mark class="tipsboard-highlight tipsboard-highlight-{color}">` に変換（同梱ユーザーガイドも同じレンダラ）。
 - エラーは UI に短時間表示するタイマー管理あり。
 
 ### 9.10 国際化（i18n）
@@ -541,6 +542,7 @@ vault/
 - **履歴** `history` / `historyKeymap`
 - **検索** `@codemirror/search`（トップにパネル、`tipsboardKeymap` と共存）
 - **装飾・言語** `tipsboardLanguage`, `tipsboardDecorations`, `tipsboardTheme`, `notebookTheme`
+- **色ハイライト記法** `==text==` / `==red:text==`: `tipsboard-highlight.ts` の Lezer 拡張が `Highlight` / `HighlightMark` ノードを作る（開閉判定は GFM `~~` と同じ、`===` 以上は対象外）。色名は `domain/markdown/highlightSyntax.ts` の固定リスト（`yellow` 既定・`red`・`green`・`blue`・`purple`）で、未知の `xxx:` は本文扱い。非カーソル行では `==` と色指定を隠し `cm-tipsboard-highlight-{color}` を付ける（カーソル行は他記法と同様に生 Markdown）。表セル内も同じ色で描画。背景色は `palette.highlight`。
 - **リンククリック** `createLinkClickHandler` → `tipsboard-links.ts`
 - **保存**: エディタ拡張としては持たない（`NoteEditor` / `NoteSaveSession` が担当、§9.6）
 - **縦カーソル移動** `tipsboardKeymap`（`tipsboard-keymap.ts`）: `ArrowUp` / `ArrowDown` は CodeMirror 既定と同じ **見た目の行（折り返し行）単位**。例外は 2 つで、(1) 既定の移動が隣の論理行を飛ばす場合（表・Mermaid・表示数式などの描画済みブロックがソース行を隠しているとき）は隣の論理行へ止めてブロックを編集状態で開く、(2) 折り返していない行で移動先が同じ行に留まる場合（レイアウト取得不可）は隣の行へ進む。ブロックの開閉で高さが 1.5 行分以上変わったときは、移動元の行のすぐ隣にカーソルが来るよう測定フレームでスクロールを補正する。
@@ -610,4 +612,5 @@ vault/
 | 2026-06-06 | 拡張 **v0.3.7**: **見出しナビ**（`NoteOutlineNav`、`atxHeadings.ts`、localStorage 開閉状態）。**Windows 日本語添付オープン**修正（`openOsDefaultApp.ts`、`openVaultAsset`）。README・CHANGELOG・同梱ユーザーガイド・§7・§9.8 を更新。 |
 | 2026-06-07 | 拡張 **v0.3.9**: **Canvas**（`.tipsboard/canvas/*.canvas`、`CanvasView` / `@xyflow/react`、`getCanvas` / `saveCanvas` / `createCanvas` / `deleteCanvas` RPC、ノート改名・削除連動）。README・CHANGELOG・同梱ユーザーガイド・§1・§2・§4.4・§7・§8・§9 を更新。 |
 | 2026-06-14 | 拡張 **v0.4.0**: **Canvas 再設計**（Mermaid 問題構造エディタ、`problem` / `solution`、`CanvasGraph` / `CanvasDetailPane`、深さレーン・フォーカス・構造警告）。JSON 無限ボード廃止。README・CHANGELOG・[`CANVAS_SPEC.md`](./CANVAS_SPEC.md)・同梱ユーザーガイド・§1・§8.1.2・§9.12 を更新。 |
+| 2026-11-02 | 拡張 **v0.6.0**: **色ハイライト記法** `==text==` / `==red:text==` を追加（エディタ装飾・表セル・HTML エクスポート・同梱ガイド・見出しナビのラベル）。README・CHANGELOG・同梱ユーザーガイド・§9.9・§10 を更新。 |
 | 2026-10-26 | 拡張 **v0.5.0**: ノート本文を **明示保存のみ**に変更（保存ボタン / `mod+S`、`NoteSaveSession`、自動保存プラグイン `tipsboard-save.ts` 削除）。タイトルを本文と分離した **クリック編集の見出し**に変更。未保存時の離脱を **保存して移動 / 破棄して移動 / キャンセル** の 3 択に変更。縦矢印を見た目の行単位にし、ブロック開閉時のスクロール補正と画像読み込み後の再計測を追加。依存の脆弱性・ライセンス方針（`check:deps`、第三者ライセンス表記生成）と Font Awesome から `lucide-react` への置換。§8.3・§9.2・§9.4〜§9.7・§10・§12・§13 を更新。 |

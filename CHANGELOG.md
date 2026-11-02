@@ -4,6 +4,12 @@ All notable changes to the **Tipsboard** VS Code extension are documented in thi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.0] - 2026-11-02
+
+### Added
+
+- **Color highlights**: wrap text in `==` to highlight it (`==text==`, yellow by default). Pick a color with a prefix such as `==red:text==` (`yellow`, `red`, `green`, `blue`, `purple`). Works in the editor, table cells, HTML export, and the heading outline.
+
 ## [0.5.1] - 2026-10-26
 
 ### Fixed

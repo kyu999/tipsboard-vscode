@@ -176,6 +176,32 @@
     @apply font-medium text-accent-external underline decoration-accent-external/35 underline-offset-2 transition-colors hover:decoration-accent-external;
   }
 
+  /** `==text==` 色ハイライト（ノート本文の `cm-tipsboard-highlight` と同じ色） */
+  .tipsboard-user-guide mark.tipsboard-highlight {
+    @apply rounded-[3px] text-inherit;
+    box-decoration-break: clone;
+  }
+
+  .tipsboard-user-guide mark.tipsboard-highlight-yellow {
+    @apply bg-highlight-yellow;
+  }
+
+  .tipsboard-user-guide mark.tipsboard-highlight-red {
+    @apply bg-highlight-red;
+  }
+
+  .tipsboard-user-guide mark.tipsboard-highlight-green {
+    @apply bg-highlight-green;
+  }
+
+  .tipsboard-user-guide mark.tipsboard-highlight-blue {
+    @apply bg-highlight-blue;
+  }
+
+  .tipsboard-user-guide mark.tipsboard-highlight-purple {
+    @apply bg-highlight-purple;
+  }
+
   .tipsboard-user-guide code {
     @apply rounded-md bg-bg-code px-1 py-0.5 text-[13px] font-medium text-text-primary;
   }
